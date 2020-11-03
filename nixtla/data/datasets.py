@@ -5,7 +5,6 @@ __all__ = ['SOURCE_URL', 'logger', 'download_file', 'TimeSeriesDataset', 'Yearly
 
 # Cell
 import logging
-import requests
 import subprocess
 import zipfile
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import requests
 from tqdm import tqdm
 
 SOURCE_URL = 'https://robjhyndman.com/data/27-3-Athanasopoulos1.zip'
@@ -154,17 +154,18 @@ class Tourism(TimeSeriesDataset):
             dfs = []
             for col in df.columns:
                 df_col = df[col]
-                lenght = df_col[0].astype(int)
+                length, year = df_col[:2].astype(int)
                 skip_rows = group.rows
 
-                df_col = df_col[skip_rows:lenght + skip_rows]
+                df_col = df_col[skip_rows:length + skip_rows]
                 df_col = df_col.rename('y').to_frame()
                 df_col['unique_id'] = col
+                freq = pd.tseries.frequencies.to_offset(group.name[0])
+                df_col['ds'] = pd.date_range(f'{year}-01-01', periods=length, freq=freq)
 
                 dfs.append(df_col)
 
             df = pd.concat(dfs)
-            df['ds'] = df.groupby('unique_id').cumcount() + 1
 
             data.append(df)
 
@@ -176,7 +177,8 @@ class Tourism(TimeSeriesDataset):
     def download(directory: str) -> None:
         """Download Tourism Dataset."""
         path = Path(directory) / 'tourism' / 'datasets'
-        download_file(path, SOURCE_URL, decompress=True)
+        if not path.exists():
+            download_file(path, SOURCE_URL, decompress=True)
 
     def get_group(self, group: str) -> 'Tourism':
         """Filters group data.
