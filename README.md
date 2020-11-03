@@ -12,7 +12,7 @@ salu2
 
 Import a dataset.
 
-```python
+```
 from nixtla.data.datasets import Tourism
 from nixtla.data.dataloaders import NBeatsDataLoader, uids_ts_from_df
 
@@ -91,7 +91,7 @@ tourism_yearly.Y.head()
 
 Split dataframe into sequence of series
 
-```python
+```
 unique_ids, time_series = uids_ts_from_df(tourism_yearly.Y, id_cols='unique_id')
 unique_ids[:2], time_series[:2]
 ```
@@ -111,7 +111,7 @@ unique_ids[:2], time_series[:2]
 
 Create a train dataloader
 
-```python
+```
 train_dl = NBeatsDataLoader(time_series, input_size=4, output_size=2, batch_size=4, shuffle=False)
 next(iter(train_dl))
 ```
