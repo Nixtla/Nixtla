@@ -14,7 +14,7 @@ jobs:
       - name: Cache conda
         uses: actions/cache@v1
         env:
-          CACHE_NUMBER: 0
+          CACHE_NUMBER: 1
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{ hashFiles('nixtla/environment.yml') }}
@@ -22,10 +22,8 @@ jobs:
       - name: Set up environment
         uses: conda-incubator/setup-miniconda@v1
         with:
-          python-version: 3.7.6
-          mamba-version: "*"
-          channels: conda-forge
           activate-environment: nixtla
+          channel-priority: strict
           environment-file: nixtla/environment.yml
           use-only-tar-bz2: true
 
