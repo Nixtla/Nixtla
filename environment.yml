@@ -9,5 +9,5 @@ dependencies:
   - requests
   - pandas
   - tqdm
-pip:
-  - nbdev
+  - pip:
+    - nbdev
