@@ -5,7 +5,6 @@ __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 index = {"uids_ts_from_df": "dataloaders.ipynb",
          "NBeatsDataLoader": "dataloaders.ipynb",
          "SOURCE_URL": "datasets.ipynb",
-         "BASE_URL": "datasets.ipynb",
          "logger": "datasets.ipynb",
          "download_file": "datasets.ipynb",
          "TimeSeriesDataset": "datasets.ipynb",
