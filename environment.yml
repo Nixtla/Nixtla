@@ -1,0 +1,13 @@
+name: nixtla
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - cpuonly
+  - pytorch
+  - requests
+  - pandas
+  - tqdm
+pip:
+  - nbdev
