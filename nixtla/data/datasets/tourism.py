@@ -95,7 +95,7 @@ class Tourism(TimeSeriesDataclass):
 
         df = df.reset_index().filter(items=['unique_id', 'ds', 'y'])
 
-        return Tourism(Y=df, S=None, X=None)
+        return Tourism(Y=df, S=None, X=None, group=group)
 
     @staticmethod
     def download(directory: str) -> None:

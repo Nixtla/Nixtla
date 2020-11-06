@@ -118,7 +118,7 @@ class M3(TimeSeriesDataclass):
             df = df.groupby('unique_id').tail(class_group.horizon)
             df['ds'] = df.groupby('unique_id').cumcount() + 1
 
-        return M3(Y=df, S=S, X=None)
+        return M3(Y=df, S=S, X=None, idx_categorical_static=[0], group=group)
 
     @staticmethod
     def download(directory: Path) -> None:
