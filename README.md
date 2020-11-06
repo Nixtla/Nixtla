@@ -2,6 +2,9 @@
 
 
 
+[nikstla] (noun, nahuatl) Period of time
+> Machine learning for time series forecasting.
+
 ## Install
 
 `pip install nixtla`
