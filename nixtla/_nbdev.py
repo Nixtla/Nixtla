@@ -19,7 +19,6 @@ index = {"uids_ts_from_df": "dataloaders.ipynb",
          "TimeSeriesDataclass": "datasets_utils.ipynb"}
 
 modules = ["data/dataloaders.py",
-           "data/datasets/__init__.py",
            "data/datasets/m3.py",
            "data/datasets/tourism.py",
            "data/datasets/utils.py"]

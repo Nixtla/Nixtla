@@ -82,7 +82,6 @@ class Info:
 
         return self.class_groups[self.groups.index(group)]
 
-
 # Cell
 @dataclass
 class TimeSeriesDataclass:
