@@ -4,18 +4,24 @@ __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 
 index = {"uids_ts_from_df": "dataloaders.ipynb",
          "NBeatsDataLoader": "dataloaders.ipynb",
-         "SOURCE_URL": "datasets.ipynb",
-         "logger": "datasets.ipynb",
-         "download_file": "datasets.ipynb",
-         "TimeSeriesDataset": "datasets.ipynb",
-         "Yearly": "datasets.ipynb",
-         "Quarterly": "datasets.ipynb",
-         "Monthly": "datasets.ipynb",
-         "TourismInfo": "datasets.ipynb",
-         "Tourism": "datasets.ipynb"}
+         "SOURCE_URL": "datasets_tourism.ipynb",
+         "Yearly": "datasets_tourism.ipynb",
+         "Quarterly": "datasets_tourism.ipynb",
+         "Monthly": "datasets_tourism.ipynb",
+         "Other": "datasets_m3.ipynb",
+         "M3Info": "datasets_m3.ipynb",
+         "M3": "datasets_m3.ipynb",
+         "TourismInfo": "datasets_tourism.ipynb",
+         "Tourism": "datasets_tourism.ipynb",
+         "logger": "datasets_utils.ipynb",
+         "download_file": "datasets_utils.ipynb",
+         "Info": "datasets_utils.ipynb",
+         "TimeSeriesDataclass": "datasets_utils.ipynb"}
 
 modules = ["data/dataloaders.py",
-           "data/datasets.py"]
+           "data/datasets/m3.py",
+           "data/datasets/tourism.py",
+           "data/datasets/utils.py"]
 
 doc_url = "https://Grupo-Abraxas.github.io/nixtla/"
 
