@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 
 from .utils import download_file, Info, TimeSeriesDataclass
 
@@ -78,22 +79,28 @@ class Tourism(TimeSeriesDataclass):
         df = pd.read_csv(file)
 
         dfs = []
-        freq = pd.tseries.frequencies.to_offset(class_group.freq)
+        freq = to_offset(class_group.freq)
         for col in df.columns:
             df_col = df[col]
             length, year = df_col[:2].astype(int)
             skip_rows = class_group.rows
-
+            start_date = pd.to_datetime(f'{year}-01-01')
+            if group != 'Yearly':
+                n_offsets = df_col[2].astype(int)
+                start_date += n_offsets * freq
+            elif col == 'Y18' and not training: # viene mal en el archivo esta serie
+                start_date += 2 * freq
             df_col = df_col[skip_rows:length + skip_rows]
             df_col = df_col.rename('y').to_frame()
             df_col['unique_id'] = col
-            df_col['ds'] = pd.date_range(f'{year}-01-01', periods=length, freq=freq)
+            df_col['ds'] = pd.date_range(start_date, periods=length, freq=freq)
 
             dfs.append(df_col)
 
         df = pd.concat(dfs)
 
         df = df.reset_index().filter(items=['unique_id', 'ds', 'y'])
+        df = df.sort_values(['unique_id', 'ds'])
 
         return Tourism(Y=df, S=None, X=None, group=group)
 

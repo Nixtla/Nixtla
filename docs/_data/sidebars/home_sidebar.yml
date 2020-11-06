@@ -13,8 +13,14 @@ entries:
       title: Dataloaders
       url: dataloaders.html
     - output: web,pdf
-      title: Datasets
-      url: datasets.html
+      title: M3 dataset
+      url: datasets_m3.html
+    - output: web,pdf
+      title: Tourism dataset
+      url: datasets_tourism.html
+    - output: web,pdf
+      title: Utils for datasets
+      url: datasets_utils.html
     output: web
     title: nixtla
   output: web
