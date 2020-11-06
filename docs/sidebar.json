@@ -2,6 +2,8 @@
   "nixtla": {
     "Overview": "/",
     "Dataloaders": "dataloaders.html",
-    "Datasets": "datasets.html"
+    "M3 dataset": "datasets_m3.html",
+    "Tourism dataset": "datasets_tourism.html",
+    "Utils for datasets": "datasets_utils.html"
   }
 }
