@@ -20,7 +20,7 @@ SOURCE_URL = 'https://robjhyndman.com/data/27-3-Athanasopoulos1.zip'
 class Yearly:
     seasonality: int = 1
     horizon: int = 4
-    freq: str = 'D'
+    freq: str = 'Y'
     rows: int = 2
     name: str = 'Yearly'
 
@@ -78,7 +78,7 @@ class Tourism(TimeSeriesDataclass):
         df = pd.read_csv(file)
 
         dfs = []
-        freq = pd.tseries.frequencies.to_offset(class_group.name[0])
+        freq = pd.tseries.frequencies.to_offset(class_group.freq)
         for col in df.columns:
             df_col = df[col]
             length, year = df_col[:2].astype(int)
