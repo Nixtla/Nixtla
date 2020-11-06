@@ -1,8 +1,6 @@
 # Nixtla
-> Machine learning for time series forecasting.
 
 
-[nikstla]  (noun, nahuatl) Period of time
 
 ## Install
 
