@@ -11,5 +11,6 @@ dependencies:
   - pytorch
   - requests
   - tqdm
+  - xlrd
   - pip:
     - nbdev
