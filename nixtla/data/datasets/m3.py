@@ -20,7 +20,7 @@ SOURCE_URL = 'https://forecasters.org/data/m3comp/M3C.xls'
 class Yearly:
     seasonality: int = 1
     horizon: int = 6
-    freq: str = 'D'
+    freq: str = 'Y'
     sheet_name: str = 'M3Year'
     name: str = 'Yearly'
 
@@ -52,6 +52,13 @@ class Other:
 M3Info = Info(groups=('Yearly', 'Quarterly', 'Monthly', 'Other'),
               class_groups=(Yearly, Quarterly, Monthly, Other))
 
+# Internal Cell
+def _return_year(ts):
+    year = ts.iloc[0]
+    year = year if year != 0 else 1970
+
+    return year
+
 # Cell
 @dataclass
 class M3(TimeSeriesDataclass):
@@ -80,16 +87,30 @@ class M3(TimeSeriesDataclass):
         class_group = M3Info.get_group(group)
 
         df = pd.read_excel(path / 'M3C.xls', sheet_name=class_group.sheet_name)
-        df = df.rename(columns={'Series': 'unique_id'})
+
+        df = df.rename(columns={'Series': 'unique_id',
+                                'Category': 'category',
+                                'Starting Year': 'year',
+                                'Starting Month': 'month'})
+
         df['unique_id'] = [class_group.name[0] + str(i + 1) for i in range(len(df))]
+        S = df.filter(items=['unique_id', 'category'])
 
         id_vars = list(df.columns[:6])
-
         df = pd.melt(df, id_vars=id_vars, var_name='ds', value_name='y')
         df = df.dropna().sort_values(['unique_id', 'ds']).reset_index(drop=True)
 
+        freq = pd.tseries.frequencies.to_offset(class_group.freq)
+
+        if group == 'Other':
+            df['year'] = 1970
+
+        df['ds'] = df.groupby('unique_id')['year'] \
+                     .transform(lambda df: pd.date_range(f'{_return_year(df)}-01-01',
+                                                         periods=df.shape[0],
+                                                         freq=freq))
+
         df = df.filter(items=['unique_id', 'ds', 'y'])
-        df = df.sort_values(by=['unique_id', 'ds']).reset_index(drop=True)
 
         if training:
             df = df.groupby('unique_id').apply(lambda df: df.head(-class_group.horizon)).reset_index(drop=True)
@@ -97,7 +118,7 @@ class M3(TimeSeriesDataclass):
             df = df.groupby('unique_id').tail(class_group.horizon)
             df['ds'] = df.groupby('unique_id').cumcount() + 1
 
-        return M3(Y=df, S=None, X=None)
+        return M3(Y=df, S=S, X=None)
 
     @staticmethod
     def download(directory: Path) -> None:

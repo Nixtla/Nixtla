@@ -78,6 +78,7 @@ class Tourism(TimeSeriesDataclass):
         df = pd.read_csv(file)
 
         dfs = []
+        freq = pd.tseries.frequencies.to_offset(class_group.name[0])
         for col in df.columns:
             df_col = df[col]
             length, year = df_col[:2].astype(int)
@@ -86,7 +87,6 @@ class Tourism(TimeSeriesDataclass):
             df_col = df_col[skip_rows:length + skip_rows]
             df_col = df_col.rename('y').to_frame()
             df_col['unique_id'] = col
-            freq = pd.tseries.frequencies.to_offset(class_group.name[0])
             df_col['ds'] = pd.date_range(f'{year}-01-01', periods=length, freq=freq)
 
             dfs.append(df_col)
