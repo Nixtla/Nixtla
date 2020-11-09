@@ -13,6 +13,9 @@ entries:
       title: Dataloaders
       url: dataloaders.html
     - output: web,pdf
+      title: EPF dataset
+      url: datasets_epf.html
+    - output: web,pdf
       title: M3 dataset
       url: datasets_m3.html
     - output: web,pdf
