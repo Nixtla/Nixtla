@@ -4,6 +4,7 @@ __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 
 index = {"uids_ts_from_df": "dataloaders.ipynb",
          "NBeatsDataLoader": "dataloaders.ipynb",
+         "TimeSeriesDataset": "dataset_class.ipynb",
          "SOURCE_URL": "datasets_tourism.ipynb",
          "NP": "datasets_epf.ipynb",
          "PJM": "datasets_epf.ipynb",
@@ -23,13 +24,35 @@ index = {"uids_ts_from_df": "dataloaders.ipynb",
          "logger": "datasets_utils.ipynb",
          "download_file": "datasets_utils.ipynb",
          "Info": "datasets_utils.ipynb",
-         "TimeSeriesDataclass": "datasets_utils.ipynb"}
+         "TimeSeriesDataclass": "datasets_utils.ipynb",
+         "TimeSeriesLoader": "loader_class.ipynb",
+         "divide_no_nan": "model_losses.ipynb",
+         "MAPELoss": "model_losses.ipynb",
+         "MSELoss": "model_losses.ipynb",
+         "SMAPELoss": "model_losses.ipynb",
+         "MASELoss": "model_losses.ipynb",
+         "MAELoss": "model_losses.ipynb",
+         "PinballLoss": "model_losses.ipynb",
+         "Nbeats": "nbeats.ipynb",
+         "NBeatsBlock": "nbeats_model.ipynb",
+         "NBeats": "nbeats_model.ipynb",
+         "IdentityBasis": "nbeats_model.ipynb",
+         "TrendBasis": "nbeats_model.ipynb",
+         "SeasonalityBasis": "nbeats_model.ipynb",
+         "ExogenousBasisInterpretable": "nbeats_model.ipynb",
+         "Chomp1d": "nbeats_model.ipynb",
+         "ExogenousBasisGenericA": "nbeats_model.ipynb"}
 
 modules = ["data/dataloaders.py",
+           "data/ts_dataset.py",
            "data/datasets/epf.py",
            "data/datasets/m3.py",
            "data/datasets/tourism.py",
-           "data/datasets/utils.py"]
+           "data/datasets/utils.py",
+           "data/ts_loader.py",
+           "losses/pytorch.py",
+           "models/nbeats.py",
+           "models/nbeats_model.py"]
 
 doc_url = "https://Grupo-Abraxas.github.io/nixtla/"
 
