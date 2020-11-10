@@ -102,4 +102,4 @@ class TimeSeriesDataclass:
     X: pd.DataFrame
     Y: pd.DataFrame
     idx_categorical_static: Optional[List] = None
-    group: str = None
+    group: Union[str, List[str]] = None

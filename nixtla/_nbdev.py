@@ -5,6 +5,13 @@ __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 index = {"uids_ts_from_df": "dataloaders.ipynb",
          "NBeatsDataLoader": "dataloaders.ipynb",
          "SOURCE_URL": "datasets_tourism.ipynb",
+         "NP": "datasets_epf.ipynb",
+         "PJM": "datasets_epf.ipynb",
+         "BE": "datasets_epf.ipynb",
+         "FR": "datasets_epf.ipynb",
+         "DE": "datasets_epf.ipynb",
+         "EPFInfo": "datasets_epf.ipynb",
+         "EPF": "datasets_epf.ipynb",
          "Yearly": "datasets_tourism.ipynb",
          "Quarterly": "datasets_tourism.ipynb",
          "Monthly": "datasets_tourism.ipynb",
@@ -19,6 +26,7 @@ index = {"uids_ts_from_df": "dataloaders.ipynb",
          "TimeSeriesDataclass": "datasets_utils.ipynb"}
 
 modules = ["data/dataloaders.py",
+           "data/datasets/epf.py",
            "data/datasets/m3.py",
            "data/datasets/tourism.py",
            "data/datasets/utils.py"]
