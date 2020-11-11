@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .utils import download_file, Info, TimeSeriesDataclass
+from ..ts_dataset import TimeSeriesDataset
 
 # Cell
 SOURCE_URL = 'https://forecasters.org/data/m3comp/M3C.xls'
@@ -66,7 +67,8 @@ class M3(TimeSeriesDataclass):
     @staticmethod
     def load(directory: str,
              group: str,
-             training: bool = True) -> 'M3':
+             training: bool = True,
+             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads M3 data.
 
@@ -79,6 +81,9 @@ class M3(TimeSeriesDataclass):
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly', 'Other'.
         training: bool
             Wheter return training or testing data. Default True.
+        return_tensor: bool
+            Wheter return TimeSeriesDataset (tensors, True) or
+            TimeSeriesDataclass (dataframes)
         """
         path = Path(directory) / 'm3' / 'datasets'
 
@@ -118,7 +123,11 @@ class M3(TimeSeriesDataclass):
             df = df.groupby('unique_id').tail(class_group.horizon)
             df['ds'] = df.groupby('unique_id').cumcount() + 1
 
-        return M3(Y=df, S=S, X=None, idx_categorical_static=[0], group=group)
+        if return_tensor:
+            S['category'] = S['category'].astype('category').cat.codes
+            return TimeSeriesDataset(y_df=df, X_s_df=S, X_t_df=None)
+        else:
+            return TimeSeriesDataclass(Y=df, S=S, X=None, idx_categorical_static=[0], group=group)
 
     @staticmethod
     def download(directory: Path) -> None:

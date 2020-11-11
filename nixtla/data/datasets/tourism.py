@@ -12,6 +12,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from .utils import download_file, Info, TimeSeriesDataclass
+from ..ts_dataset import TimeSeriesDataset
 
 # Cell
 SOURCE_URL = 'https://robjhyndman.com/data/27-3-Athanasopoulos1.zip'
@@ -51,7 +52,8 @@ class Tourism(TimeSeriesDataclass):
     @staticmethod
     def load(directory: str,
              group: str,
-             training: bool = True) -> 'Tourism':
+             training: bool = True,
+             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads Tourism data.
 
@@ -64,6 +66,9 @@ class Tourism(TimeSeriesDataclass):
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly'.
         training: bool
             Wheter return training or testing data. Default True.
+        return_tensor: bool
+            Wheter return TimeSeriesDataset (tensors, True) or
+            TimeSeriesDataclass (dataframes)
         """
         path = Path(directory) / 'tourism' / 'datasets'
 
@@ -102,7 +107,10 @@ class Tourism(TimeSeriesDataclass):
         df = df.reset_index().filter(items=['unique_id', 'ds', 'y'])
         df = df.sort_values(['unique_id', 'ds'])
 
-        return Tourism(Y=df, S=None, X=None, group=group)
+        if return_tensor:
+            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None)
+        else:
+            return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
 
     @staticmethod
     def download(directory: str) -> None:
