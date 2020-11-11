@@ -113,3 +113,26 @@ def _create_tensor(self:TimeSeriesDataset, ts_data, static_data):
     static_tensor = t.Tensor(static_tensor)
 
     return ts_tensor, static_tensor, np.array(len_series)
+
+# Cell
+@patch
+def get_meta_data_var(self:TimeSeriesDataset, var):
+    """
+    """
+    var_values = [x[var] for x in self.meta_data]
+    return var_values
+
+@patch
+def get_static_data(self:TimeSeriesDataset):
+    return self.static_data
+
+@patch
+def get_filtered_tensor(self:TimeSeriesDataset, offset, output_size, window_sampling_limit):
+    """
+    Comment here
+    """
+    last_ds = self.max_len - offset + output_size
+    first_ds = max(last_ds - window_sampling_limit - output_size, 0)
+    filtered_tensor = self.ts_tensor[:, :, first_ds:last_ds]
+    right_padding = max(last_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
+    return filtered_tensor, right_padding

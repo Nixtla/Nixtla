@@ -11,126 +11,68 @@
 
 ## How to use
 
-Import a dataset.
+Import a dataset and NBEATS model
 
 ```python
-from nixtla.data.datasets import Tourism
-from nixtla.data.dataloaders import NBeatsDataLoader, uids_ts_from_df
+from nixtla.data.datasets import EPF
+from nixtla.data.ts_loader import TimeSeriesLoader
+from nixtla.models.nbeats import Nbeats
 
-tourism_yearly = Tourism.load(directory='data', group='Yearly', return_tensor=False)
-tourism_yearly.Y.head()
+pjm = EPF.load(directory='data', group='PJM')
 ```
 
+    Processing dataframes ...
+    Creating ts tensor ...
 
 
-
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>unique_id</th>
-      <th>ds</th>
-      <th>y</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>Y1</td>
-      <td>1979-12-31</td>
-      <td>25092.2284</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>Y1</td>
-      <td>1980-12-31</td>
-      <td>24271.5134</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>Y1</td>
-      <td>1981-12-31</td>
-      <td>25828.9883</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>Y1</td>
-      <td>1982-12-31</td>
-      <td>27697.5047</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>Y1</td>
-      <td>1983-12-31</td>
-      <td>27956.2276</td>
-    </tr>
-  </tbody>
-</table>
-</div>
-
-
-
-Split dataframe into sequence of series
+Loader parameters
 
 ```python
-unique_ids, time_series = uids_ts_from_df(tourism_yearly.Y, id_cols='unique_id')
-unique_ids[:2], time_series[:2]
+window_sampling_limit = 365
+input_size_multiplier = 3
+output_size = 24 * 4
+offset = 30 * output_size
 ```
-
-
-
-
-    (('Y1', 'Y10'),
-     (array([25092.2284, 24271.5134, 25828.9883, 27697.5047, 27956.2276,
-             29924.4321, 30216.8321, 32613.4968, 36053.1674, 38472.7532,
-             38420.894 ]),
-      array([ 17913.,  27161.,  31997.,  38761.,  52844.,  86381.,  89549.,
-              98628., 104690., 104505.,  92500.,  97887., 112147., 118189.,
-             143865., 158712., 162135., 170896., 183523., 229567., 236363.,
-             249698., 295018., 376746., 326418., 214556., 259858., 278460.,
-             293105., 329604., 234260.])))
-
-
-
-Create a train dataloader
 
 ```python
-train_dl = NBeatsDataLoader(time_series, input_size=4, output_size=2, batch_size=4, shuffle=False)
-next(iter(train_dl))
+ts_loader = TimeSeriesLoader(ts_dataset=pjm,
+                             offset=offset,
+                             window_sampling_limit=window_sampling_limit,
+                             input_size=input_size_multiplier * output_size,
+                             output_size=output_size,
+                             idx_to_sample_freq=1,
+                             batch_size=512,
+                             model='nbeats')
 ```
 
+    Creating windows matrix ...
 
 
+```python
+model = Nbeats(input_size_multiplier=input_size_multiplier,
+               output_size=output_size,
+               shared_weights=False,
+               stack_types=['identity'],
+               n_blocks=[1],
+               n_layers=[4],
+               n_hidden=[256],
+               exogenous_in_mlp=False,
+               learning_rate=0.001,
+               lr_decay=1.0,
+               n_lr_decay_steps=3,
+               n_iterations=10,
+               early_stopping=None,
+               loss='MAPE',
+               random_seed=1)
+```
 
-    (tensor([[0., 0., 0., 0.],
-             [0., 0., 0., 0.],
-             [0., 0., 0., 0.],
-             [0., 0., 0., 0.]]),
-     tensor([[0., 0., 0., 0.],
-             [0., 0., 0., 0.],
-             [0., 0., 0., 0.],
-             [0., 0., 0., 0.]]),
-     tensor([[0., 0.],
-             [0., 0.],
-             [0., 0.],
-             [0., 0.]]),
-     tensor([[0., 0.],
-             [0., 0.],
-             [0., 0.],
-             [0., 0.]]))
+```python
+model.fit(ts_loader, eval_steps=2)
+```
 
+    ============================== Start fitting ==============================
+    Number of exogenous variables: 9
+    Number of static variables: 0 , with dim_hidden: 1
+    Number of iterations: 10
+    Number of blocks: 1
 
