@@ -3,27 +3,30 @@
 __all__ = ['TimeSeriesLoader']
 
 # Cell
+import copy
+import random
+from collections import defaultdict
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-import random
 import torch as t
-import copy
 from fastcore.foundation import patch
+
 from .ts_dataset import TimeSeriesDataset
-from collections import defaultdict
 
 # Cell
 class TimeSeriesLoader(object):
     def __init__(self,
-                 ts_dataset:TimeSeriesDataset,
-                 model:str,
-                 offset:int,
+                 ts_dataset: TimeSeriesDataset,
+                 model: str,
+                 offset: int,
                  window_sampling_limit: int,
                  input_size: int,
                  output_size: int,
                  idx_to_sample_freq:int, #TODO: not active yet
                  batch_size: int,
-                 hide_ts_idx=None):
+                 hide_ts_idx: Optional[np.array] = None):
         """
         """
         self.model = model
@@ -96,9 +99,9 @@ class TimeSeriesLoader(object):
         if self.model == 'nbeats':
             return self._nbeats_batch(index)
         elif self.model == 'esrnn':
-            assert 1<0, 'hacer esrnn'
+            raise Exception('Not implemented yet')
         else:
-            assert 1<0, 'error'
+            raise Exception(f'Unknown model {model}')
 
     def _nbeats_batch(self, index):
 
