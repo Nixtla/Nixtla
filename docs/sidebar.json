@@ -2,9 +2,14 @@
   "nixtla": {
     "Overview": "/",
     "Dataloaders": "dataloaders.html",
+    "TimeSeriesDataset class": "dataset_class.html",
     "EPF dataset": "datasets_epf.html",
     "M3 dataset": "datasets_m3.html",
     "Tourism dataset": "datasets_tourism.html",
-    "Utils for datasets": "datasets_utils.html"
+    "Utils for datasets": "datasets_utils.html",
+    "TimeSeriesLoader class": "loader_class.html",
+    "Losses": "model_losses.html",
+    "NBEATS": "nbeats.html",
+    "NBEATS model": "nbeats_model.html"
   }
 }
