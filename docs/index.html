@@ -73,7 +73,7 @@ nb_path: "nbs/index.ipynb"
     <div class="input_area">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">nixtla.data.datasets</span> <span class="kn">import</span> <span class="n">EPF</span>
 <span class="kn">from</span> <span class="nn">nixtla.data.ts_loader</span> <span class="kn">import</span> <span class="n">TimeSeriesLoader</span>
-<span class="kn">from</span> <span class="nn">nixtla.models.nbeats</span> <span class="kn">import</span> <span class="n">Nbeats</span>
+<span class="kn">from</span> <span class="nn">nixtla.models</span> <span class="kn">import</span> <span class="n">Nbeats</span>
 
 <span class="n">pjm</span> <span class="o">=</span> <span class="n">EPF</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="s1">&#39;PJM&#39;</span><span class="p">)</span>
 </pre></div>
@@ -221,11 +221,11 @@ Number of exogenous variables: 9
 Number of static variables: 0 , with dim_hidden: 1
 Number of iterations: 10
 Number of blocks: 1
-Step: 0, Time: 0.726, Insample MAPE: 0.39416
-Step: 2, Time: 0.786, Insample MAPE: 0.37484
-Step: 4, Time: 0.862, Insample MAPE: 0.37288
-Step: 6, Time: 0.921, Insample MAPE: 0.34576
-Step: 8, Time: 0.993, Insample MAPE: 0.29966
+Step: 0, Time: 0.078, Insample MAPE: 0.39416
+Step: 2, Time: 0.160, Insample MAPE: 0.37484
+Step: 4, Time: 0.203, Insample MAPE: 0.37288
+Step: 6, Time: 0.270, Insample MAPE: 0.34576
+Step: 8, Time: 0.335, Insample MAPE: 0.29966
 </pre>
 </div>
 </div>
@@ -367,6 +367,204 @@ Step: 8, Time: 0.993, Insample MAPE: 0.29966
   </tbody>
 </table>
 <p>96 rows × 3 columns</p>
+</div>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+    {% endraw %}
+
+<div class="cell border-box-sizing text_cell rendered"><div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h1 id="ESRNN">ESRNN<a class="anchor-link" href="#ESRNN"> </a></h1>
+</div>
+</div>
+</div>
+    {% raw %}
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">nixtla.models</span> <span class="kn">import</span> <span class="n">ESRNN</span>
+
+<span class="n">pjm</span> <span class="o">=</span> <span class="n">EPF</span><span class="o">.</span><span class="n">load_groups</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;NP&#39;</span><span class="p">,</span> <span class="s1">&#39;PJM&#39;</span><span class="p">],</span> <span class="n">return_tensor</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">pjm_test</span> <span class="o">=</span> <span class="n">EPF</span><span class="o">.</span><span class="n">load_groups</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="n">groups</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;NP&#39;</span><span class="p">,</span> <span class="s1">&#39;PJM&#39;</span><span class="p">],</span> <span class="n">training</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_tensor</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    {% endraw %}
+
+    {% raw %}
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">esrnn_model</span> <span class="o">=</span> <span class="n">ESRNN</span><span class="p">(</span><span class="n">max_epochs</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">input_size</span><span class="o">=</span><span class="mi">48</span><span class="p">,</span> 
+                    <span class="n">batch_size</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                    <span class="n">output_size</span><span class="o">=</span><span class="mi">724</span><span class="p">,</span> <span class="n">seasonality</span><span class="o">=</span><span class="p">[</span><span class="mi">24</span><span class="p">])</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    {% endraw %}
+
+    {% raw %}
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">X</span> <span class="o">=</span> <span class="n">pjm</span><span class="o">.</span><span class="n">Y</span><span class="p">[[</span><span class="s1">&#39;unique_id&#39;</span><span class="p">,</span> <span class="s1">&#39;ds&#39;</span><span class="p">]]</span>
+<span class="n">X</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+</div>
+    {% endraw %}
+
+    {% raw %}
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">esrnn_model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">pjm</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+<div class="output_area">
+
+<div class="output_subarea output_stream output_stdout output_text">
+<pre>Infered frequency: H
+=============== Training ESRNN  ===============
+
+========= Epoch 0 finished =========
+Training time: 3.2403
+Training loss (50 prc): 0.27238
+========= Epoch 1 finished =========
+Training time: 3.27377
+Training loss (50 prc): 0.27114
+Train finished! 
+
+</pre>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+    {% endraw %}
+
+    {% raw %}
+    
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+
+<div class="inner_cell">
+    <div class="input_area">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">esrnn_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pjm_test</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</pre></div>
+
+    </div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+<div class="output_area">
+
+
+<div class="output_html rendered_html output_subarea output_execute_result">
+<div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>unique_id</th>
+      <th>ds</th>
+      <th>y</th>
+      <th>y_hat</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>NP</td>
+      <td>2016-12-27 00:00:00</td>
+      <td>24.08</td>
+      <td>25.923931</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>NP</td>
+      <td>2016-12-27 01:00:00</td>
+      <td>22.52</td>
+      <td>20.871693</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>NP</td>
+      <td>2016-12-27 02:00:00</td>
+      <td>20.13</td>
+      <td>20.183880</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>NP</td>
+      <td>2016-12-27 03:00:00</td>
+      <td>19.86</td>
+      <td>20.858877</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>NP</td>
+      <td>2016-12-27 04:00:00</td>
+      <td>20.09</td>
+      <td>22.499296</td>
+    </tr>
+  </tbody>
+</table>
 </div>
 </div>
 
