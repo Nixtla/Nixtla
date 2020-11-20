@@ -24,6 +24,7 @@ class Yearly:
     freq: str = 'Y'
     sheet_name: str = 'M3Year'
     name: str = 'Yearly'
+    n_ts: int = 645
 
 @dataclass
 class Quarterly:
@@ -32,6 +33,7 @@ class Quarterly:
     freq: str = 'Q'
     sheet_name: str = 'M3Quart'
     name: str = 'Quarterly'
+    n_ts: int = 756
 
 @dataclass
 class Monthly:
@@ -40,6 +42,7 @@ class Monthly:
     freq: str = 'M'
     sheet_name: str = 'M3Month'
     name: str = 'Monthly'
+    n_ts: int = 1428
 
 @dataclass
 class Other:
@@ -48,6 +51,7 @@ class Other:
     freq: str = 'D'
     sheet_name: str = 'M3Other'
     name: str = 'Other'
+    n_ts: int = 174
 
 # Cell
 M3Info = Info(groups=('Yearly', 'Quarterly', 'Monthly', 'Other'),
@@ -67,7 +71,6 @@ class M3(TimeSeriesDataclass):
     @staticmethod
     def load(directory: str,
              group: str,
-             training: bool = True,
              return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads M3 data.
@@ -79,11 +82,17 @@ class M3(TimeSeriesDataclass):
         group: str
             Group name.
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly', 'Other'.
-        training: bool
-            Wheter return training or testing data. Default True.
         return_tensor: bool
             Wheter return TimeSeriesDataset (tensors, True) or
             TimeSeriesDataclass (dataframes)
+
+        Notes
+        -----
+        [1] Returns train+test sets.
+        [2] There are monthly time series without start year.
+            This time series will start with 1970.
+        [3] Other time series have no start date.
+            This time series will start with 1970.
         """
         path = Path(directory) / 'm3' / 'datasets'
 
@@ -116,12 +125,6 @@ class M3(TimeSeriesDataclass):
                                                          freq=freq))
 
         df = df.filter(items=['unique_id', 'ds', 'y'])
-
-        if training:
-            df = df.groupby('unique_id').apply(lambda df: df.head(-class_group.horizon)).reset_index(drop=True)
-        else:
-            df = df.groupby('unique_id').tail(class_group.horizon)
-            df['ds'] = df.groupby('unique_id').cumcount() + 1
 
         if return_tensor:
             S['category'] = S['category'].astype('category').cat.codes

@@ -13,7 +13,7 @@
 
 Import a dataset and NBEATS model
 
-```python
+```
 from IPython.display import Markdown
 from nixtla.data.datasets import EPF
 from nixtla.data.ts_loader import TimeSeriesLoader
@@ -28,14 +28,14 @@ pjm = EPF.load(directory='data', group='PJM')
 
 Loader parameters
 
-```python
+```
 window_sampling_limit = 365
 input_size_multiplier = 3
 output_size = 24 * 4
 offset = 30 * output_size
 ```
 
-```python
+```
 ts_loader = TimeSeriesLoader(ts_dataset=pjm,
                              offset=offset,
                              window_sampling_limit=window_sampling_limit,
@@ -49,7 +49,7 @@ ts_loader = TimeSeriesLoader(ts_dataset=pjm,
     Creating windows matrix ...
 
 
-```python
+```
 model = Nbeats(input_size_multiplier=input_size_multiplier,
                output_size=output_size,
                shared_weights=False,
@@ -67,7 +67,7 @@ model = Nbeats(input_size_multiplier=input_size_multiplier,
                random_seed=1)
 ```
 
-```python
+```
 model.fit(ts_loader, eval_steps=2)
 ```
 
@@ -83,11 +83,11 @@ model.fit(ts_loader, eval_steps=2)
     Step: 8, Time: 0.308, Insample MAPE: 0.29966
 
 
-```python
+```
 y_hat = model.predict(ts_loader)
 ```
 
-```python
+```
 Markdown(y_hat.head().to_markdown(index=False))
 ```
 
@@ -106,25 +106,25 @@ Markdown(y_hat.head().to_markdown(index=False))
 
 # ESRNN
 
-```python
+```
 from nixtla.models import ESRNN
 
 pjm = EPF.load_groups(directory='data', groups=['NP', 'PJM'], return_tensor=False)
 pjm_test = EPF.load_groups(directory='data', groups=['NP', 'PJM'], training=False, return_tensor=False)
 ```
 
-```python
+```
 esrnn_model = ESRNN(max_epochs=2, input_size=48, 
                     batch_size=2,
                     output_size=728, seasonality=[24])
 ```
 
-```python
+```
 X = pjm.Y[['unique_id', 'ds']]
 X['x'] = 1
 ```
 
-```python
+```
 esrnn_model.fit(X, pjm.Y)
 ```
 
@@ -141,7 +141,7 @@ esrnn_model.fit(X, pjm.Y)
     
 
 
-```python
+```
 Markdown(esrnn_model.predict(pjm_test.Y).head().to_markdown(index=False))
 ```
 
