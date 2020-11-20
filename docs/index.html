@@ -71,7 +71,8 @@ nb_path: "nbs/index.ipynb"
 
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">nixtla.data.datasets</span> <span class="kn">import</span> <span class="n">EPF</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">IPython.display</span> <span class="kn">import</span> <span class="n">Markdown</span>
+<span class="kn">from</span> <span class="nn">nixtla.data.datasets</span> <span class="kn">import</span> <span class="n">EPF</span>
 <span class="kn">from</span> <span class="nn">nixtla.data.ts_loader</span> <span class="kn">import</span> <span class="n">TimeSeriesLoader</span>
 <span class="kn">from</span> <span class="nn">nixtla.models</span> <span class="kn">import</span> <span class="n">Nbeats</span>
 
@@ -221,11 +222,11 @@ Number of exogenous variables: 9
 Number of static variables: 0 , with dim_hidden: 1
 Number of iterations: 10
 Number of blocks: 1
-Step: 0, Time: 0.040, Insample MAPE: 0.39416
-Step: 2, Time: 0.120, Insample MAPE: 0.37484
-Step: 4, Time: 0.195, Insample MAPE: 0.37288
-Step: 6, Time: 0.271, Insample MAPE: 0.34576
-Step: 8, Time: 0.343, Insample MAPE: 0.29966
+Step: 0, Time: 0.028, Insample MAPE: 0.39416
+Step: 2, Time: 0.098, Insample MAPE: 0.37484
+Step: 4, Time: 0.168, Insample MAPE: 0.37288
+Step: 6, Time: 0.238, Insample MAPE: 0.34576
+Step: 8, Time: 0.308, Insample MAPE: 0.29966
 </pre>
 </div>
 </div>
@@ -260,7 +261,7 @@ Step: 8, Time: 0.343, Insample MAPE: 0.29966
 
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">y_hat</span><span class="o">.</span><span class="n">head</span><span class="p">()</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">Markdown</span><span class="p">(</span><span class="n">y_hat</span><span class="o">.</span><span class="n">head</span><span class="p">()</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
 </pre></div>
 
     </div>
@@ -272,16 +273,46 @@ Step: 8, Time: 0.343, Insample MAPE: 0.29966
 
 <div class="output_area">
 
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>| unique_id   | ds                  |   y_hat |
-|:------------|:--------------------|--------:|
-| PJM         | 2016-12-27 23:00:00 | 21.1163 |
-| PJM         | 2016-12-28 23:00:00 | 18.7953 |
-| PJM         | 2016-12-29 23:00:00 | 20.5183 |
-| PJM         | 2016-12-30 23:00:00 | 19.2623 |
-| PJM         | 2016-12-31 23:00:00 | 16.1545 |
-</pre>
+
+<div class="output_markdown rendered_html output_subarea output_execute_result">
+<table>
+<thead><tr>
+<th style="text-align:left">unique_id</th>
+<th style="text-align:left">ds</th>
+<th style="text-align:right">y_hat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">PJM</td>
+<td style="text-align:left">2016-12-27 23:00:00</td>
+<td style="text-align:right">21.1163</td>
+</tr>
+<tr>
+<td style="text-align:left">PJM</td>
+<td style="text-align:left">2016-12-28 23:00:00</td>
+<td style="text-align:right">18.7953</td>
+</tr>
+<tr>
+<td style="text-align:left">PJM</td>
+<td style="text-align:left">2016-12-29 23:00:00</td>
+<td style="text-align:right">20.5183</td>
+</tr>
+<tr>
+<td style="text-align:left">PJM</td>
+<td style="text-align:left">2016-12-30 23:00:00</td>
+<td style="text-align:right">19.2623</td>
+</tr>
+<tr>
+<td style="text-align:left">PJM</td>
+<td style="text-align:left">2016-12-31 23:00:00</td>
+<td style="text-align:right">16.1545</td>
+</tr>
+</tbody>
+</table>
+
 </div>
+
 </div>
 
 </div>
@@ -377,10 +408,10 @@ Step: 8, Time: 0.343, Insample MAPE: 0.29966
 =============== Training ESRNN  ===============
 
 ========= Epoch 0 finished =========
-Training time: 5.88539
+Training time: 5.12275
 Training loss (50 prc): 0.27288
 ========= Epoch 1 finished =========
-Training time: 5.71301
+Training time: 5.25982
 Training loss (50 prc): 0.27159
 Train finished! 
 
@@ -401,7 +432,7 @@ Train finished!
 
 <div class="inner_cell">
     <div class="input_area">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">esrnn_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pjm_test</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">()</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">Markdown</span><span class="p">(</span><span class="n">esrnn_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pjm_test</span><span class="o">.</span><span class="n">Y</span><span class="p">)</span><span class="o">.</span><span class="n">head</span><span class="p">()</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">(</span><span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
 </pre></div>
 
     </div>
@@ -413,16 +444,52 @@ Train finished!
 
 <div class="output_area">
 
-<div class="output_subarea output_stream output_stdout output_text">
-<pre>| unique_id   | ds                  |     y |   y_hat |
-|:------------|:--------------------|------:|--------:|
-| NP          | 2016-12-27 00:00:00 | 24.08 | 28.6131 |
-| NP          | 2016-12-27 01:00:00 | 22.52 | 23.1586 |
-| NP          | 2016-12-27 02:00:00 | 20.13 | 19.901  |
-| NP          | 2016-12-27 03:00:00 | 19.86 | 24.0669 |
-| NP          | 2016-12-27 04:00:00 | 20.09 | 25.3265 |
-</pre>
+
+<div class="output_markdown rendered_html output_subarea output_execute_result">
+<table>
+<thead><tr>
+<th style="text-align:left">unique_id</th>
+<th style="text-align:left">ds</th>
+<th style="text-align:right">y</th>
+<th style="text-align:right">y_hat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">NP</td>
+<td style="text-align:left">2016-12-27 00:00:00</td>
+<td style="text-align:right">24.08</td>
+<td style="text-align:right">28.6131</td>
+</tr>
+<tr>
+<td style="text-align:left">NP</td>
+<td style="text-align:left">2016-12-27 01:00:00</td>
+<td style="text-align:right">22.52</td>
+<td style="text-align:right">23.1586</td>
+</tr>
+<tr>
+<td style="text-align:left">NP</td>
+<td style="text-align:left">2016-12-27 02:00:00</td>
+<td style="text-align:right">20.13</td>
+<td style="text-align:right">19.901</td>
+</tr>
+<tr>
+<td style="text-align:left">NP</td>
+<td style="text-align:left">2016-12-27 03:00:00</td>
+<td style="text-align:right">19.86</td>
+<td style="text-align:right">24.0669</td>
+</tr>
+<tr>
+<td style="text-align:left">NP</td>
+<td style="text-align:left">2016-12-27 04:00:00</td>
+<td style="text-align:right">20.09</td>
+<td style="text-align:right">25.3265</td>
+</tr>
+</tbody>
+</table>
+
 </div>
+
 </div>
 
 </div>

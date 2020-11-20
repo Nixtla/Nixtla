@@ -14,6 +14,7 @@
 Import a dataset and NBEATS model
 
 ```python
+from IPython.display import Markdown
 from nixtla.data.datasets import EPF
 from nixtla.data.ts_loader import TimeSeriesLoader
 from nixtla.models import Nbeats
@@ -75,11 +76,11 @@ model.fit(ts_loader, eval_steps=2)
     Number of static variables: 0 , with dim_hidden: 1
     Number of iterations: 10
     Number of blocks: 1
-    Step: 0, Time: 0.040, Insample MAPE: 0.39416
-    Step: 2, Time: 0.120, Insample MAPE: 0.37484
-    Step: 4, Time: 0.195, Insample MAPE: 0.37288
-    Step: 6, Time: 0.271, Insample MAPE: 0.34576
-    Step: 8, Time: 0.343, Insample MAPE: 0.29966
+    Step: 0, Time: 0.028, Insample MAPE: 0.39416
+    Step: 2, Time: 0.098, Insample MAPE: 0.37484
+    Step: 4, Time: 0.168, Insample MAPE: 0.37288
+    Step: 6, Time: 0.238, Insample MAPE: 0.34576
+    Step: 8, Time: 0.308, Insample MAPE: 0.29966
 
 
 ```python
@@ -87,16 +88,20 @@ y_hat = model.predict(ts_loader)
 ```
 
 ```python
-print(y_hat.head().to_markdown(index=False))
+Markdown(y_hat.head().to_markdown(index=False))
 ```
 
-    | unique_id   | ds                  |   y_hat |
-    |:------------|:--------------------|--------:|
-    | PJM         | 2016-12-27 23:00:00 | 21.1163 |
-    | PJM         | 2016-12-28 23:00:00 | 18.7953 |
-    | PJM         | 2016-12-29 23:00:00 | 20.5183 |
-    | PJM         | 2016-12-30 23:00:00 | 19.2623 |
-    | PJM         | 2016-12-31 23:00:00 | 16.1545 |
+
+
+
+| unique_id   | ds                  |   y_hat |
+|:------------|:--------------------|--------:|
+| PJM         | 2016-12-27 23:00:00 | 21.1163 |
+| PJM         | 2016-12-28 23:00:00 | 18.7953 |
+| PJM         | 2016-12-29 23:00:00 | 20.5183 |
+| PJM         | 2016-12-30 23:00:00 | 19.2623 |
+| PJM         | 2016-12-31 23:00:00 | 16.1545 |
+
 
 
 # ESRNN
@@ -127,24 +132,28 @@ esrnn_model.fit(X, pjm.Y)
     =============== Training ESRNN  ===============
     
     ========= Epoch 0 finished =========
-    Training time: 5.88539
+    Training time: 5.12275
     Training loss (50 prc): 0.27288
     ========= Epoch 1 finished =========
-    Training time: 5.71301
+    Training time: 5.25982
     Training loss (50 prc): 0.27159
     Train finished! 
     
 
 
 ```python
-print(esrnn_model.predict(pjm_test.Y).head().to_markdown(index=False))
+Markdown(esrnn_model.predict(pjm_test.Y).head().to_markdown(index=False))
 ```
 
-    | unique_id   | ds                  |     y |   y_hat |
-    |:------------|:--------------------|------:|--------:|
-    | NP          | 2016-12-27 00:00:00 | 24.08 | 28.6131 |
-    | NP          | 2016-12-27 01:00:00 | 22.52 | 23.1586 |
-    | NP          | 2016-12-27 02:00:00 | 20.13 | 19.901  |
-    | NP          | 2016-12-27 03:00:00 | 19.86 | 24.0669 |
-    | NP          | 2016-12-27 04:00:00 | 20.09 | 25.3265 |
+
+
+
+| unique_id   | ds                  |     y |   y_hat |
+|:------------|:--------------------|------:|--------:|
+| NP          | 2016-12-27 00:00:00 | 24.08 | 28.6131 |
+| NP          | 2016-12-27 01:00:00 | 22.52 | 23.1586 |
+| NP          | 2016-12-27 02:00:00 | 20.13 | 19.901  |
+| NP          | 2016-12-27 03:00:00 | 19.86 | 24.0669 |
+| NP          | 2016-12-27 04:00:00 | 20.09 | 25.3265 |
+
 
