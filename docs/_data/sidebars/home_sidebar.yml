@@ -28,6 +28,24 @@ entries:
       title: Utils for datasets
       url: datasets_utils.html
     - output: web,pdf
+      title: ESRNN model
+      url: esrnn_model.html
+    - output: web,pdf
+      title: ESRNN utils CONFIG
+      url: esrnn_utils_config.html
+    - output: web,pdf
+      title: ESRNN utils data
+      url: esrnn_utils_data.html
+    - output: web,pdf
+      title: ESRNN utils drnn
+      url: esrnn_utils_drnn.html
+    - output: web,pdf
+      title: ESRNN utils esrnn
+      url: esrnn_utils_esrnn.html
+    - output: web,pdf
+      title: ESRNN utils losses
+      url: esrnn_utils_losses.html
+    - output: web,pdf
       title: TimeSeriesLoader class
       url: loader_class.html
     - output: web,pdf

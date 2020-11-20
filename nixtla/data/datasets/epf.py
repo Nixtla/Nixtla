@@ -159,7 +159,7 @@ class EPF:
         if return_tensor:
             return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
         else:
-            return TimeSeriesDataclass(Y=Y, S=None, X=X, group=groups)
+            return TimeSeriesDataclass(Y=Y, S=S, X=X, group=groups)
 
     @staticmethod
     def download(directory: str) -> None:
