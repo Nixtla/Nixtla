@@ -14,6 +14,7 @@
 Import a dataset and NBEATS model
 
 ```python
+from IPython.display import Markdown
 from nixtla.data.datasets import EPF
 from nixtla.data.ts_loader import TimeSeriesLoader
 from nixtla.models import Nbeats
@@ -75,11 +76,11 @@ model.fit(ts_loader, eval_steps=2)
     Number of static variables: 0 , with dim_hidden: 1
     Number of iterations: 10
     Number of blocks: 1
-    Step: 0, Time: 0.078, Insample MAPE: 0.39416
-    Step: 2, Time: 0.160, Insample MAPE: 0.37484
-    Step: 4, Time: 0.203, Insample MAPE: 0.37288
-    Step: 6, Time: 0.270, Insample MAPE: 0.34576
-    Step: 8, Time: 0.335, Insample MAPE: 0.29966
+    Step: 0, Time: 0.028, Insample MAPE: 0.39416
+    Step: 2, Time: 0.098, Insample MAPE: 0.37484
+    Step: 4, Time: 0.168, Insample MAPE: 0.37288
+    Step: 6, Time: 0.238, Insample MAPE: 0.34576
+    Step: 8, Time: 0.308, Insample MAPE: 0.29966
 
 
 ```python
@@ -87,106 +88,19 @@ y_hat = model.predict(ts_loader)
 ```
 
 ```python
-y_hat
+Markdown(y_hat.head().to_markdown(index=False))
 ```
 
 
 
 
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>unique_id</th>
-      <th>ds</th>
-      <th>y_hat</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>PJM</td>
-      <td>2016-12-27 23:00:00</td>
-      <td>21.116310</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>PJM</td>
-      <td>2016-12-28 23:00:00</td>
-      <td>18.795292</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>PJM</td>
-      <td>2016-12-29 23:00:00</td>
-      <td>20.518282</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>PJM</td>
-      <td>2016-12-30 23:00:00</td>
-      <td>19.262295</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>PJM</td>
-      <td>2016-12-31 23:00:00</td>
-      <td>16.154509</td>
-    </tr>
-    <tr>
-      <th>...</th>
-      <td>...</td>
-      <td>...</td>
-      <td>...</td>
-    </tr>
-    <tr>
-      <th>91</th>
-      <td>PJM</td>
-      <td>2017-03-28 23:00:00</td>
-      <td>21.821650</td>
-    </tr>
-    <tr>
-      <th>92</th>
-      <td>PJM</td>
-      <td>2017-03-29 23:00:00</td>
-      <td>23.728720</td>
-    </tr>
-    <tr>
-      <th>93</th>
-      <td>PJM</td>
-      <td>2017-03-30 23:00:00</td>
-      <td>23.458321</td>
-    </tr>
-    <tr>
-      <th>94</th>
-      <td>PJM</td>
-      <td>2017-03-31 23:00:00</td>
-      <td>26.678900</td>
-    </tr>
-    <tr>
-      <th>95</th>
-      <td>PJM</td>
-      <td>2017-04-01 23:00:00</td>
-      <td>24.330669</td>
-    </tr>
-  </tbody>
-</table>
-<p>96 rows × 3 columns</p>
-</div>
+| unique_id   | ds                  |   y_hat |
+|:------------|:--------------------|--------:|
+| PJM         | 2016-12-27 23:00:00 | 21.1163 |
+| PJM         | 2016-12-28 23:00:00 | 18.7953 |
+| PJM         | 2016-12-29 23:00:00 | 20.5183 |
+| PJM         | 2016-12-30 23:00:00 | 19.2623 |
+| PJM         | 2016-12-31 23:00:00 | 16.1545 |
 
 
 
@@ -202,7 +116,7 @@ pjm_test = EPF.load_groups(directory='data', groups=['NP', 'PJM'], training=Fals
 ```python
 esrnn_model = ESRNN(max_epochs=2, input_size=48, 
                     batch_size=2,
-                    output_size=724, seasonality=[24])
+                    output_size=728, seasonality=[24])
 ```
 
 ```python
@@ -218,84 +132,28 @@ esrnn_model.fit(X, pjm.Y)
     =============== Training ESRNN  ===============
     
     ========= Epoch 0 finished =========
-    Training time: 3.2403
-    Training loss (50 prc): 0.27238
+    Training time: 5.12275
+    Training loss (50 prc): 0.27288
     ========= Epoch 1 finished =========
-    Training time: 3.27377
-    Training loss (50 prc): 0.27114
+    Training time: 5.25982
+    Training loss (50 prc): 0.27159
     Train finished! 
     
 
 
 ```python
-esrnn_model.predict(pjm_test.Y).head()
+Markdown(esrnn_model.predict(pjm_test.Y).head().to_markdown(index=False))
 ```
 
 
 
 
-<div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
-<table border="1" class="dataframe">
-  <thead>
-    <tr style="text-align: right;">
-      <th></th>
-      <th>unique_id</th>
-      <th>ds</th>
-      <th>y</th>
-      <th>y_hat</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <th>0</th>
-      <td>NP</td>
-      <td>2016-12-27 00:00:00</td>
-      <td>24.08</td>
-      <td>25.923931</td>
-    </tr>
-    <tr>
-      <th>1</th>
-      <td>NP</td>
-      <td>2016-12-27 01:00:00</td>
-      <td>22.52</td>
-      <td>20.871693</td>
-    </tr>
-    <tr>
-      <th>2</th>
-      <td>NP</td>
-      <td>2016-12-27 02:00:00</td>
-      <td>20.13</td>
-      <td>20.183880</td>
-    </tr>
-    <tr>
-      <th>3</th>
-      <td>NP</td>
-      <td>2016-12-27 03:00:00</td>
-      <td>19.86</td>
-      <td>20.858877</td>
-    </tr>
-    <tr>
-      <th>4</th>
-      <td>NP</td>
-      <td>2016-12-27 04:00:00</td>
-      <td>20.09</td>
-      <td>22.499296</td>
-    </tr>
-  </tbody>
-</table>
-</div>
+| unique_id   | ds                  |     y |   y_hat |
+|:------------|:--------------------|------:|--------:|
+| NP          | 2016-12-27 00:00:00 | 24.08 | 28.6131 |
+| NP          | 2016-12-27 01:00:00 | 22.52 | 23.1586 |
+| NP          | 2016-12-27 02:00:00 | 20.13 | 19.901  |
+| NP          | 2016-12-27 03:00:00 | 19.86 | 24.0669 |
+| NP          | 2016-12-27 04:00:00 | 20.09 | 25.3265 |
 
 
