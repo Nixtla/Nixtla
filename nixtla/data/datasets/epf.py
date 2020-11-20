@@ -13,6 +13,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from .utils import download_file, Info, TimeSeriesDataclass
+from ..ts_dataset import TimeSeriesDataset
 
 # Cell
 SOURCE_URL = 'https://sandbox.zenodo.org/api/files/da5b2c6f-8418-4550-a7d0-7f2497b40f1b/'
@@ -48,13 +49,14 @@ EPFInfo = Info(groups=('NP', 'PJM', 'BE', 'FR', 'DE'),
                class_groups=(NP, PJM, BE, FR, DE))
 
 # Cell
-class EPF(TimeSeriesDataclass):
+class EPF:
 
     @staticmethod
     def load(directory: str,
              group: str,
              training: bool = True,
-             days_in_test: int = 728) -> 'EPF':
+             days_in_test: int = 728,
+             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads EPF data.
 
@@ -70,6 +72,9 @@ class EPF(TimeSeriesDataclass):
         days_in_test: int
             Number of days to consider in test.
             Only used when training=True.
+        return_tensor: bool
+            Wheter return TimeSeriesDataset (tensors, True) or
+            TimeSeriesDataclass (dataframes)
         """
         path = Path(directory) / 'epf' / 'datasets'
 
@@ -105,13 +110,17 @@ class EPF(TimeSeriesDataclass):
         X = df.filter(items=['unique_id', 'ds', 'Exogenous1', 'Exogenous2'] + \
                       dummies_cols)
 
-        return EPF(Y=Y, S=None, X=X, group=group)
+        if return_tensor:
+            return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
+        else:
+            return TimeSeriesDataclass(Y=Y, S=None, X=X, group=group)
 
     @staticmethod
     def load_groups(directory: str,
                     groups: List[str] = ['BE', 'FR'],
                     training: bool = True,
-                    days_in_test: int = 728) -> 'EPF':
+                    days_in_test: int = 728,
+                    return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads panel of EPF data
         according of groups.
@@ -128,12 +137,16 @@ class EPF(TimeSeriesDataclass):
         days_in_test: int
             Number of days to consider in test.
             Only used when training=True.
+        return_tensor: bool
+            Wheter return TimeSeriesDataset (tensors, True) or
+            TimeSeriesDataclass (dataframes)
         """
         Y = []
         X = []
         for group in groups:
             data = EPF.load(directory, group,
-                            training, days_in_test)
+                            training, days_in_test,
+                            return_tensor=False)
             Y.append(data.Y)
             X.append(data.X)
         Y = pd.concat(Y).sort_values(['unique_id', 'ds']).reset_index(drop=True)
@@ -143,7 +156,10 @@ class EPF(TimeSeriesDataclass):
         dummies = pd.get_dummies(S['unique_id'], prefix='static')
         S = pd.concat([S, dummies], axis=1)
 
-        return EPF(Y=Y, X=X, S=S, group=groups)
+        if return_tensor:
+            return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
+        else:
+            return TimeSeriesDataclass(Y=Y, S=S, X=X, group=groups)
 
     @staticmethod
     def download(directory: str) -> None:
