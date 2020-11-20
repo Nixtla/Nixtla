@@ -27,16 +27,16 @@ class NBeatsBlock(nn.Module):
     """
     N-BEATS block which takes a basis function as an argument.
     """
-    def __init__(self, x_t_n_inputs: int, x_s_n_inputs: int, x_s_n_hidden: int, theta_dim: int, basis: nn.Module, # n_static:int
-                 n_layers: int, theta_n_hidden: int, exogenous_in_mlp: bool, batch_normalization: bool, dropout: float):
+    def __init__(self, x_t_n_inputs: int, x_s_n_inputs: int, x_s_n_hidden: int, theta_n_dim: int, basis: nn.Module, # n_static:int
+                 n_layers: int, theta_n_hidden: int, theta_with_exogenous: bool, batch_normalization: bool, dropout_prob: float):
         """
         """
         super().__init__()
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden
-        self.exogenous_in_mlp = exogenous_in_mlp
+        self.theta_with_exogenous = theta_with_exogenous
         self.batch_normalization = batch_normalization
-        self.dropout = dropout
+        self.dropout_prob = dropout_prob
 
         if x_s_n_inputs == 0:
             x_s_n_hidden = 0
@@ -50,25 +50,29 @@ class NBeatsBlock(nn.Module):
             if self.batch_normalization:
                 hidden_layers.append(nn.BatchNorm1d(theta_n_hidden))
 
-            if self.dropout>0:
-                hidden_layers.append(nn.Dropout(p=self.dropout))
+            if self.dropout_prob>0:
+                hidden_layers.append(nn.Dropout(p=self.dropout_prob))
 
-        output_layer = [nn.Linear(in_features=theta_n_hidden, out_features=theta_dim)]
+        output_layer = [nn.Linear(in_features=theta_n_hidden, out_features=theta_n_dim)]
         layers = input_layer + hidden_layers + output_layer
 
+        # x_s_n_inputs is computed with data, x_s_n_hidden is provided by user, if 0 no statics are used
         if (self.x_s_n_inputs > 0) and (self.x_s_n_hidden > 0):
             self.static_encoder = _StaticFeaturesEncoder(in_features=x_s_n_inputs, out_features=x_s_n_hidden)
         self.layers = nn.Sequential(*layers)
         self.basis = basis
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor,
-                outsample_x_t: t.Tensor, static_data: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
+                outsample_x_t: t.Tensor, x_s: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
 
+        # Static exogenous
         if (self.x_s_n_inputs > 0) and (self.x_s_n_hidden > 0):
-            static_data = self.static_encoder(static_data)
-            insample_y = t.cat((insample_y, static_data), 1)
+            x_s = self.static_encoder(x_s)
+            insample_y = t.cat((insample_y, x_s), 1)
 
-        if (self.exogenous_in_mlp) and (len(outsample_x_t)>0):
+        # Temporal exogenous, only forecasted exogenous are used
+        # TODO: for epf not wavenet, include wavenet encoder in the future
+        if (self.theta_with_exogenous) and (len(outsample_x_t)>0):
             outsample_x_t_flatten = outsample_x_t.reshape(len(outsample_x_t), -1)
             insample_y = t.cat((insample_y, outsample_x_t_flatten), 1)
 
@@ -87,19 +91,16 @@ class NBeats(nn.Module):
         self.blocks = blocks
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                outsample_x_t: t.Tensor, static_data: t.Tensor) -> t.Tensor:
+                outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
 
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
 
-        # Potential batch_norm preprocessing
-        # https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html with a reshape
-        # asinh from https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_sine
-
         forecast = insample_y[:, -1:] # Level with Naive1
         for i, block in enumerate(self.blocks):
-            backcast, block_forecast = block(residuals, insample_x_t, outsample_x_t, static_data)
+            backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
+                                             outsample_x_t=outsample_x_t, x_s=x_s)
             residuals = (residuals - backcast) * insample_mask
             forecast = forecast + block_forecast
         return forecast

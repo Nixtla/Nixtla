@@ -29,24 +29,24 @@ class Nbeats(object):
     def __init__(self,
                  input_size_multiplier=2,
                  output_size=1,
-                 shared_weights=True,
+                 shared_weights=False,
                  stack_types=[TREND_BLOCK, SEASONALITY_BLOCK],
                  n_blocks=[3,3],
                  n_layers=[4,4],
                  n_hidden=[256, 2048],
                  n_harmonics=1,
                  n_polynomials=2,
-                 exogenous_n_channels=1,
-                 exogenous_in_mlp=False,
+                 exogenous_n_channels=3,
+                 theta_with_exogenous=False,
                  batch_normalization=False,
-                 dropout=0,
-                 x_s_n_hidden=1,
+                 dropout_prob=0,
+                 x_s_n_hidden=3,
                  learning_rate=0.001,
                  lr_decay=1.0,
                  n_lr_decay_steps=3,
-                 weight_decay = 0,
+                 weight_decay=0,
                  n_iterations=300,
-                 early_stopping = None,
+                 early_stopping=None,
                  loss='MAPE',
                  frequency=None,
                  seasonality=1,
@@ -64,9 +64,9 @@ class Nbeats(object):
         self.n_harmonics = n_harmonics
         self.n_polynomials = n_polynomials
         self.exogenous_n_channels = exogenous_n_channels
-        self.exogenous_in_mlp = exogenous_in_mlp
+        self.theta_with_exogenous = theta_with_exogenous
         self.batch_normalization = batch_normalization
-        self.dropout = dropout
+        self.dropout_prob = dropout_prob
         self.x_s_n_hidden = x_s_n_hidden
         self.learning_rate = learning_rate
         self.lr_decay = lr_decay
@@ -87,7 +87,7 @@ class Nbeats(object):
 
     def create_stack(self):
         #print(f'| N-Beats')
-        if self.exogenous_in_mlp:
+        if self.theta_with_exogenous:
             x_t_n_inputs = self.input_size + self.output_size * self.n_x_t
         else:
             x_t_n_inputs = self.input_size # y_lags
@@ -96,71 +96,81 @@ class Nbeats(object):
         for i in range(len(self.stack_types)):
             #print(f'| --  Stack {self.stack_types[i]} (#{i})')
             for block_id in range(self.n_blocks[i]):
+                # Batch norm only on first block
+                if (len(block_list)==0) and (self.batch_normalization):
+                    batch_normalization_block = True
+                else:
+                    batch_normalization_block = False
+
+                # Dummy of regularizer in block. Override with 1 if exogenous_block
                 self.blocks_regularizer += [0]
+
+                # Shared weights
                 if self.shared_weights and block_id>0:
                     nbeats_block = block_list[-1]
+
                 else:
                     if self.stack_types[i] == 'seasonality':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_dim=4 * int(
+                                                   theta_n_dim=4 * int(
                                                         np.ceil(self.n_harmonics / 2 * self.output_size) - (self.n_harmonics - 1)),
                                                    basis=SeasonalityBasis(harmonics=self.n_harmonics,
                                                                                 backcast_size=self.input_size,
                                                                                 forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   exogenous_in_mlp=self.exogenous_in_mlp,
-                                                   batch_normalization=self.batch_normalization,
-                                                   dropout=self.dropout)
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob)
                     elif self.stack_types[i] == 'trend':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_dim=2 * (self.n_polynomials + 1),
+                                                   theta_n_dim=2 * (self.n_polynomials + 1),
                                                    basis=TrendBasis(degree_of_polynomial=self.n_polynomials,
                                                                             backcast_size=self.input_size,
                                                                             forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   exogenous_in_mlp=self.exogenous_in_mlp,
-                                                   batch_normalization=self.batch_normalization,
-                                                   dropout=self.dropout)
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob)
                     elif self.stack_types[i] == 'identity':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_dim=self.input_size + self.output_size,
+                                                   theta_n_dim=self.input_size + self.output_size,
                                                    basis=IdentityBasis(backcast_size=self.input_size,
                                                                        forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   exogenous_in_mlp=self.exogenous_in_mlp,
-                                                   batch_normalization=self.batch_normalization,
-                                                   dropout=self.dropout)
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob)
                     elif self.stack_types[i] == 'exogenous':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_dim=2*self.n_x_t,
+                                                   theta_n_dim=2*self.n_x_t,
                                                    basis=ExogenousBasisInterpretable(),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   exogenous_in_mlp=self.exogenous_in_mlp,
-                                                   batch_normalization=self.batch_normalization,
-                                                   dropout=self.dropout)
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob)
                     elif self.stack_types[i] == 'exogenous_g_a':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_dim=2*(self.exogenous_n_channels),
+                                                   theta_n_dim=2*(self.exogenous_n_channels),
                                                    basis=ExogenousBasisGenericA(self.exogenous_n_channels, self.n_x_t),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   exogenous_in_mlp=self.exogenous_in_mlp,
-                                                   batch_normalization=self.batch_normalization,
-                                                   dropout=self.dropout)
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob)
                         self.blocks_regularizer[-1] = 1
                 #print(f'     | -- {nbeats_block}')
                 block_list.append(nbeats_block)
@@ -200,21 +210,22 @@ class Nbeats(object):
         losses = []
         with t.no_grad():
             for batch in iter(ts_loader):
-                insample_y = self.to_tensor(batch['insample_y'])
-                insample_x_t = self.to_tensor(batch['insample_x_t'])
-                insample_mask = self.to_tensor(batch['insample_mask'])
-                outsample_x_t = self.to_tensor(batch['outsample_x_t'])
-                outsample_y = self.to_tensor(batch['outsample_y'])
+                insample_y     = self.to_tensor(batch['insample_y'])
+                insample_x_t   = self.to_tensor(batch['insample_x_t'])
+                insample_mask  = self.to_tensor(batch['insample_mask'])
+                outsample_x_t  = self.to_tensor(batch['outsample_x_t'])
+                outsample_y    = self.to_tensor(batch['outsample_y'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
-                static_data = self.to_tensor(batch['static_data'])
+                x_s    = self.to_tensor(batch['x_s'])
 
-                forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, static_data)
+                forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, x_s)
                 batch_loss = mae(y=forecast.cpu().data.numpy(),
                                  y_hat=outsample_y.cpu().data.numpy(),
                                  weights=outsample_mask.cpu().data.numpy())
                 losses.append(batch_loss)
                 break #TODO: remove this in future
         loss = np.mean(losses)
+        self.model.train()
         return loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
@@ -223,7 +234,7 @@ class Nbeats(object):
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
-        random.seed(self.random_seed)
+        random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
 
         # Attributes of ts_dataset
         self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
@@ -277,10 +288,11 @@ class Nbeats(object):
             outsample_y = self.to_tensor(batch['outsample_y'])
             outsample_mask = self.to_tensor(batch['outsample_mask'])
 
-            static_data = self.to_tensor(batch['static_data'])
+            x_s = self.to_tensor(batch['x_s'])
 
             optimizer.zero_grad()
-            forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, static_data)
+            forecast = self.model(insample_y=insample_y, insample_x_t=insample_x_t,
+                                  insample_mask=insample_mask, outsample_x_t=outsample_x_t, x_s=x_s)
 
             training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
                                             target=outsample_y, mask=outsample_mask)
@@ -294,7 +306,7 @@ class Nbeats(object):
 
             lr_scheduler.step()
             if (step % eval_steps == 0):
-                string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(step,
+                display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(step,
                                                                                 time.time()-start,
                                                                                 self.loss,
                                                                                 training_loss.cpu().data.numpy())
@@ -303,20 +315,20 @@ class Nbeats(object):
 
                 if val_ts_loader is not None:
                     loss = self.evaluate_performance(val_ts_loader)
-                    string += ", Outsample {}: {:.5f}".format(self.loss, loss)
+                    display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
                     self.trajectories['val_loss'].append(loss)
 
                     if self.early_stopping:
                         if loss < best_val_loss:
-                            counter = 0
+                            early_stopping_counter = 0
                             best_val_loss = loss
                         else:
-                            counter += 1
-                        if counter >= self.early_stopping:
+                            early_stopping_counter += 1
+                        if early_stopping_counter >= self.early_stopping:
                             print(10*'-',' Stopped training by early stopping', 10*'-')
                             break
 
-                print(string)
+                print(display_string)
 
                 self.model.train()
                 train_ts_loader.train()
@@ -344,17 +356,17 @@ class Nbeats(object):
         last_ds = ts_loader.get_meta_data_var('last_ds') #TODO: ajustar of offset
 
         batch = next(iter(ts_loader))
-        insample_y = self.to_tensor(batch['insample_y'])
-        insample_x_t = self.to_tensor(batch['insample_x_t'])
-        insample_mask = self.to_tensor(batch['insample_mask'])
-        outsample_x_t = self.to_tensor(batch['outsample_x_t'])
-        outsample_y = self.to_tensor(batch['outsample_y'])
+        insample_y     = self.to_tensor(batch['insample_y'])
+        insample_x_t   = self.to_tensor(batch['insample_x_t'])
+        insample_mask  = self.to_tensor(batch['insample_mask'])
+        outsample_x_t  = self.to_tensor(batch['outsample_x_t'])
+        outsample_y    = self.to_tensor(batch['outsample_y'])
         outsample_mask = self.to_tensor(batch['outsample_mask'])
-        static_data = self.to_tensor(batch['static_data'])
+        x_s    = self.to_tensor(batch['x_s'])
 
         self.model.eval()
         with t.no_grad():
-            forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, static_data)
+            forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, x_s)
 
         if eval_mode:
             return forecast, outsample_y, outsample_mask
