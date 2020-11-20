@@ -3,30 +3,27 @@
 __all__ = ['TimeSeriesLoader']
 
 # Cell
-import copy
-import random
-from collections import defaultdict
-from typing import Optional
-
 import numpy as np
 import pandas as pd
+import random
 import torch as t
+import copy
 from fastcore.foundation import patch
-
 from .ts_dataset import TimeSeriesDataset
+from collections import defaultdict
 
 # Cell
 class TimeSeriesLoader(object):
     def __init__(self,
-                 ts_dataset: TimeSeriesDataset,
-                 model: str,
-                 offset: int,
+                 ts_dataset:TimeSeriesDataset,
+                 model:str,
+                 offset:int,
                  window_sampling_limit: int,
                  input_size: int,
                  output_size: int,
-                 idx_to_sample_freq:int, #TODO: not active yet
+                 idx_to_sample_freq: int, #TODO: not active yet
                  batch_size: int,
-                 hide_ts_idx: Optional[np.array] = None):
+                 ts_outsample_mask: list=[]):
         """
         """
         self.model = model
@@ -37,61 +34,67 @@ class TimeSeriesLoader(object):
         self.idx_to_sample_freq = idx_to_sample_freq
         self.offset = offset
         self.ts_dataset = copy.deepcopy(ts_dataset) #TODO: sacar deep_copy
-        self.hide_ts_idx = hide_ts_idx
+        self.ts_outsample_mask = ts_outsample_mask
+        self.t_cols = self.ts_dataset.t_cols
 
-        # mascara propia
-        if self.hide_ts_idx is not None:
-            self.ts_dataset.ts_tensor[:, -1, self.hide_ts_idx] = 0
+        # Overwrite mask if provided
+        if len(self.ts_outsample_mask) > 0:
+            self.ts_dataset.ts_tensor[:, self.t_cols.index('outsample_mask'), :] = t.as_tensor(ts_outsample_mask,dtype=t.float32)
 
-        # Windows
-        print('Creating windows matrix ...')
-        self.ts_windows = self._create_windows_tensor()
-        self.n_windows = len(self.ts_windows)
-        self.static_data = self.ts_dataset.get_static_data().repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
-        self.sampling_idx = self._update_sampling_idx()
+        # Create rolling window matrix and broadcasted x_s
+        self._create_train_data()
         self._is_train = True
-        #random.seed(1)
 
-    def _update_sampling_idx(self):
+        #TODO: cambiar estos prints
+        # print('X: time series features, of shape (#series,#times,#features): \t' + str(X.shape))
+        # print('Y: target series (in X), of shape (#series,#times): \t \t' + str(Y.shape))
+        # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
+
+    def _update_sampling_windows_idxs(self):
         # Only sample during training windows with at least one active output mask
-        sampling_idx = t.sum(self.ts_windows[:, -1, -self.output_size:], axis=1)
+        sampling_idx = t.sum(self.ts_windows[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
         sampling_idx = t.nonzero(sampling_idx > 0)
         return list(sampling_idx.flatten().numpy())
 
     def _create_windows_tensor(self):
         """
         Comment here
+        TODO: Cuando creemos el otro dataloader, si es compatible lo hacemos funcion transform en utils
         """
-        tensor, right_padding = self.ts_dataset.get_filtered_tensor(self.offset, self.output_size, self.window_sampling_limit)
-        _, c, _ = tensor.size()
+        tensor, right_padding = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
+                                                                    window_sampling_limit=self.window_sampling_limit)
+        _, n_channels, _ = tensor.size()
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)
         tensor = padder(tensor)
 
-        tensor[:, 0, -self.output_size:] = 0
-        tensor[:, -1, -self.output_size:] = 0
+        # Last output_size outsample_mask and y to 0
+        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no leakage
+        tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
+        # Creating rolling windows
         windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=1)
         windows = windows.permute(2,0,1,3)
-        windows = windows.reshape(-1, c, self.input_size + self.output_size)
+        windows = windows.reshape(-1, n_channels, self.input_size + self.output_size)
         return windows
 
     def __len__(self):
         return len(self.len_series)
 
     def __iter__(self):
+        #TODO: revisar como se hace el -1 de batch_size en un dataloader de torch. Otra opcion es simplemente batch_size grande,
+        # tambien se puede arregar con epoca
         while True:
             if self._is_train:
                 if self.batch_size > 0:
-                    sampled_ts_indices = np.random.choice(self.sampling_idx, size=self.batch_size, replace=True)
+                    sampled_ts_indices = np.random.choice(self.windows_sampling_idx, size=self.batch_size, replace=True)
                 else:
-                    sampled_ts_indices = self.sampling_idx
+                    sampled_ts_indices = self.windows_sampling_idx
             else:
+                # Get last n_series windows, dataset is ordered because of unfold
                 sampled_ts_indices = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
 
             batch = self.__get_item__(sampled_ts_indices)
-
-            #print(batch)
 
             yield batch
 
@@ -99,38 +102,44 @@ class TimeSeriesLoader(object):
         if self.model == 'nbeats':
             return self._nbeats_batch(index)
         elif self.model == 'esrnn':
-            raise Exception('Not implemented yet')
+            assert 1<0, 'hacer esrnn'
         else:
-            raise Exception(f'Unknown model {model}')
+            assert 1<0, 'error'
 
     def _nbeats_batch(self, index):
-
         windows = self.ts_windows[index]
-        static_data = self.static_data[index]
+        x_s = self.x_s[index]
 
-        insample_y = windows[:, 0, :self.input_size]
-        insample_x_t = windows[:, 1:-1, :self.input_size]
-        insample_mask = t.ones((len(insample_y), self.input_size)) #TODO: si afecta en nbeats en residuales, cambiar!
-        #insample_mask = windows[:, -1, :self.input_size]
+        insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
+        insample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
+        insample_mask = windows[:, self.t_cols.index('insample_mask'), :self.input_size]
 
-        outsample_y = windows[:, 0, self.input_size:]
-        outsample_x_t = windows[:, 1:-1, self.input_size:]
-        outsample_mask = windows[:, -1, self.input_size:]
+        outsample_y = windows[:, self.t_cols.index('y'), self.input_size:]
+        outsample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
+        outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
 
         batch = {'insample_y':insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
                   'outsample_y':outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
-                  'static_data':static_data}
+                  'x_s':x_s}
 
         return batch
+
+    def _create_train_data(self):
+        """
+        """
+        #print('Creating windows matrix ...')
+        # Create rolling window matrix
+        self.ts_windows = self._create_windows_tensor()
+        self.n_windows = len(self.ts_windows)
+        # Broadcast x_s: This works because unfold in windows_tensor, padded windows, unshuffled data.
+        self.x_s = self.ts_dataset.get_x_s().repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
+        self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
     def update_offset(self, offset):
         if offset == self.offset:
             return # Avoid extra computation
         self.offset = offset
-        self.ts_windows = self._create_windows_tensor()
-        self.n_windows = len(self.ts_windows)
-        self.static_data = self.ts_dataset.get_static_data().repeat(int(self.n_windows/self.ts_dataset.n_series), 1) #n_windows can change with offset
-        self.sampling_idx = self._update_sampling_idx()
+        self._create_train_data()
 
     def get_meta_data_var(self, var):
         """
