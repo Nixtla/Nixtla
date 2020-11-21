@@ -100,15 +100,15 @@ class TimeSeriesLoader(object):
         else:
             cut_point = max(self.ts_dataset.max_len-self.offset, self.input_size)
 
-        insample_window = ts[:-1, max(0, cut_point - self.input_size):cut_point] #se saca mask channel del final
+        insample_window = ts[:-2, max(0, cut_point - self.input_size):cut_point] #se saca mask channel del final
         insample[:, -insample_window.shape[1]:] = insample_window
 
         if self._is_train:
             #se saca mask channel del final
-            outsample_window = ts[:-1, cut_point:min(self.ts_dataset.max_len - self.offset, cut_point + self.output_size)]
+            outsample_window = ts[:-2, cut_point:min(self.ts_dataset.max_len - self.offset, cut_point + self.output_size)]
         else:
             #se saca mask channel del final
-            outsample_window = ts[:-1, cut_point:min(self.ts_dataset.max_len, cut_point + self.output_size)]
+            outsample_window = ts[:-2, cut_point:min(self.ts_dataset.max_len, cut_point + self.output_size)]
 
         outsample[:, :outsample_window.shape[1]] = outsample_window
         outsample_mask[:outsample_window.shape[1]] = 1.0

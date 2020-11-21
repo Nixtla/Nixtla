@@ -123,13 +123,16 @@ class TimeSeriesDataset(Dataset):
     def get_x_s(self):
         return self.x_s
 
-    def get_filtered_tensor(self, offset, output_size, window_sampling_limit):
+    def get_filtered_tensor(self, offset, output_size, window_sampling_limit, ts_idxs=None):
         """
         Esto te da todo lo que tenga el tensor, el futuro incluido esto orque se usa exogenoas del futuro
         La mascara se hace despues
         """
         last_outsample_ds = self.max_len - offset + output_size
         first_ds = max(last_outsample_ds - window_sampling_limit - output_size, 0)
-        filtered_tensor = self.ts_tensor[:, :, first_ds:last_outsample_ds]
+        if ts_idxs is None:
+            filtered_tensor = self.ts_tensor[:, :, first_ds:last_outsample_ds]
+        else:
+            filtered_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
         return filtered_tensor, right_padding
