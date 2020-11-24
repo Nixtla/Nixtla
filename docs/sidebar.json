@@ -2,7 +2,7 @@
   "nixtla": {
     "Overview": "/",
     "Dataloaders": "dataloaders.html",
-    "TimeSeriesDataset class": "dataset_class.html",
+    "Title": "nbeats_model.html",
     "EPF dataset": "datasets_epf.html",
     "M3 dataset": "datasets_m3.html",
     "Tourism dataset": "datasets_tourism.html",
@@ -13,9 +13,8 @@
     "ESRNN utils drnn": "esrnn_utils_drnn.html",
     "ESRNN utils esrnn": "esrnn_utils_esrnn.html",
     "ESRNN utils losses": "esrnn_utils_losses.html",
-    "TimeSeriesLoader class": "loader_class.html",
-    "Losses": "model_losses.html",
-    "NBEATS": "nbeats.html",
-    "NBEATS model": "nbeats_model.html"
+    "NBEATS CV": "experiments_nbeats_cv.html",
+    "SOTA params": "experiments_nbeats_sota_params.html",
+    "Metrics": "model_metrics.html"
   }
 }

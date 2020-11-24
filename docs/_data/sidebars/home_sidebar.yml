@@ -13,8 +13,8 @@ entries:
       title: Dataloaders
       url: dataloaders.html
     - output: web,pdf
-      title: TimeSeriesDataset class
-      url: dataset_class.html
+      title: Title
+      url: nbeats_model.html
     - output: web,pdf
       title: EPF dataset
       url: datasets_epf.html
@@ -46,17 +46,14 @@ entries:
       title: ESRNN utils losses
       url: esrnn_utils_losses.html
     - output: web,pdf
-      title: TimeSeriesLoader class
-      url: loader_class.html
+      title: NBEATS CV
+      url: experiments_nbeats_cv.html
     - output: web,pdf
-      title: Losses
-      url: model_losses.html
+      title: SOTA params
+      url: experiments_nbeats_sota_params.html
     - output: web,pdf
-      title: NBEATS
-      url: nbeats.html
-    - output: web,pdf
-      title: NBEATS model
-      url: nbeats_model.html
+      title: Metrics
+      url: model_metrics.html
     output: web
     title: nixtla
   output: web
