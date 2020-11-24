@@ -305,7 +305,7 @@ class Nbeats(object):
             optimizer.step()
 
             lr_scheduler.step()
-            if (step % eval_steps == 0):
+            if (step % eval_steps == 0) and verbose:
                 display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(step,
                                                                                 time.time()-start,
                                                                                 self.loss,
@@ -334,7 +334,7 @@ class Nbeats(object):
                 train_ts_loader.train()
 
         #End of fitting
-        if n_iterations >0:
+        if n_iterations > 0 and verbose:
             self.final_insample_loss = training_loss.cpu().data.numpy() #TODO: this is batch!
             string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(step,
                                                                             time.time()-start,
