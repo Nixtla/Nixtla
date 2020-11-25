@@ -68,6 +68,7 @@ class TimeSeriesLoader(object):
         tensor, right_padding = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
                                                                     window_sampling_limit=self.window_sampling_limit,
                                                                     ts_idxs=ts_idxs)
+        tensor = t.Tensor(tensor)
         _, n_channels, _ = tensor.size()
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)

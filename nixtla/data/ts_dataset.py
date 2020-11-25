@@ -14,10 +14,12 @@ from collections import defaultdict
 
 # Cell
 class TimeSeriesDataset(Dataset):
-    def __init__(self,
+    def __init__(self, #TODO: poner hint the tipo
                  y_df,
+                 output_size = None,
                  X_t_df = None,
-                 X_s_df = None):
+                 X_s_df = None,
+                 ts_train_mask = None):
         """
         """
         assert type(y_df) == pd.core.frame.DataFrame
@@ -30,6 +32,7 @@ class TimeSeriesDataset(Dataset):
         ts_data, x_s, self.meta_data, self.t_cols = self._df_to_lists(y_df=y_df, X_s_df=X_s_df, X_t_df=X_t_df)
 
         # Attributes
+        self.output_size = output_size
         self.n_series = len(ts_data)
         self.max_len = max([len(ts['y']) for ts in ts_data])
         self.n_channels = len(ts_data[0].values())
@@ -43,6 +46,14 @@ class TimeSeriesDataset(Dataset):
 
         print('Creating ts tensor ...')
         self.ts_tensor, self.x_s, self.len_series = self._create_tensor(ts_data, x_s)
+
+        if ts_train_mask is not None:
+            assert len(ts_train_mask)==self.max_len, f'Outsample mask must have length {self.max_len}'
+        else:
+            ts_train_mask = np.ones(self.max_len)
+
+        self._declare_outsample_train_mask(ts_train_mask)
+
 
     def _df_to_lists(self, y_df, X_s_df, X_t_df):
         """
@@ -98,30 +109,42 @@ class TimeSeriesDataset(Dataset):
         ts_tensor = np.zeros((self.n_series, self.n_channels + 2, self.max_len)) # +2 for the masks
         static_tensor = np.zeros((self.n_series, len(x_s[0])))
 
-        #TODO: usar tcols.get_loc()
         len_series = []
         for idx in range(self.n_series):
             ts_idx = np.array(list(ts_data[idx].values()))
             ts_tensor[idx, :self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = ts_idx
-            ts_tensor[idx, self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = 1 # TODO: pensar si sacar esto al loader
-            ts_tensor[idx, self.t_cols.index('outsample_mask'), -ts_idx.shape[1]:] = 1 # TODO: pensar si sacar esto al loader
+            ts_tensor[idx, self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = 1
+            # To avoid sampling windows without inputs to predict
+            # Outsample mask will be later completed with the 'train_mask'
+            ts_tensor[idx, self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]-1):] = 1
             static_tensor[idx, :] = list(x_s[idx].values())
             len_series.append(ts_idx.shape[1])
 
-        # TODO: mover a loader, se puede mantener un numpy
-        ts_tensor = t.Tensor(ts_tensor)
-        static_tensor = t.Tensor(static_tensor)
-
         return ts_tensor, static_tensor, np.array(len_series)
+
+    def _declare_outsample_train_mask(self, ts_train_mask):
+        # Update attribute and ts_tensor
+        self.ts_train_mask = ts_train_mask
+        # Broadcasting self.ts_train_mask to n_series to get outsample_mask = (outsample_mask AND train_mask)
+        #outsample_train_mask = self.ts_tensor[:, self.t_cols.index('outsample_mask'), :] * self.ts_train_mask
+        #tensor_validation_mask = self.ts_tensor[:, self.t_cols.index('outsample_mask'), :] * (1-self.ts_train_mask)
+        #self.ts_tensor[:, self.t_cols.index('outsample_mask'), :] = outsample_train_mask
+
+        # Array with max of outsample mask per window
+        # self.train_sampling_mask = np.zeros((self.n_series, self.max_len))
+        # self.validation_sampling_mask = np.zeros((self.n_series, self.max_len))
+        # for i in range(1, self.max_len): #0 is not sampleable
+        #     train_outsample_mask = tensor_train_mask[:, i:(i + self.output_size)]
+        #     self.train_sampling_mask[:,i] = np.max(train_outsample_mask, axis=1)
+
+        #     validation_outsample_mask = tensor_validation_mask[:, i:(i + self.output_size)]
+        #     self.validation_sampling_mask[:,i] = np.max(validation_outsample_mask, axis=1)
 
     def get_meta_data_var(self, var):
         """
         """
         var_values = [x[var] for x in self.meta_data]
         return var_values
-
-    def get_x_s(self):
-        return self.x_s
 
     def get_filtered_tensor(self, offset, output_size, window_sampling_limit, ts_idxs=None):
         """

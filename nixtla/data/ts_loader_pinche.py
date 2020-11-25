@@ -23,38 +23,53 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int, #TODO: not active yet
                  batch_size: int,
-                 ts_outsample_mask: list=[]):
+                 train_loader: bool):
         """
         """
+        self.ts_dataset = ts_dataset # Pass by reference
         self.model = model
+        self.offset = offset
         self.window_sampling_limit = window_sampling_limit
         self.input_size = input_size
         self.output_size = output_size
-        self.batch_size = batch_size
         self.idx_to_sample_freq = idx_to_sample_freq
-        self.offset = offset
-        self.ts_dataset = copy.deepcopy(ts_dataset) #TODO: sacar deep_copy
-        self.ts_outsample_mask = ts_outsample_mask # TODO: no funciona por ahora
-
-        # #TODO: use tcols.get_loc()
-        # # mascara propia
-        # if len(self.ts_outsample_mask) > 0:
-        #     #self.ts_dataset.ts_tensor[:, -1, self.hide_ts_idx] = 0
-        #     self.ts_dataset.ts_tensor[:, -1, :] = t.as_tensor(ts_outsample_mask,dtype=t.float32)
-
-        # We sample from this tensor
-        self.time_series = self.ts_dataset.ts_tensor
-        self.x_s = self.ts_dataset.get_x_s()
-
+        self.batch_size = batch_size
+        self.train_loader = train_loader
         self._is_train = True
+
+        assert offset < self.ts_dataset.max_len, 'Offset must be smaller than max_len'
+
+        self.window_sampling_idx = self._update_windows_sampling_idx()
 
         #TODO: cambiar estos prints
         # print('X: time series features, of shape (#series,#times,#features): \t' + str(X.shape))
         # print('Y: target series (in X), of shape (#series,#times): \t \t' + str(Y.shape))
         # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
 
-    def __len__(self):
-        return len(self.ts_dataset.len_series)
+    def _update_windows_sampling_idx(self):
+        # Filter sampling_mask with offset and window_sampling_limit
+        last_ds = self.ts_dataset.max_len - self.offset
+        first_ds = max(last_ds - self.window_sampling_limit, 0)
+        filtered_outsample_mask = self.ts_dataset.ts_tensor[:, self.ts_dataset.t_cols.index('outsample_mask'), first_ds:last_ds]
+        filtered_ts_train_mask = self.ts_dataset.ts_train_mask[first_ds:last_ds]
+
+        # Get indices of train/validation windows
+        if self.train_loader:
+            train_mask =  filtered_outsample_mask * filtered_ts_train_mask
+            indices = np.argwhere(train_mask > 0)
+        else:
+            val_mask = filtered_outsample_mask * (1-filtered_ts_train_mask)
+            indices = np.argwhere(val_mask > 0)
+
+        #To change relative position of filtered tensor to global position
+        indices[:, 1] += first_ds
+
+        #Loop for each serie to extract window_sampling_idx
+        window_sampling_idx = []
+        for i in range(self.ts_dataset.n_series):
+            ts_idx = indices[indices[:, 0] == i]
+            window_sampling_idx.append(list(ts_idx[:, 1]))
+        return window_sampling_idx
 
     def __iter__(self):
         while True:
@@ -85,23 +100,30 @@ class TimeSeriesLoader(object):
 
     def _nbeats_batch(self, index):
         insample = np.zeros((self.ts_dataset.n_channels, self.input_size), dtype=float)
-        insample_mask = np.ones(self.input_size)  #TODO: si afecta en nbeats en residuales, cambiar!
+        insample_mask = np.zeros(self.input_size)
         outsample = np.zeros((self.ts_dataset.n_channels, self.output_size), dtype=float)
         outsample_mask = np.zeros(self.output_size)
 
-        ts = self.time_series[index]
+        ts = self.ts_dataset.ts_tensor[index]
         len_ts = self.ts_dataset.len_series[index]
-        # Rolling window (like replay buffer)
-        init_ts = max(self.ts_dataset.max_len-len_ts+1, self.ts_dataset.max_len-self.offset-self.window_sampling_limit)
+        init_ts = max(self.ts_dataset.max_len-len_ts, self.ts_dataset.max_len-self.offset-self.window_sampling_limit) #TODO: precomputar en loader
 
         assert self.ts_dataset.max_len-self.offset > init_ts, f'Offset too big for serie {index}'
         if self._is_train:
-            cut_point = np.random.randint(low=init_ts, high=self.ts_dataset.max_len-self.offset, size=1)[0]
+            cut_point = np.random.choice(self.window_sampling_idx[index],1)[0] # Sampling from available cuts for ts "index"
         else:
             cut_point = max(self.ts_dataset.max_len-self.offset, self.input_size)
 
-        insample_window = ts[:-2, max(0, cut_point - self.input_size):cut_point] #se saca mask channel del final
+        insample_window = ts[:-2, max(0, cut_point - self.input_size):cut_point] # se saca mask channel del final
+        insample_mask_start = min(self.input_size, cut_point - init_ts) #In case cut_point is close to init_ts, because series are padded
+        # print('ts', ts)
+        # print('insample', insample)
+        # print('insample_window', insample_window)
+        # print('self.window_sampling_idx[index]',self.window_sampling_idx[index])
+        # print('cut_point', cut_point)
+        # print('----')
         insample[:, -insample_window.shape[1]:] = insample_window
+        insample_mask[-insample_mask_start:] = 1.0
 
         if self._is_train:
             #se saca mask channel del final
@@ -110,8 +132,11 @@ class TimeSeriesLoader(object):
             #se saca mask channel del final
             outsample_window = ts[:-2, cut_point:min(self.ts_dataset.max_len, cut_point + self.output_size)]
 
+        # First mask is to filter after offset, second mask to filter ts validation
         outsample[:, :outsample_window.shape[1]] = outsample_window
         outsample_mask[:outsample_window.shape[1]] = 1.0
+        outsample_mask[:outsample_window.shape[1]] = outsample_mask[:outsample_window.shape[1]] * \
+                                                     self.ts_dataset.ts_train_mask[cut_point:(cut_point+outsample_window.shape[1])]
 
         insample_y = insample[0, :]
         insample_x_t = insample[1:, :]
@@ -119,7 +144,7 @@ class TimeSeriesLoader(object):
         outsample_y = outsample[0, :]
         outsample_x_t = outsample[1:, :]
 
-        x_s = self.x_s[index, :]
+        x_s = self.ts_dataset.x_s[index, :]
 
         sample = {'insample_y':insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
                   'outsample_y':outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,

@@ -113,7 +113,7 @@ class Tourism(TimeSeriesDataclass):
         df = df.sort_values(['unique_id', 'ds'])
 
         if return_tensor:
-            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None)
+            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None, output_size=class_group.horizon)
         else:
             return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
 

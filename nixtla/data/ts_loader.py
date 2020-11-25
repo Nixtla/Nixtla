@@ -63,6 +63,7 @@ class TimeSeriesLoader(object):
         """
         tensor, right_padding = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
                                                                     window_sampling_limit=self.window_sampling_limit)
+        tensor = t.Tensor(tensor)
         _, n_channels, _ = tensor.size()
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)
@@ -132,7 +133,7 @@ class TimeSeriesLoader(object):
         self.ts_windows = self._create_windows_tensor()
         self.n_windows = len(self.ts_windows)
         # Broadcast x_s: This works because unfold in windows_tensor, padded windows, unshuffled data.
-        self.x_s = self.ts_dataset.get_x_s().repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
+        self.x_s = self.ts_dataset.x_s.repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
     def update_offset(self, offset):
