@@ -55,7 +55,8 @@ class CrossValidationNbeats:
                                         output_size=hparams['output_size'],
                                         idx_to_sample_freq=1,
                                         batch_size=hparams['batch_size'],
-                                        model='nbeats')
+                                        model='nbeats',
+                                        train_loader=True)
 
                 model = Nbeats(input_size_multiplier=hparams['input_size_multiplier'],
                                output_size=hparams['output_size'],
