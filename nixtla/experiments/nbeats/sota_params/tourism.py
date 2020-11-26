@@ -29,7 +29,7 @@ class Yearly:
     grid = {**common_grid,
             **{'output_size': [4],
                'offset': [4],
-               'window_sampling_limit': [20],
+               'window_sampling_limit_multiplier': [20],
                'n_iterations': [30],
                'frequency': ['Y'],
                'seasonality': [1]}}
@@ -42,7 +42,7 @@ class Quarterly:
     grid = {**common_grid,
             **{'output_size': [8],
                'offset': [8],
-               'window_sampling_limit': [10],
+               'window_sampling_limit_multiplier': [10],
                'n_iterations': [500],
                'frequency': ['Q'],
                'seasonality': [4]}}
@@ -55,7 +55,7 @@ class Monthly:
     grid = {**common_grid,
             **{'output_size': [24],
                'offset': [24],
-               'window_sampling_limit': [20],
+               'window_sampling_limit_multiplier': [20],
                'n_iterations': [300],
                'frequency': ['MS'],
                'seasonality': [12]}}
