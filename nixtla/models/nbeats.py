@@ -15,7 +15,8 @@ from torch import optim
 from pathlib import Path
 
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis, ExogenousBasisGenericA, ExogenousBasisInterpretable
-from ..losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
+from ..losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, RMSELoss
+from ..losses.numpy import mae, mse, mape, smape, rmse
 
 # Cell
 class Nbeats(object):
@@ -186,8 +187,27 @@ class Nbeats(object):
                 return SMAPELoss(y=target, y_hat=forecast, mask=mask) + self.l1_regularization()
             elif loss_name == 'MSE':
                 return MSELoss(y=target, y_hat=forecast, mask=mask) + self.l1_regularization()
+            elif loss_name == 'RMSE':
+                return RMSELoss(y=target, y_hat=forecast, mask=mask) + self.l1_regularization()
             elif loss_name == 'MAE':
                 return MAELoss(y=target, y_hat=forecast, mask=mask) + self.l1_regularization()
+            else:
+                raise Exception(f'Unknown loss function: {loss_name}')
+        return loss
+
+    def __val_loss_fn(self, loss_name: str):
+        #TODO: mase not implemented
+        def loss(forecast, target, weights):
+            if loss_name == 'MAPE':
+                return mape(y=target, y_hat=forecast, weights=weights) #TODO: faltan weights
+            elif loss_name == 'SMAPE':
+                return smape(y=target, y_hat=forecast, weights=weights) #TODO: faltan weights
+            elif loss_name == 'MSE':
+                return mse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'RMSE':
+                return rmse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MAE':
+                return mae(y=target, y_hat=forecast, weights=weights)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -203,7 +223,7 @@ class Nbeats(object):
         tensor = t.as_tensor(x, dtype=t.float32).to(self.device)
         return tensor
 
-    def evaluate_performance(self, ts_loader):
+    def evaluate_performance(self, ts_loader, validation_loss_fn):
         #TODO: mas opciones que mae
         self.model.eval()
 
@@ -219,9 +239,9 @@ class Nbeats(object):
                 x_s    = self.to_tensor(batch['x_s'])
 
                 forecast = self.model(insample_y, insample_x_t, insample_mask, outsample_x_t, x_s)
-                batch_loss = mae(y=forecast.cpu().data.numpy(),
-                                 y_hat=outsample_y.cpu().data.numpy(),
-                                 weights=outsample_mask.cpu().data.numpy())
+                batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
+                                                forecast=outsample_y.cpu().data.numpy(),
+                                                weights=outsample_mask.cpu().data.numpy())
                 losses.append(batch_loss)
                 break #TODO: remove this in future
         loss = np.mean(losses)
@@ -257,7 +277,9 @@ class Nbeats(object):
 
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_steps, gamma=self.lr_decay)
+
         training_loss_fn = self.__loss_fn(self.loss)
+        validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
 
         if verbose and (n_iterations > 0):
             print('='*30+' Start fitting '+'='*30)
@@ -314,7 +336,7 @@ class Nbeats(object):
                 self.trajectories['train_loss'].append(training_loss.cpu().data.numpy())
 
                 if val_ts_loader is not None:
-                    loss = self.evaluate_performance(val_ts_loader)
+                    loss = self.evaluate_performance(val_ts_loader, validation_loss_fn)
                     display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
                     self.trajectories['val_loss'].append(loss)
 
@@ -341,7 +363,7 @@ class Nbeats(object):
                                                                             self.loss,
                                                                             self.final_insample_loss)
             if val_ts_loader is not None:
-                self.final_outsample_loss = self.evaluate_performance(val_ts_loader)
+                self.final_outsample_loss = self.evaluate_performance(val_ts_loader, validation_loss_fn)
                 string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
             print(string)
             print('='*30+'End fitting '+'='*30)
