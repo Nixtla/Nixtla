@@ -50,7 +50,7 @@ class CrossValidationNbeats:
 
                 ts_loader = self.loader(ts_dataset=ts_dataset,
                                         offset=hparams['offset'],
-                                        window_sampling_limit=hparams['window_sampling_limit'],
+                                        window_sampling_limit=hparams['window_sampling_limit_multiplier'] * hparams['output_size'],
                                         input_size=hparams['input_size_multiplier'] * hparams['output_size'],
                                         output_size=hparams['output_size'],
                                         idx_to_sample_freq=1,
