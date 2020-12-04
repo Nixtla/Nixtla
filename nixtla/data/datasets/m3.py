@@ -128,7 +128,7 @@ class M3(TimeSeriesDataclass):
 
         if return_tensor:
             S['category'] = S['category'].astype('category').cat.codes
-            return TimeSeriesDataset(y_df=df, X_s_df=S, X_t_df=None)
+            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None)
         else:
             return TimeSeriesDataclass(Y=df, S=S, X=None, idx_categorical_static=[0], group=group)
 
