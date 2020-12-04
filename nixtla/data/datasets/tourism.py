@@ -25,6 +25,7 @@ class Yearly:
     freq: str = 'Y'
     rows: int = 2
     name: str = 'Yearly'
+    n_ts: int = 518
 
 @dataclass
 class Quarterly:
@@ -33,6 +34,7 @@ class Quarterly:
     freq: str = 'Q'
     rows: int = 3
     name: str = 'Quarterly'
+    n_ts: int = 427
 
 @dataclass
 class Monthly:
@@ -41,6 +43,7 @@ class Monthly:
     freq: str = 'M'
     rows: int = 3
     name: str = 'Monthly'
+    n_ts: int = 366
 
 # Cell
 TourismInfo = Info(groups=('Yearly', 'Quarterly', 'Monthly'),
@@ -52,7 +55,6 @@ class Tourism(TimeSeriesDataclass):
     @staticmethod
     def load(directory: str,
              group: str,
-             training: bool = True,
              return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads Tourism data.
@@ -64,11 +66,13 @@ class Tourism(TimeSeriesDataclass):
         group: str
             Group name.
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly'.
-        training: bool
-            Wheter return training or testing data. Default True.
         return_tensor: bool
             Wheter return TimeSeriesDataset (tensors, True) or
             TimeSeriesDataclass (dataframes)
+
+        Notes
+        -----
+        [1] Returns train+test sets.
         """
         path = Path(directory) / 'tourism' / 'datasets'
 
@@ -76,31 +80,32 @@ class Tourism(TimeSeriesDataclass):
 
         class_group = TourismInfo.get_group(group)
 
-        if training:
-            file = path / f'{class_group.name.lower()}_in.csv'
-        else:
-            file = path / f'{class_group.name.lower()}_oos.csv'
+        train_file = path / f'{class_group.name.lower()}_in.csv'
+        test_file = path / f'{class_group.name.lower()}_oos.csv'
 
-        df = pd.read_csv(file)
+        train, test = pd.read_csv(train_file), pd.read_csv(test_file)
 
         dfs = []
         freq = to_offset(class_group.freq)
-        for col in df.columns:
-            df_col = df[col]
-            length, year = df_col[:2].astype(int)
-            skip_rows = class_group.rows
-            start_date = pd.to_datetime(f'{year}-01-01')
-            if group != 'Yearly':
-                n_offsets = df_col[2].astype(int)
-                start_date += n_offsets * freq
-            elif col == 'Y18' and not training: # viene mal en el archivo esta serie
-                start_date += 2 * freq
-            df_col = df_col[skip_rows:length + skip_rows]
-            df_col = df_col.rename('y').to_frame()
-            df_col['unique_id'] = col
-            df_col['ds'] = pd.date_range(start_date, periods=length, freq=freq)
-
-            dfs.append(df_col)
+        for col in train.columns:
+            df_appended = []
+            for df, training in zip([train, test], [True, False]):
+                df_col = df[col]
+                length, year = df_col[:2].astype(int)
+                skip_rows = class_group.rows
+                start_date = pd.to_datetime(f'{year}-01-01')
+                if group != 'Yearly':
+                    n_offsets = df_col[2].astype(int)
+                    start_date += n_offsets * freq
+                elif col == 'Y18' and not training: # viene mal en el archivo esta serie
+                    start_date += 2 * freq
+                df_col = df_col[skip_rows:length + skip_rows]
+                df_col = df_col.rename('y').to_frame()
+                df_col['unique_id'] = col
+                df_col['ds'] = pd.date_range(start_date, periods=length, freq=freq)
+                df_appended.append(df_col)
+            df_appended = pd.concat(df_appended)
+            dfs.append(df_appended)
 
         df = pd.concat(dfs)
 

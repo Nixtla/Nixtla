@@ -28,13 +28,15 @@ class NBeatsBlock(nn.Module):
     N-BEATS block which takes a basis function as an argument.
     """
     def __init__(self, x_t_n_inputs: int, x_s_n_inputs: int, x_s_n_hidden: int, theta_dim: int, basis: nn.Module, # n_static:int
-                 n_layers: int, theta_n_hidden: int, exogenous_in_mlp: bool):
+                 n_layers: int, theta_n_hidden: int, exogenous_in_mlp: bool, batch_normalization: bool, dropout: float):
         """
         """
         super().__init__()
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden
         self.exogenous_in_mlp = exogenous_in_mlp
+        self.batch_normalization = batch_normalization
+        self.dropout = dropout
 
         if x_s_n_inputs == 0:
             x_s_n_hidden = 0
@@ -44,6 +46,13 @@ class NBeatsBlock(nn.Module):
         for _ in range(n_layers-1):
             hidden_layers.append(nn.Linear(in_features=theta_n_hidden, out_features=theta_n_hidden))
             hidden_layers.append(nn.ReLU())
+
+            if self.batch_normalization:
+                hidden_layers.append(nn.BatchNorm1d(theta_n_hidden))
+
+            if self.dropout>0:
+                hidden_layers.append(nn.Dropout(p=self.dropout))
+
         output_layer = [nn.Linear(in_features=theta_n_hidden, out_features=theta_dim)]
         layers = input_layer + hidden_layers + output_layer
 

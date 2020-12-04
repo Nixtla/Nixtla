@@ -52,6 +52,9 @@ entries:
       title: Losses
       url: model_losses.html
     - output: web,pdf
+      title: Metrics
+      url: model_metrics.html
+    - output: web,pdf
       title: NBEATS
       url: nbeats.html
     - output: web,pdf

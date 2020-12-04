@@ -15,6 +15,7 @@
     "ESRNN utils losses": "esrnn_utils_losses.html",
     "TimeSeriesLoader class": "loader_class.html",
     "Losses": "model_losses.html",
+    "Metrics": "model_metrics.html",
     "NBEATS": "nbeats.html",
     "NBEATS model": "nbeats_model.html"
   }
