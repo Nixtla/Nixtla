@@ -39,7 +39,8 @@ def download_file(directory: Union[str, Path], source_url: str, decompress: bool
     filepath = directory / filename
 
     # Streaming, so we can iterate over the response.
-    r = requests.get(source_url, stream=True)
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    r = requests.get(source_url, stream=True, headers=headers)
     # Total size in bytes.
     total_size = int(r.headers.get('content-length', 0))
     block_size = 1024 #1 Kibibyte
@@ -49,6 +50,7 @@ def download_file(directory: Union[str, Path], source_url: str, decompress: bool
         for data in r.iter_content(block_size):
             t.update(len(data))
             f.write(data)
+            f.flush()
     t.close()
 
     if total_size != 0 and t.n != total_size:
@@ -81,6 +83,18 @@ class Info:
             raise Exception(f'Unkown group {group}')
 
         return self.class_groups[self.groups.index(group)]
+
+    def __getitem__(self, group: str):
+        """Gets dataclass of group."""
+        if group not in self.groups:
+            raise Exception(f'Unkown group {group}')
+
+        return self.class_groups[self.groups.index(group)]
+
+    def __iter__(self):
+        for group in self.groups:
+            yield group, self.get_group(group)
+
 
 # Cell
 @dataclass
