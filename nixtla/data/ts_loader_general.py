@@ -23,7 +23,7 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int, #TODO: not active yet
                  batch_size: int,
-                 n_series_per_batch: int,
+                 n_series_per_batch: int = None,
                  ts_outsample_mask: list=[]):
         """
         """
@@ -37,22 +37,13 @@ class TimeSeriesLoader(object):
         self.ts_dataset = copy.deepcopy(ts_dataset) #TODO: sacar deep_copy
         self.ts_outsample_mask = ts_outsample_mask
         self.t_cols = self.ts_dataset.t_cols
-        self.n_series_per_batch = min(n_series_per_batch, self.ts_dataset.n_series)
+        self.n_series_per_batch = n_series_per_batch if n_series_per_batch is not None else batch_size
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
 
-        assert self.batch_size % self.n_series_per_batch == 0, \
-                        f'batch_size {self.batch_size} must be multiple of n_series_per_batch {self.n_series_per_batch}'
-
-        # Overwrite mask if provided
         if len(self.ts_outsample_mask) > 0:
             self.ts_dataset.ts_tensor[:, self.t_cols.index('outsample_mask'), :] = t.as_tensor(ts_outsample_mask,dtype=t.float32)
 
         self._is_train = True
-
-        #TODO: cambiar estos prints
-        # print('X: time series features, of shape (#series,#times,#features): \t' + str(X.shape))
-        # print('Y: target series (in X), of shape (#series,#times): \t \t' + str(Y.shape))
-        # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
 
     def _get_sampleable_windows_idxs(self, ts_windows):
         # Only sample during training windows with at least one active output mask
@@ -88,11 +79,10 @@ class TimeSeriesLoader(object):
         while True:
             if self._is_train:
                 ts_idxs = np.random.choice(range(self.ts_dataset.n_series),
-                                           size=self.n_series_per_batch, replace=False)
+                                           size=self.n_series_per_batch,
+                                           replace=True)
             else:
-                # Get last n_series windows, dataset is ordered because of unfold
-                assert 1<0, 'implementar'
-                #ts_idxs = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
+                ts_idxs = range(self.get_n_series())
 
             batch = self.__get_item__(index=ts_idxs)
 
@@ -110,10 +100,18 @@ class TimeSeriesLoader(object):
 
         # Create windows for each sampled ts and sample random unmasked windows from each ts
         windows = self._create_windows_tensor(index)
-        sampleable_windows = self._get_sampleable_windows_idxs(windows)
-        windows_idxs = np.random.choice(sampleable_windows, self.batch_size, replace=True)
-        windows = windows[windows_idxs]
 
+        sampleable_windows = self._get_sampleable_windows_idxs(windows)
+
+        if self._is_train:
+            windows_idxs = np.random.choice(sampleable_windows, self.batch_size, replace=True)
+            windows = windows[windows_idxs]
+        else:
+            windows_idxs = index
+            windows = windows[-self.get_n_series():]
+
+
+        #TODO: Fix this part.
         x_s = self.ts_dataset.x_s[index]
         x_s = x_s.repeat(self.windows_per_serie, 1)
         x_s = x_s[windows_idxs]
@@ -126,8 +124,8 @@ class TimeSeriesLoader(object):
         outsample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
         outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
 
-        batch = {'insample_y':insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
-                  'outsample_y':outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
+        batch = {'insample_y': insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
+                  'outsample_y': outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
                   'x_s':x_s}
 
         return batch
