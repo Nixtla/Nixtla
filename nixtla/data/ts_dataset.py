@@ -48,8 +48,10 @@ class TimeSeriesDataset(Dataset):
         self.n_s = 0 if S_df is None else S_df.shape[1]-1 # -1 for unique_id
 
         print('Creating ts tensor ...')
-        # Balances panel and creates numpy tensor of shapes (n_series, n_channels, max_len)
-        self.ts_tensor, self.s_tensor, self.len_series = self._create_tensor(ts_data, s_data)
+        # Balances panel and creates
+        # numpy  s_matrix of shape (n_series, n_s)
+        # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
+        self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
         if ts_train_mask is None: ts_train_mask = np.ones(self.max_len)
         assert len(ts_train_mask)==self.max_len, f'Outsample mask must have {self.max_len} length'
 
@@ -106,10 +108,11 @@ class TimeSeriesDataset(Dataset):
 
     def _create_tensor(self, ts_data, s_data):
         """
-        ts_tensor: n_series x n_channels x max_len
+        s_matrix of shape (n_series, n_s)
+        ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
         """
+        s_matrix  = np.zeros((self.n_series, self.n_s))
         ts_tensor = np.zeros((self.n_series, self.n_channels, self.max_len))
-        static_tensor = np.zeros((self.n_series, len(s_data[0])))
 
         len_series = []
         for idx in range(self.n_series):
@@ -120,10 +123,10 @@ class TimeSeriesDataset(Dataset):
             # To avoid sampling windows without inputs available to predict we shift -1
             # outsample_mask will be completed with the train_mask, this ensures available data
             ts_tensor[idx,  self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]-1):] = 1
-            static_tensor[idx, :] = list(s_data[idx].values())
+            s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
 
-        return ts_tensor, static_tensor, np.array(len_series)
+        return ts_tensor, s_matrix, np.array(len_series)
 
     def _declare_outsample_train_mask(self, ts_train_mask):
         # Update attribute and ts_tensor

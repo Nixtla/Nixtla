@@ -154,7 +154,7 @@ class M4(TimeSeriesDataclass):
 
         if return_tensor:
             #S['category'] = S['category'].astype('category').cat.codes
-            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None)
+            return TimeSeriesDataset(Y_df=df, S_df=None, X_df=None)
         else:
             return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
 

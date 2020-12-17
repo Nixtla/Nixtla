@@ -12,6 +12,8 @@ from fastcore.foundation import patch
 from .ts_dataset import TimeSeriesDataset
 from collections import defaultdict
 
+# np.random.seed(1)
+
 # Cell
 # TODO: train_masks no estan definidass para el DataloaderGeneral
 # TODO: revisar _create_windows_tensor method para checar que la declaracion de la train_mask y su uso es correcto
@@ -22,16 +24,16 @@ from collections import defaultdict
 # TODO: _get_sampleable_windows_idxs linea muy malvada de windows con frequencia aumenta de 3.0 a 3.6 segundos el batch
 class TimeSeriesLoader(object):
     def __init__(self,
-                 ts_dataset:TimeSeriesDataset,
-                 model:str,
-                 offset:int,
+                 ts_dataset: TimeSeriesDataset,
+                 model: str,
+                 offset: int,
                  window_sampling_limit: int,
                  input_size: int,
                  output_size: int,
                  idx_to_sample_freq: int,
                  batch_size: int,
                  is_train_loader: bool,
-                 n_series_per_batch: int = None):
+                 n_series_per_batch: int=None):
         """
         """
         # Dataloader attributes
@@ -76,9 +78,9 @@ class TimeSeriesLoader(object):
         """
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data, otherwise filters series
-        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
-                                                                                window_sampling_limit=self.window_sampling_limit,
-                                                                                ts_idxs=ts_idxs)
+        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+                                                                                   window_sampling_limit=self.window_sampling_limit,
+                                                                                   ts_idxs=ts_idxs)
         tensor = t.Tensor(tensor)
 
         # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
@@ -137,22 +139,21 @@ class TimeSeriesLoader(object):
 
         #TODO: Fix this part. We have not tested the addition of static variables in DataLoaderGeneral
         #.     This is inspired in the repeat of the in DataLoaderFast
-        x_s = self.ts_dataset.x_s[index]
-        x_s = x_s.repeat(self.windows_per_serie, 1)
-        x_s = x_s[windows_idxs]
+        s_matrix = self.ts_dataset.s_matrix[index]
+        s_matrix = s_matrix.repeat(self.windows_per_serie, 1)
+        s_matrix = s_matrix[windows_idxs]
 
         insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
-        insample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
+        insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
         insample_mask = windows[:, self.t_cols.index('insample_mask'), :self.input_size]
 
         outsample_y = windows[:, self.t_cols.index('y'), self.input_size:]
-        outsample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
+        outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
         outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
 
-        batch = {'insample_y': insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
-                  'outsample_y': outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
-                  'x_s':x_s}
-
+        batch = {'s_matrix': s_matrix,
+                 'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
+                 'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
         return batch
 
     def update_offset(self, offset):
