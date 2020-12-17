@@ -15,7 +15,7 @@ from collections import defaultdict
 # np.random.seed(1)
 
 # Cell
-# TODO: train_masks no estan definidass para el DataloaderGeneral
+# TODO: train_masks no estan definidas para el DataloaderGeneral
 # TODO: revisar _create_windows_tensor method para checar que la declaracion de la train_mask y su uso es correcto
 #.      no sabemos si hay algo diferente respecto a su uso en el DataLoaderFast
 # TODO: pensar variable shuffle para compatibilidad con dataloader de pytorch y keras
