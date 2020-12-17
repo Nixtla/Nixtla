@@ -13,6 +13,9 @@ from .ts_dataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell
+# TODO: pensar variable shuffle para compatibilidad con dataloader de pytorch y keras
+#.      por el momento tenemos solo validacion boostrapeada, no existe modo no shuffle
+#.      para evaluacion no estocástica, nuestra validación está hackeada.
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset:TimeSeriesDataset,
@@ -21,11 +24,12 @@ class TimeSeriesLoader(object):
                  window_sampling_limit: int,
                  input_size: int,
                  output_size: int,
-                 idx_to_sample_freq: int, #TODO: not active yet
+                 idx_to_sample_freq: int, # TODO: Usada en hack ENORME para window frequency sampling
                  batch_size: int,
-                 ts_outsample_mask: list=[]):
+                 is_train_loader: bool):
         """
         """
+        # Dataloader attributes
         self.model = model
         self.window_sampling_limit = window_sampling_limit
         self.input_size = input_size
@@ -33,19 +37,15 @@ class TimeSeriesLoader(object):
         self.batch_size = batch_size
         self.idx_to_sample_freq = idx_to_sample_freq
         self.offset = offset
-        self.ts_dataset = copy.deepcopy(ts_dataset) #TODO: sacar deep_copy
-        self.ts_outsample_mask = ts_outsample_mask
+        self.ts_dataset = ts_dataset
         self.t_cols = self.ts_dataset.t_cols
-
-        # Overwrite mask if provided
-        if len(self.ts_outsample_mask) > 0:
-            self.ts_dataset.ts_tensor[:, self.t_cols.index('outsample_mask'), :] = t.as_tensor(ts_outsample_mask,dtype=t.float32)
+        self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
 
         # Create rolling window matrix and broadcasted x_s
         self._create_train_data()
-        self._is_train = True
+        self._is_train = True # Boolean variable for train and eval mode for dataloader (random vs ordered batches)
 
-        #TODO: cambiar estos prints
+        #TODO: mejorar estos prints
         # print('X: time series features, of shape (#series,#times,#features): \t' + str(X.shape))
         # print('Y: target series (in X), of shape (#series,#times): \t \t' + str(Y.shape))
         # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
@@ -54,29 +54,41 @@ class TimeSeriesLoader(object):
         # Only sample during training windows with at least one active output mask
         sampling_idx = t.sum(self.ts_windows[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
         sampling_idx = t.nonzero(sampling_idx > 0)
-        return list(sampling_idx.flatten().numpy())
+        sampling_idx = list(sampling_idx.flatten().numpy())
+        # TODO: pensar como resolver el hack de +1,
+        #.      el +1 está diseñado para addressear el shift que tenemos que garantiza que el primer train tenga
+        #.      por lo menos un input en la train_mask, además este código necesita la condición de que la serie más larga empieza
+        #.      en el ds del que se va a querer samplear con la frecuencia particular. Hay dos hacks ENORMES.
+        sampling_idx = [idx for idx in sampling_idx if (idx+1) % self.idx_to_sample_freq==0]
+        return sampling_idx
 
     def _create_windows_tensor(self):
         """
         Comment here
         TODO: Cuando creemos el otro dataloader, si es compatible lo hacemos funcion transform en utils
         """
-        tensor, right_padding = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
-                                                                    window_sampling_limit=self.window_sampling_limit)
+        # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
+        # Filter function is used to define train tensor and validation tensor with the offset
+        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
+                                                                                window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
-        _, n_channels, _ = tensor.size()
+
+        # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
+        # is_train_loader inverts the train_mask in case the dataloader is in validation mode
+        mask = train_mask if self.is_train_loader else (1 - train_mask)
+        tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)
         tensor = padder(tensor)
 
         # Last output_size outsample_mask and y to 0
-        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no leakage
+        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
         tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
         # Creating rolling windows
         windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=1)
         windows = windows.permute(2,0,1,3)
-        windows = windows.reshape(-1, n_channels, self.input_size + self.output_size)
+        windows = windows.reshape(-1, self.ts_dataset.n_channels, self.input_size + self.output_size)
         return windows
 
     def __len__(self):
@@ -109,7 +121,12 @@ class TimeSeriesLoader(object):
 
     def _nbeats_batch(self, index):
         windows = self.ts_windows[index]
+        print("type(index)", type(index))
+        print("index", index)
+        print("type(self.x_s)", type(self.x_s))
+        print("self.x_s.shape", self.x_s.shape)
         x_s = self.x_s[index]
+
 
         insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
         insample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
@@ -142,13 +159,11 @@ class TimeSeriesLoader(object):
         self.offset = offset
         self._create_train_data()
 
-    def get_meta_data_var(self, var):
-        """
-        """
-        return self.ts_dataset.get_meta_data_var(var)
+    def get_meta_data_col(self, col):
+        return self.ts_dataset.get_meta_data_col(col)
 
     def get_n_variables(self):
-        return self.ts_dataset.n_x_t, self.ts_dataset.n_s_t
+        return self.ts_dataset.n_x, self.ts_dataset.n_s
 
     def get_n_series(self):
         return self.ts_dataset.n_series
@@ -158,6 +173,9 @@ class TimeSeriesLoader(object):
 
     def get_n_channels(self):
         return self.ts_dataset.n_channels
+
+    def get_X_cols(self):
+        return self.ts_dataset.X_cols
 
     def get_frequency(self):
         return self.ts_dataset.frequency
