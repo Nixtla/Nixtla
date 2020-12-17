@@ -41,7 +41,7 @@ class TimeSeriesLoader(object):
         self.t_cols = self.ts_dataset.t_cols
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
 
-        # Create rolling window matrix in advanced for faster access to data and broadcasted x_s
+        # Create rolling window matrix in advanced for faster access to data and broadcasted s_matrix
         self._create_train_data()
         self._is_train = True # Boolean variable for train and eval mode for dataloader (random vs ordered batches)
 
@@ -70,8 +70,8 @@ class TimeSeriesLoader(object):
         # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data
-        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
-                                                                                window_sampling_limit=self.window_sampling_limit)
+        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+                                                                                   window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
 
         # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
@@ -121,37 +121,32 @@ class TimeSeriesLoader(object):
             assert 1<0, 'error'
 
     def _nbeats_batch(self, index):
+        # Access precomputed rolling window matrix (RAM intensive)
         windows = self.ts_windows[index]
-        print("type(index)", type(index))
-        print("index", index)
-        print("type(self.x_s)", type(self.x_s))
-        print("self.x_s.shape", self.x_s.shape)
-        x_s = self.x_s[index]
-
+        s_matrix = self.s_matrix[index]
 
         insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
-        insample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
+        insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
         insample_mask = windows[:, self.t_cols.index('insample_mask'), :self.input_size]
 
         outsample_y = windows[:, self.t_cols.index('y'), self.input_size:]
-        outsample_x_t = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
+        outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
         outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
 
-        batch = {'insample_y':insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
-                  'outsample_y':outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
-                  'x_s':x_s}
-
+        batch = {'s_matrix': s_matrix,
+                 'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
+                 'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
         return batch
 
     def _create_train_data(self):
         """
         """
         #print('Creating windows matrix ...')
-        # Create rolling window matrix
+        # Create rolling window matrix for fast information retrieval
         self.ts_windows = self._create_windows_tensor()
         self.n_windows = len(self.ts_windows)
-        # Broadcast x_s: This works because unfold in windows_tensor, padded windows, unshuffled data.
-        self.x_s = self.ts_dataset.x_s.repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
+        # Broadcast s_matrix: This works because unfold in windows_tensor, padded windows, unshuffled data.
+        self.s_matrix = self.ts_dataset.s_matrix.repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
     def update_offset(self, offset):
