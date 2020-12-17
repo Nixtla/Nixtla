@@ -56,7 +56,6 @@ class EPF:
              group: str,
              training: bool = True,
              days_in_test: int = 728,
-             ts_train_mask = None, #TODO: hint
              return_tensor: bool = True): # -> Union[TimeSeriesDataset, TimeSeriesDataclass]
         """
         Downloads and loads EPF data.
