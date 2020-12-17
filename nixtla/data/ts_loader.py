@@ -41,7 +41,7 @@ class TimeSeriesLoader(object):
         self.t_cols = self.ts_dataset.t_cols
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
 
-        # Create rolling window matrix and broadcasted x_s
+        # Create rolling window matrix in advanced for faster access to data and broadcasted x_s
         self._create_train_data()
         self._is_train = True # Boolean variable for train and eval mode for dataloader (random vs ordered batches)
 
@@ -59,7 +59,7 @@ class TimeSeriesLoader(object):
         #.      el +1 está diseñado para addressear el shift que tenemos que garantiza que el primer train tenga
         #.      por lo menos un input en la train_mask, además este código necesita la condición de que la serie más larga empieza
         #.      en el ds del que se va a querer samplear con la frecuencia particular. Hay dos hacks ENORMES.
-        sampling_idx = [idx for idx in sampling_idx if (idx+1) % self.idx_to_sample_freq==0]
+        sampling_idx = [idx for idx in sampling_idx if (idx+1) % self.idx_to_sample_freq==0] # TODO: Esta linea muy malvada aumenta .6 segundos
         return sampling_idx
 
     def _create_windows_tensor(self):
@@ -69,6 +69,7 @@ class TimeSeriesLoader(object):
         """
         # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
         # Filter function is used to define train tensor and validation tensor with the offset
+        # Default ts_idxs=ts_idxs sends all the data
         tensor, right_padding, train_mask = self.ts_dataset.get_filtered_tensor(offset=self.offset, output_size=self.output_size,
                                                                                 window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
