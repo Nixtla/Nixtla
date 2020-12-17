@@ -13,6 +13,7 @@ from .ts_dataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell
+#TODO: pensar como mandar batches por epochs en
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset:TimeSeriesDataset,
@@ -76,7 +77,7 @@ class TimeSeriesLoader(object):
         return window_sampling_idx
 
     def __iter__(self):
-        while True: #TODO: pensar si mandar como epocas
+        while True:
             if self._is_train:
                 sampled_ts_indices = np.random.randint(self.ts_dataset.n_series, size=self.batch_size)
             else:
@@ -103,7 +104,7 @@ class TimeSeriesLoader(object):
             assert 1<0, 'error'
 
     def _nbeats_batch(self, index):
-        # y, X_cols, insample_mask and outsample_mask - masks
+        # y, X_cols, insample_mask and outsample_mask - 2 masks
         insample = np.zeros((self.ts_dataset.n_channels-2, self.input_size), dtype=float)
         insample_mask = np.zeros(self.input_size)
         outsample = np.zeros((self.ts_dataset.n_channels-2, self.output_size), dtype=float)

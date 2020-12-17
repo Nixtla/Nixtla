@@ -54,10 +54,13 @@ class TimeSeriesLoader(object):
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
         self._is_train = True
 
+        # Dataloader protections
         assert self.batch_size % self.n_series_per_batch == 0, \
                         f'batch_size {self.batch_size} must be multiple of n_series_per_batch {self.n_series_per_batch}'
         assert self.n_series_per_batch <= self.ts_dataset.n_series, \
                         f'n_series_per_batch {n_series_per_batch} needs to be smaller than n_series {self.ts_dataset.n_series}'
+        assert offset < self.ts_dataset.max_len, \
+            f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
     def _get_sampleable_windows_idxs(self, ts_windows_flatten):
         # Only sample during training windows with at least one active output mask
