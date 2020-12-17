@@ -21,23 +21,27 @@ class TimeSeriesLoader(object):
                  window_sampling_limit: int,
                  input_size: int,
                  output_size: int,
-                 idx_to_sample_freq: int, #TODO: not active yet
+                 idx_to_sample_freq: int,
                  batch_size: int,
-                 train_loader: bool):
+                 is_train_loader: bool):
         """
         """
-        self.ts_dataset = ts_dataset # Pass by reference
+        # Dataloader attributes
         self.model = model
-        self.offset = offset
         self.window_sampling_limit = window_sampling_limit
         self.input_size = input_size
         self.output_size = output_size
-        self.idx_to_sample_freq = idx_to_sample_freq
         self.batch_size = batch_size
-        self.train_loader = train_loader
+        self.idx_to_sample_freq = idx_to_sample_freq
+        self.offset = offset
+        self.ts_dataset = ts_dataset
+        self.t_cols = self.ts_dataset.t_cols
+        self.is_train_loader = is_train_loader
         self._is_train = True
 
-        assert offset < self.ts_dataset.max_len, 'Offset must be smaller than max_len'
+        # Dataloader protections
+        assert offset < self.ts_dataset.max_len, \
+            f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
         self.window_sampling_idx = self._update_windows_sampling_idx()
 
@@ -54,7 +58,7 @@ class TimeSeriesLoader(object):
         filtered_ts_train_mask = self.ts_dataset.ts_train_mask[first_ds:last_ds]
 
         # Get indices of train/validation windows
-        if self.train_loader:
+        if self.is_train_loader:
             train_mask =  filtered_outsample_mask * filtered_ts_train_mask
             indices = np.argwhere(train_mask > 0)
         else:
@@ -99,9 +103,10 @@ class TimeSeriesLoader(object):
             assert 1<0, 'error'
 
     def _nbeats_batch(self, index):
-        insample = np.zeros((self.ts_dataset.n_channels, self.input_size), dtype=float)
+        # y, X_cols, insample_mask and outsample_mask - masks
+        insample = np.zeros((self.ts_dataset.n_channels-2, self.input_size), dtype=float)
         insample_mask = np.zeros(self.input_size)
-        outsample = np.zeros((self.ts_dataset.n_channels, self.output_size), dtype=float)
+        outsample = np.zeros((self.ts_dataset.n_channels-2, self.output_size), dtype=float)
         outsample_mask = np.zeros(self.output_size)
 
         ts = self.ts_dataset.ts_tensor[index]
@@ -114,7 +119,7 @@ class TimeSeriesLoader(object):
         else:
             cut_point = max(self.ts_dataset.max_len-self.offset, self.input_size)
 
-        insample_window = ts[:-2, max(0, cut_point - self.input_size):cut_point] # se saca mask channel del final
+        insample_window = ts[:self.t_cols.index('insample_mask'), max(0, cut_point - self.input_size):cut_point] # se saca mask channel del final
         insample_mask_start = min(self.input_size, cut_point - init_ts) #In case cut_point is close to init_ts, because series are padded
         # print('ts', ts)
         # print('insample', insample)
@@ -127,10 +132,10 @@ class TimeSeriesLoader(object):
 
         if self._is_train:
             #se saca mask channel del final
-            outsample_window = ts[:-2, cut_point:min(self.ts_dataset.max_len - self.offset, cut_point + self.output_size)]
+            outsample_window = ts[:self.t_cols.index('insample_mask'), cut_point:min(self.ts_dataset.max_len - self.offset, cut_point + self.output_size)]
         else:
             #se saca mask channel del final
-            outsample_window = ts[:-2, cut_point:min(self.ts_dataset.max_len, cut_point + self.output_size)]
+            outsample_window = ts[:self.t_cols.index('insample_mask'), cut_point:min(self.ts_dataset.max_len, cut_point + self.output_size)]
 
         # First mask is to filter after offset, second mask to filter ts validation
         outsample[:, :outsample_window.shape[1]] = outsample_window
@@ -138,32 +143,30 @@ class TimeSeriesLoader(object):
         outsample_mask[:outsample_window.shape[1]] = outsample_mask[:outsample_window.shape[1]] * \
                                                      self.ts_dataset.ts_train_mask[cut_point:(cut_point+outsample_window.shape[1])]
 
-        insample_y = insample[0, :]
-        insample_x_t = insample[1:, :]
+        insample_y = insample[self.t_cols.index('y'), :]
+        insample_x = insample[1:, :]
 
-        outsample_y = outsample[0, :]
-        outsample_x_t = outsample[1:, :]
+        outsample_y = outsample[self.t_cols.index('y'), :]
+        outsample_x = outsample[1:, :]
 
-        x_s = self.ts_dataset.x_s[index, :]
+        s_matrix = self.ts_dataset.s_matrix[index, :]
 
-        sample = {'insample_y':insample_y, 'insample_x_t':insample_x_t, 'insample_mask':insample_mask,
-                  'outsample_y':outsample_y, 'outsample_x_t':outsample_x_t, 'outsample_mask':outsample_mask,
-                  'x_s':x_s}
-
-        return sample
+        batch = {'s_matrix': s_matrix,
+                 'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
+                 'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
+        return batch
 
     def update_offset(self, offset):
         if offset == self.offset:
             return # Avoid extra computation
         self.offset = offset
+        self._create_train_data()
 
-    def get_meta_data_var(self, var):
-        """
-        """
-        return self.ts_dataset.get_meta_data_var(var)
+    def get_meta_data_col(self, col):
+        return self.ts_dataset.get_meta_data_col(col)
 
     def get_n_variables(self):
-        return self.ts_dataset.n_x_t, self.ts_dataset.n_s_t
+        return self.ts_dataset.n_x, self.ts_dataset.n_s
 
     def get_n_series(self):
         return self.ts_dataset.n_series
@@ -173,6 +176,9 @@ class TimeSeriesLoader(object):
 
     def get_n_channels(self):
         return self.ts_dataset.n_channels
+
+    def get_X_cols(self):
+        return self.ts_dataset.X_cols
 
     def get_frequency(self):
         return self.ts_dataset.frequency
