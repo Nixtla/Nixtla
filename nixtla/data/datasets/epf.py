@@ -51,12 +51,13 @@ EPFInfo = Info(groups=('NP', 'PJM', 'BE', 'FR', 'DE'),
 # Cell
 class EPF:
 
-    @staticmethod
+    #@staticmethod
     def load(directory: str,
              group: str,
              training: bool = True,
              days_in_test: int = 728,
-             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+             ts_train_mask = None, #TODO: hint
+             return_tensor: bool = True): # -> Union[TimeSeriesDataset, TimeSeriesDataclass]
         """
         Downloads and loads EPF data.
 
@@ -110,10 +111,12 @@ class EPF:
         X = df.filter(items=['unique_id', 'ds', 'Exogenous1', 'Exogenous2'] + \
                       dummies_cols)
 
-        if return_tensor:
-            return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
-        else:
-            return TimeSeriesDataclass(Y=Y, S=None, X=X, group=group)
+    #def get_data(self):
+        return Y, X
+        # if return_tensor:
+        #     return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X, ts_train_mask=ts_train_mask)
+        # else:
+        #     return TimeSeriesDataclass(Y=Y, S=None, X=X, group=group)
 
     @staticmethod
     def load_groups(directory: str,
