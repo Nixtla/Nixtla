@@ -91,7 +91,7 @@ class TimeSeriesLoader(object):
 
             batch = defaultdict(list)
             for key in batch_dict:
-                batch[key] = np.stack(batch_dict[key])
+                batch[key] = t.Tensor(np.stack(batch_dict[key]))
 
             yield batch
 
