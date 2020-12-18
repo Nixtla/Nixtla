@@ -107,7 +107,7 @@ class EPF:
             df = df.query('ds >= @class_group.test_date')
 
         Y = df.filter(items=['unique_id', 'ds', 'y'])
-        X = df.filter(items=['unique_id', 'ds', 'Exogenous1', 'Exogenous2'] + \
+        X = df.filter(items=['unique_id', 'ds', 'Exogenous1', 'Exogenous2', 'week_day'] + \
                       dummies_cols)
 
     #def get_data(self):
