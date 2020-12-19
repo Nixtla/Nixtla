@@ -9,7 +9,7 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 from typing import Tuple
-from ..tcn_model import TemporalConvNet
+from ..component import TemporalConvNet
 
 # Cell
 def filter_input_vars(insample_y, insample_x_t, outsample_x_t, t_cols, include_var_dict):

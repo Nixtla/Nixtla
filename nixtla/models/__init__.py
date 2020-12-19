@@ -1,2 +1,2 @@
 from .esrnn.esrnn import ESRNN
-from .nbeats import Nbeats
+from .nbeats.nbeats import Nbeats
