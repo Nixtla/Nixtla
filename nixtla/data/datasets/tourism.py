@@ -12,7 +12,7 @@ import pandas as pd
 from pandas.tseries.frequencies import to_offset
 
 from .utils import download_file, Info, TimeSeriesDataclass
-from ..ts_dataset import TimeSeriesDataset
+from ..tsdataset import TimeSeriesDataset
 
 # Cell
 SOURCE_URL = 'https://robjhyndman.com/data/27-3-Athanasopoulos1.zip'

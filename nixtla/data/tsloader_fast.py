@@ -9,7 +9,7 @@ import random
 import torch as t
 import copy
 from fastcore.foundation import patch
-from .ts_dataset import TimeSeriesDataset
+from .tsdataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .utils import download_file, Info, TimeSeriesDataclass
-from ..ts_dataset import TimeSeriesDataset
+from ..tsdataset import TimeSeriesDataset
 
 # Cell
 SOURCE_URL = 'https://raw.githubusercontent.com/Mcompetitions/M4-methods/master/Dataset/'
