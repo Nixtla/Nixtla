@@ -15,6 +15,7 @@ from pandas.tseries.frequencies import to_offset
 from .utils import download_file, Info, TimeSeriesDataclass
 from ..ts_dataset import TimeSeriesDataset
 
+
 # Cell
 SOURCE_URL = 'https://sandbox.zenodo.org/api/files/da5b2c6f-8418-4550-a7d0-7f2497b40f1b/'
 
