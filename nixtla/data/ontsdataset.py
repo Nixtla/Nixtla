@@ -18,7 +18,7 @@ class TimeSeriesDataset(Dataset):
                  Y_df: pd.DataFrame,
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
-                 f_cols: list=None,
+                 f_cols: list,
                  ts_train_mask: list=None,
                  windows_prob = None):
         """
