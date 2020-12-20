@@ -18,14 +18,14 @@ from .utils import download_file, Info, TimeSeriesDataclass
 from ..ontsdataset import TimeSeriesDataset
 
 # Cell
-def load_benchmark_data(test_date):
-    demanda_final = pd.read_csv('../data/on/Demanda_Final.csv')
+def load_benchmark_data(root_dir, test_date):
+    demanda_final = pd.read_csv(f'{root_dir}/Demanda_Final.csv')
     demanda_final.columns = ['ds','y']
     demanda_final['unique_id'] = 'demanda_final'
     demanda_final['ds'] = pd.to_datetime(demanda_final['ds'])
     demanda_final=demanda_final[demanda_final['ds']<'2020-12-01']
 
-    ejecutado = pd.read_csv('../data/on/Despacho_Reprograma.csv')
+    ejecutado = pd.read_csv(f'{root_dir}/Despacho_Reprograma.csv')
     ejecutado = ejecutado[['DATE_TIME','EJECUTADO']]
     ejecutado.columns = ['ds','ejecutado']
     ejecutado['ds'] = pd.to_datetime(ejecutado['ds'])
@@ -57,7 +57,7 @@ def load_benchmark_data(test_date):
     return y_df_insample, X_t_insample_df, y_df_outsample, X_t_outsample_df
 
 
-def load_on_data(test_date):
+def load_on_data(root_dir, test_date):
     # Declare future variables
     f_cols = ['PD_0','PS_0','day_0','day_1','day_2','day_3','day_4','day_5','day_6',
               'hour_0', 'hour_1','hour_2','hour_3','hour_4','hour_5','hour_6','hour_7','hour_8',
@@ -69,7 +69,7 @@ def load_on_data(test_date):
               'wind_speed_2', 'wind_speed_3', 'wind_speed_4', 'rain_0', 'rain_1', 'rain_2', 'rain_3', 'rain_4']
 
     # Demanda Final
-    demanda_final = pd.read_csv('../data/on/Demanda_Final.csv')
+    demanda_final = pd.read_csv(f'{root_dir}/Demanda_Final.csv')
     demanda_final.columns = ['ds','y']
     demanda_final['unique_id'] = 'demanda_final'
     demanda_final['ds'] = pd.to_datetime(demanda_final['ds'])
@@ -77,7 +77,7 @@ def load_on_data(test_date):
     demanda_final = demanda_final[demanda_final['ds']>='2017-10-07'].reset_index(drop=True)
 
     # Ejecutado
-    ejecutado = pd.read_csv('../data/on/Despacho_Reprograma.csv')
+    ejecutado = pd.read_csv(f'{root_dir}/Despacho_Reprograma.csv')
     ejecutado = ejecutado[['DATE_TIME','EJECUTADO']]
     ejecutado.columns = ['ds','ejecutado']
     ejecutado['ds'] = pd.to_datetime(ejecutado['ds'])
@@ -85,14 +85,14 @@ def load_on_data(test_date):
     ejecutado = ejecutado[ejecutado['ds']>='2017-10-07'].reset_index(drop=True)
 
     # Train data (ON exogenous variables)
-    train_data = pd.read_csv('../data/on/Training_Data.csv')
+    train_data = pd.read_csv(f'{root_dir}/Training_Data.csv')
     train_data = train_data.rename(columns={'CURRENT_TIME':'ds'})
     train_data['ds'] = pd.to_datetime(train_data['ds'])
     train_data = train_data[train_data['ds']<'2020-12-01']
     train_data = train_data[train_data['ds']>='2017-10-07'].reset_index(drop=True)
 
     # Historic Weather
-    data_weather = pd.read_csv('../data/on/WeatherData/HistoricalWeather.csv')
+    data_weather = pd.read_csv(f'{root_dir}/HistoricalWeather.csv')
     data_weather['dt_iso'] = data_weather['dt_iso'].str[:-10]
     data_weather['dt_iso'] = pd.to_datetime(data_weather['dt_iso'])
     data_weather = data_weather[data_weather['dt_iso']>='2017-10-07'].reset_index(drop=True)
@@ -104,7 +104,7 @@ def load_on_data(test_date):
     data_weather = data_weather.fillna(0) # Fill rain nans with 0
 
     # Forecast Weather
-    data_f_weather = pd.read_csv('../data/on/WeatherData/Historical ForecastWeather.csv')
+    data_f_weather = pd.read_csv(f'{root_dir}/Historical ForecastWeather.csv')
     # Between 1 and 21,600 takes next 6h of forecasts. Always uses last available forecast for each ds
     data_f_weather = data_f_weather[(data_f_weather['slice dt unixtime']-data_f_weather['forecast dt unixtime']). \
                                     between(1, 21600)].reset_index(drop=True)

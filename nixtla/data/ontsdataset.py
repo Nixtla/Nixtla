@@ -16,9 +16,9 @@ from collections import defaultdict
 class TimeSeriesDataset(Dataset):
     def __init__(self,
                  Y_df: pd.DataFrame,
+                 f_cols: list,
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
-                 f_cols: list,
                  ts_train_mask: list=None,
                  windows_prob = None):
         """
