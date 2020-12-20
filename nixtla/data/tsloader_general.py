@@ -123,7 +123,7 @@ class TimeSeriesLoader(object):
         if self.model == 'nbeats':
             return self._nbeats_batch(index)
         elif self.model == 'esrnn':
-            assert 1<0, 'hacer esrnn'
+            return self._esrnn_batch(index)
         else:
             assert 1<0, 'error'
 
@@ -157,6 +157,19 @@ class TimeSeriesLoader(object):
         batch = {'s_matrix': s_matrix,
                  'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
                  'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
+        return batch
+
+    def _esrnn_batch(self, index):
+        #TODO: meter get filter tensor
+        ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+                                                            window_sampling_limit=self.window_sampling_limit,
+                                                            ts_idxs=index)
+
+        y = ts_tensor[:, 0, :]
+        categories = []
+
+        batch = {'y': y, 'idxs': index, 'categories': categories}
+
         return batch
 
     def update_offset(self, offset):

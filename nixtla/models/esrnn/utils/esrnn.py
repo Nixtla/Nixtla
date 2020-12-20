@@ -32,18 +32,15 @@ class _ES(nn.Module):
     def predict(self, trend, levels, seasonalities):
         pass
 
-    def forward(self, ts_object):
+    def forward(self, y, idxs, categories):
         # parse mc
         input_size = self.mc.input_size
         output_size = self.mc.output_size
         exogenous_size = self.mc.exogenous_size
         noise_std = self.mc.noise_std
         seasonality = self.mc.seasonality
-        batch_size = len(ts_object.idxs)
+        batch_size = len(idxs)
 
-        # Parse ts_object
-        y = ts_object.y
-        idxs = ts_object.idxs
         n_series, n_time = y.shape
         if self.training:
             windows_end = n_time-input_size-output_size+1
@@ -79,7 +76,7 @@ class _ES(nn.Module):
 
             # Concatenate categories
             if exogenous_size>0:
-                window_y_hat = torch.cat((window_y_hat, ts_object.categories), 1)
+                window_y_hat = torch.cat((window_y_hat, categories), 1)
 
             windows_y_hat[i, :, :] += window_y_hat
 
@@ -271,16 +268,16 @@ class _ESRNN(nn.Module):
         self.es = _ESM(mc).to(self.mc.device)
         self.rnn = _RNN(mc).to(self.mc.device)
 
-    def forward(self, ts_object):
+    def forward(self, y, idxs, categories):
         # ES Forward
-        windows_y_hat, windows_y, levels, seasonalities = self.es(ts_object)
+        windows_y_hat, windows_y, levels, seasonalities = self.es(y=y, idxs=idxs, categories=categories)
 
         # RNN Forward
         windows_y_hat = self.rnn(windows_y_hat)
 
         return windows_y, windows_y_hat, levels
 
-    def predict(self, ts_object):
+    def predict(self, ts_object): #TODO: cambiar
         # ES Forward
         windows_y_hat, _, levels, seasonalities = self.es(ts_object)
 
