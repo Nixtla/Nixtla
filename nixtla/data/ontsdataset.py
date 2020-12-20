@@ -16,8 +16,8 @@ from collections import defaultdict
 class TimeSeriesDataset(Dataset):
     def __init__(self,
                  Y_df: pd.DataFrame,
-                 f_cols: list,
                  X_df: pd.DataFrame=None,
+                 f_cols: list=None,
                  S_df: pd.DataFrame=None,
                  ts_train_mask: list=None,
                  windows_prob = None):
@@ -28,6 +28,7 @@ class TimeSeriesDataset(Dataset):
         if X_df is not None:
             assert type(X_df) == pd.core.frame.DataFrame
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
+            assert f_cols is not None, "Define f_cols"
         if windows_prob is None:
             windows_prob = np.ones(len(Y_df))
         assert len(windows_prob) == len(Y_df)
