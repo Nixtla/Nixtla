@@ -18,7 +18,7 @@ from functools import partial
 
 from .onnbeats_model import NBeats, NBeatsBlock, IdentityBasis
 from .onnbeats_model import TrendBasis, SeasonalityBasis, ExogenousFutureBasis, ExogenousBasisInterpretable
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, RMSELoss
 from ...losses.numpy import mae, mse, mape, smape, rmse
 
 # Cell
@@ -397,8 +397,8 @@ class Nbeats(object):
         frequency = ts_loader.get_frequency()
 
         # Build forecasts
-        unique_ids = ts_loader.get_meta_data_var('unique_id')
-        last_ds = ts_loader.get_meta_data_var('last_ds') #TODO: ajustar of offset
+        unique_ids = ts_loader.get_meta_data_col('unique_id')
+        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
 
         batch = next(iter(ts_loader))
         insample_y     = self.to_tensor(batch['insample_y'])
