@@ -29,8 +29,8 @@ class TimeSeriesDataset(Dataset):
             assert type(X_df) == pd.core.frame.DataFrame
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
         if windows_prob is None:
-            windows_prob = np.ones(len(y_df))
-        assert len(windows_prob) == len(y_df)
+            windows_prob = np.ones(len(Y_df))
+        assert len(windows_prob) == len(Y_df)
 
         print('Processing dataframes ...')
         # Pandas dataframes to data lists
