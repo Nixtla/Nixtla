@@ -160,7 +160,42 @@ class ESRNN(object):
         tensor = t.as_tensor(x, dtype=dtype).to(self.mc.device)
         return tensor
 
-    def model_evaluation(self, dataloader, criterion):
+    def __loss_fn(self, loss_name: str):
+        def loss(x, freq, forecast, target, mask):
+            if loss_name == 'SMYL':
+                return
+            if loss_name == 'MAPE':
+                return MAPELoss(y=target, y_hat=forecast, mask=mask)
+            elif loss_name == 'MASE':
+                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=freq, mask=mask)
+            elif loss_name == 'SMAPE':
+                return SMAPELoss(y=target, y_hat=forecast, mask=mask)
+            elif loss_name == 'MSE':
+                return MSELoss(y=target, y_hat=forecast, mask=mask)
+            elif loss_name == 'MAE':
+                return MAELoss(y=target, y_hat=forecast, mask=mask)
+            else:
+                raise Exception(f'Unknown loss function: {loss_name}')
+        return loss
+
+    def __val_loss_fn(self, loss_name='MAE'):
+        #TODO: mase not implemented
+        def loss(forecast, target, weights):
+            if loss_name == 'MAPE':
+                return mape(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'SMAPE':
+                return smape(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MSE':
+                return mse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'RMSE':
+                return rmse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MAE':
+                return mae(y=target, y_hat=forecast, weights=weights)
+            else:
+                raise Exception(f'Unknown loss function: {loss_name}')
+        return loss
+
+    def evaluate_performance(self, ts_loader, validation_loss_fn):
         """
         Auxiliary function, evaluate ESRNN model for training
         procedure supervision.
@@ -178,15 +213,14 @@ class ESRNN(object):
 
         with t.no_grad():
             # Create fast dataloader
-            if self.mc.n_series < self.mc.batch_size_test: new_batch_size = self.mc.n_series
-            else: new_batch_size = self.mc.batch_size_test
-            dataloader.update_batch_size(new_batch_size)
+            # if self.mc.n_series < self.mc.batch_size_test: new_batch_size = self.mc.n_series
+            # else: new_batch_size = self.mc.batch_size_test
+            # dataloader.update_batch_size(new_batch_size)
 
             model_loss = 0.0
-            for j in range(dataloader.n_batches):
-                batch = dataloader.get_batch()
+            for batch in iter(ts_loader):
                 windows_y, windows_y_hat, _ = self.esrnn(batch)
-                loss = criterion(windows_y, windows_y_hat)
+                loss = validation_loss_fn(windows_y, windows_y_hat)
                 model_loss += loss.data.cpu().numpy()
 
             model_loss /= dataloader.n_batches
@@ -257,6 +291,7 @@ class ESRNN(object):
                                     gamma=self.mc.lr_decay)
 
         # Loss Functions
+        #TODO: cambiar por similar a Nbeats
         train_tau = self.mc.training_percentile / 100
         train_loss = SmylLoss(tau=train_tau,
                               level_variability_penalty=self.mc.level_variability_penalty)
@@ -264,58 +299,64 @@ class ESRNN(object):
         eval_tau = self.mc.testing_percentile / 100
         eval_loss = PinballLoss(tau=eval_tau)
 
+        # Overwrite n_iterations and train datasets
+        if n_iterations is None:
+            n_iterations = self.mc.max_epochs
+
         train_dataloader = iter(train_ts_loader)
 
-        for epoch in range(max_epochs):
-            self.esrnn.train()
-            start = time.time()
+        start = time.time()
+        self.trajectories = {'step':[],'train_loss':[], 'val_loss':[]}
 
-            losses = []
-            for j in range(10): #TODO: momentaneo, pensar esto
-                self.es_optimizer.zero_grad()
-                self.rnn_optimizer.zero_grad()
+        # for epoch in range(max_epochs):
+        #     self.esrnn.train()
+        #     start = time.time()
 
-                batch = next(train_dataloader)
-                y = self.to_tensor(x=batch['y'])
-                idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
-                categories = self.to_tensor(x=batch['categories'])
-                windows_y, windows_y_hat, levels = self.esrnn(y=y, idxs=idxs, categories=categories)
+        #     losses = []
+        # Training Loop
+        for step in range(n_iterations):
+            self.es_optimizer.zero_grad()
+            self.rnn_optimizer.zero_grad()
 
-                # Pinball loss on normalized values
-                loss = train_loss(windows_y, windows_y_hat, levels)
-                losses.append(loss.data.cpu().numpy())
-                #print("loss", loss)
+            batch = next(train_dataloader)
+            y = self.to_tensor(x=batch['y'])
+            idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
+            categories = self.to_tensor(x=batch['categories'])
+            windows_y, windows_y_hat, levels = self.esrnn(y=y, idxs=idxs, categories=categories)
 
-                loss.backward()
+            # Pinball loss on normalized values
+            training_loss = train_loss(windows_y, windows_y_hat, levels)
+            training_loss.backward()
 
-                t.nn.utils.clip_grad_norm_(self.esrnn.rnn.parameters(),
-                                                self.mc.gradient_clipping_threshold)
-                t.nn.utils.clip_grad_norm_(self.esrnn.es.parameters(),
-                                                self.mc.gradient_clipping_threshold)
-                self.rnn_optimizer.step()
-                self.es_optimizer.step()
+            t.nn.utils.clip_grad_norm_(self.esrnn.rnn.parameters(),
+                                        self.mc.gradient_clipping_threshold)
+            t.nn.utils.clip_grad_norm_(self.esrnn.es.parameters(),
+                                        self.mc.gradient_clipping_threshold)
+            self.rnn_optimizer.step()
+            self.es_optimizer.step()
 
             # Decay learning rate
             self.es_scheduler.step()
             self.rnn_scheduler.step()
 
             # Evaluation
-            self.train_loss = np.mean(losses)
-            if verbose:
-                print("========= Epoch {} finished =========".format(epoch))
-                print("Training time: {}".format(round(time.time()-start, 5)))
-                print("Training loss ({} prc): {:.5f}".format(self.mc.training_percentile,
-                                                              self.train_loss))
+            if (step % eval_steps == 0):
+                display_string = 'Step: {}, Time: {:03.3f}, Insample loss: {:.5f}'.format(step,
+                                                                                time.time()-start,
+                                                                                training_loss.cpu().data.numpy())
+                self.trajectories['step'].append(step)
+                self.trajectories['train_loss'].append(training_loss.cpu().data.numpy())
 
-            if (epoch % self.mc.freq_of_test == 0) and (self.mc.freq_of_test > 0):
-                if self.val_ts_loader is not None:
-                    self.test_loss = self.model_evaluation(val_ts_loader, eval_loss)
-                    print("Testing loss  ({} prc): {:.5f}".format(self.mc.testing_percentile,
-                                                                  self.test_loss))
-                    self.esrnn.train()
+                if val_ts_loader is not None:
+                    loss = self.evaluate_performance(ts_loader=val_ts_loader,
+                                                        validation_loss_fn=eval_loss)
+                    display_string += ", Outsample loss: {:.5f}".format(loss)
+                    self.trajectories['val_loss'].append(loss)
 
-        if verbose: print('Train finished! \n')
+                print(display_string)
 
+                self.esrnn.train()
+                train_ts_loader.train()
 
     def instantiate_esrnn(self, exogenous_size, n_series):
         """Auxiliary function used at beginning of train to instantiate ESRNN"""
