@@ -17,7 +17,7 @@ from pathlib import Path
 from functools import partial
 
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis
-from .nbeats_model import XBasisTCN
+from .nbeats_model import XBasisTCN, XBasisWavenet
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, RMSELoss
 from ...losses.numpy import mae, mse, mape, smape, rmse
 
@@ -83,7 +83,6 @@ class Nbeats(object):
 
         if activation == 'selu': initialization = 'lecun_normal'
 
-        #------------------------ Model Attributes ------------------------#
         # Architecture parameters
         self.input_size           = int(input_size_multiplier*output_size)
         self.output_size          = output_size
@@ -127,13 +126,13 @@ class Nbeats(object):
         self._is_instantiated = False
 
     def create_stack(self):
-        # Declare parameter dimensions
+        # Declare model/parameter dimensions
         if self.theta_with_exogenous:
             x_t_n_inputs = self.input_size + self.n_x_t
         else:
             x_t_n_inputs = self.input_size # only y_lags in theta
 
-        #------------------------ Model Definition ------------------------#
+        # Architecture definition
         block_list = []
         for i in range(len(self.stack_types)):
             #print(f'| --  Stack {self.stack_types[i]} (#{i})')
@@ -162,14 +161,32 @@ class Nbeats(object):
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous_tcn':
+                        assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden = self.n_s_hidden,
                                                    theta_n_dim = 2*(self.n_xbasis_channels),
                                                    basis=XBasisTCN(out_features=self.n_xbasis_channels,
-                                                                   in_features=self.n_x_t,
+                                                                   #in_features=self.n_x_t,
+                                                                   f_idxs=self.f_idxs,
                                                                    num_levels=self.n_xbasis_layers,
                                                                    dropout_prob=self.dropout_prob_xbasis),
+                                                   n_theta_hidden_list=self.n_theta_hidden_list[i],
+                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   batch_normalization=batch_normalization_block,
+                                                   dropout_prob=self.dropout_prob_theta,
+                                                   activation=self.activation)
+                    elif self.stack_types[i] == 'exogenous_wavenet':
+                        assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
+                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                                                   x_s_n_inputs = self.n_x_s,
+                                                   x_s_n_hidden = self.n_s_hidden,
+                                                   theta_n_dim = 2*(self.n_xbasis_channels),
+                                                   basis=XBasisWavenet(out_features=self.n_xbasis_channels,
+                                                                       #in_features=self.n_x_t,
+                                                                       f_idxs=self.f_idxs,
+                                                                       num_levels=self.n_xbasis_layers,
+                                                                       dropout_prob=self.dropout_prob_xbasis),
                                                    n_theta_hidden_list=self.n_theta_hidden_list[i],
                                                    theta_with_exogenous=self.theta_with_exogenous,
                                                    batch_normalization=batch_normalization_block,
@@ -237,14 +254,13 @@ class Nbeats(object):
         # L1 loss for initial exogenous input
         loss = self.lambda_l1_theta * t.sum(t.abs(self.model.l1_weight))
 
-        # L2/L1 regularization for theta
+        # L2/L1 regularization for thetas
         for i in range(len(self.stack_types)):
             for block_id in range(self.n_blocks[i]):
-                if self.stack_types[i] == 'identity':
-                    for layer in self.model.blocks[i].modules():
-                        if isinstance(layer, t.nn.Linear):
-                            # loss += self.lambda_reg_theta * t.norm(layer.weight)
-                            loss += self.lambda_reg_theta * layer.weight.abs().sum()
+                for layer in self.model.blocks[i].modules():
+                    if isinstance(layer, t.nn.Linear):
+                        # loss += self.lambda_reg_theta * t.norm(layer.weight)
+                        loss += self.lambda_reg_theta * layer.weight.abs().sum()
         return loss
 
     def to_tensor(self, x: np.ndarray) -> t.Tensor:
