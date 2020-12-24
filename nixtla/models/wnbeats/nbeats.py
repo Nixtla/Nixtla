@@ -48,6 +48,10 @@ class Nbeats(object):
     IDENTITY_BLOCK = 'identity'
 
     def __init__(self,
+                 n_x_t,
+                 n_x_s,
+                 t_cols,
+                 include_var_dict,
                  input_size_multiplier,
                  output_size,
                  shared_weights,
@@ -59,19 +63,16 @@ class Nbeats(object):
                  n_xbasis_layers,
                  n_xbasis_channels,
                  n_s_hidden,
-                 f_cols,
                  scaler,
-                 theta_with_exogenous,
                  batch_normalization,
                  learning_rate,
                  lr_decay,
                  n_lr_decay_steps,
                  dropout_prob_theta,
                  dropout_prob_xbasis,
-                 regularization,
                  lambda_l1_theta,
-                 lambda_reg_theta,
-                 lambda_reg_xbasis,
+                 lambda_l1_input,
+                 lambda_l2_xbasis,
                  max_iterations,
                  early_stopping,
                  loss,
@@ -83,38 +84,42 @@ class Nbeats(object):
 
         if activation == 'selu': initialization = 'lecun_normal'
 
+        # Attributes of ts_dataset
+        # TODO: pensar como quitar redundancia
+        self.n_x_t  = n_x_t
+        self.n_x_s  = n_x_s
+        self.t_cols = t_cols
+        self.include_var_dict = include_var_dict
+
         # Architecture parameters
-        self.input_size           = int(input_size_multiplier*output_size)
-        self.output_size          = output_size
-        self.shared_weights       = shared_weights
-        self.activation           = activation
-        self.initialization       = initialization
-        self.stack_types          = stack_types
-        self.n_blocks             = n_blocks
-        self.n_theta_hidden_list  = n_theta_hidden_list
-        self.n_xbasis_layers      = n_xbasis_layers
-        self.n_xbasis_channels    = n_xbasis_channels
-        self.n_s_hidden           = n_s_hidden
-        self.f_cols               = f_cols
+        self.input_size            = int(input_size_multiplier*output_size)
+        self.output_size           = output_size
+        self.shared_weights        = shared_weights
+        self.activation            = activation
+        self.initialization        = initialization
+        self.stack_types           = stack_types
+        self.n_blocks              = n_blocks
+        self.n_theta_hidden_list   = n_theta_hidden_list
+        self.n_xbasis_layers       = n_xbasis_layers
+        self.n_xbasis_channels     = n_xbasis_channels
+        self.n_s_hidden            = n_s_hidden
 
         # Regularization and optimization parameters
-        self.scaler               = scaler
-        self.theta_with_exogenous = theta_with_exogenous
-        self.batch_normalization  = batch_normalization
-        self.learning_rate        = learning_rate
-        self.lr_decay             = lr_decay
-        self.n_lr_decay_steps     = n_lr_decay_steps
+        self.scaler                = scaler
+        self.batch_normalization   = batch_normalization
+        self.learning_rate         = learning_rate
+        self.lr_decay              = lr_decay
+        self.n_lr_decay_steps      = n_lr_decay_steps
         # self.weight_decay         = weight_decay
 
-        self.loss                 = loss
-        self.dropout_prob_theta   = dropout_prob_theta
-        self.dropout_prob_xbasis  = dropout_prob_xbasis
-        self.regularization       = regularization
-        self.lambda_l1_theta      = lambda_l1_theta
-        self.lambda_reg_theta     = lambda_reg_theta
-        self.lambda_reg_xbasis    = lambda_reg_xbasis
-        self.max_iterations       = max_iterations
-        self.early_stopping       = early_stopping
+        self.loss                  = loss
+        self.dropout_prob_theta    = dropout_prob_theta
+        self.dropout_prob_xbasis   = dropout_prob_xbasis
+        self.lambda_l1_theta       = lambda_l1_theta
+        self.lambda_l1_input       = lambda_l1_input
+        self.lambda_l2_xbasis      = lambda_l2_xbasis
+        self.max_iterations        = max_iterations
+        self.early_stopping        = early_stopping
 
         # Regularization and optimization parameters
         self.frequency   = frequency
@@ -126,11 +131,14 @@ class Nbeats(object):
         self._is_instantiated = False
 
     def create_stack(self):
-        # Declare model/parameter dimensions
-        if self.theta_with_exogenous:
-            x_t_n_inputs = self.input_size + self.n_x_t
+        if self.include_var_dict is not None:
+            x_t_n_inputs = self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
+
+            # Correction because week_day only adds 1 no output_size
+            if len(self.include_var_dict['week_day'])>0:
+                x_t_n_inputs = x_t_n_inputs - self.output_size + 1
         else:
-            x_t_n_inputs = self.input_size # only y_lags in theta
+            x_t_n_inputs = self.input_size
 
         # Architecture definition
         block_list = []
@@ -156,39 +164,42 @@ class Nbeats(object):
                                                    basis=IdentityBasis(backcast_size=self.input_size,
                                                                        forecast_size=self.output_size),
                                                    n_theta_hidden_list=self.n_theta_hidden_list[i],
-                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   include_var_dict=self.include_var_dict,
+                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous_tcn':
-                        assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
+                        #assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden = self.n_s_hidden,
                                                    theta_n_dim = 2*(self.n_xbasis_channels),
                                                    basis=XBasisTCN(out_features=self.n_xbasis_channels,
-                                                                   #in_features=self.n_x_t,
-                                                                   f_idxs=self.f_idxs,
+                                                                   in_features=self.n_x_t,
+                                                                   #f_idxs=self.f_idxs,
                                                                    num_levels=self.n_xbasis_layers,
                                                                    dropout_prob=self.dropout_prob_xbasis),
                                                    n_theta_hidden_list=self.n_theta_hidden_list[i],
-                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   include_var_dict=self.include_var_dict,
+                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous_wavenet':
-                        assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
+                        #assert len(self.f_cols)>0, 'If Xbasis, provide f_cols hyperparameter'
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden = self.n_s_hidden,
                                                    theta_n_dim = 2*(self.n_xbasis_channels),
                                                    basis=XBasisWavenet(out_features=self.n_xbasis_channels,
-                                                                       #in_features=self.n_x_t,
-                                                                       f_idxs=self.f_idxs,
+                                                                       in_features=self.n_x_t,
+                                                                       #f_idxs=self.f_idxs,
                                                                        num_levels=self.n_xbasis_layers,
                                                                        dropout_prob=self.dropout_prob_xbasis),
                                                    n_theta_hidden_list=self.n_theta_hidden_list[i],
-                                                   theta_with_exogenous=self.theta_with_exogenous,
+                                                   include_var_dict=self.include_var_dict,
+                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
@@ -247,12 +258,12 @@ class Nbeats(object):
                 if self.stack_types[i] == 'exogenous_tcn':
                     for layer in self.model.blocks[i].modules():
                         if isinstance(layer, t.nn.Conv1d):
-                            loss += self.lambda_reg_xbasis * t.norm(layer.weight)
+                            loss += self.lambda_l2_xbasis * t.norm(layer.weight)
         return loss
 
     def reg_loss_theta(self):
         # L1 loss for initial exogenous input
-        loss = self.lambda_l1_theta * t.sum(t.abs(self.model.l1_weight))
+        loss = self.lambda_l1_input * t.sum(t.abs(self.model.l1_weight))
 
         # L2/L1 regularization for thetas
         for i in range(len(self.stack_types)):
@@ -260,7 +271,7 @@ class Nbeats(object):
                 for layer in self.model.blocks[i].modules():
                     if isinstance(layer, t.nn.Linear):
                         # loss += self.lambda_reg_theta * t.norm(layer.weight)
-                        loss += self.lambda_reg_theta * layer.weight.abs().sum()
+                        loss += self.lambda_l1_theta * layer.weight.abs().sum()
         return loss
 
     def to_tensor(self, x: np.ndarray) -> t.Tensor:
@@ -288,27 +299,21 @@ class Nbeats(object):
                                                 forecast=outsample_y.cpu().data.numpy(),
                                                 weights=outsample_mask.cpu().data.numpy())
                 losses.append(batch_loss)
-                break #TODO: remove this in future
+                #break #TODO: remove this in future
         loss = np.mean(losses)
         self.model.train()
         return loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_steps=1):
         # Asserts
-        assert train_ts_loader.t_cols[0] == 'y', f'First variable must be y not {train_ts_loader.t_cols[0]}'
-        assert train_ts_loader.t_cols[1] == 'ejecutado', f'First exogenous variable must be ejecutado not {train_ts_loader.t_cols[1]}'
-        assert (self.input_size)==train_ts_loader.input_size, \
-            f'model input_size {self.input_size} data input_size {train_ts_loader.input_size}'
+        assert self.t_cols[0] == 'y', f'First variable must be y not {self.t_cols[0]}'
+        #assert (self.input_size)==train_ts_loader.input_size, \
+        #    f'model input_size {self.input_size} data input_size {train_ts_loader.input_size}'
 
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
-
-        # Attributes of ts_dataset
-        self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
-        self.t_cols = train_ts_loader.t_cols
-        self.f_idxs = train_ts_loader.ts_dataset.get_f_idxs(self.f_cols)
 
         # Instantiate model
         if not self._is_instantiated:
@@ -350,31 +355,32 @@ class Nbeats(object):
         best_val_loss = np.inf
         break_flag = False
         for step in range(max_epochs):
-            self.model.train()
-            train_ts_loader.train()
+            for batch in iter(train_dataloader):
+                self.model.train()
+                #train_ts_loader.train()
 
-            batch = next(train_dataloader)
-            insample_y     = self.to_tensor(batch['insample_y'])
-            insample_x     = self.to_tensor(batch['insample_x'])
-            insample_mask  = self.to_tensor(batch['insample_mask'])
-            outsample_x    = self.to_tensor(batch['outsample_x'])
-            outsample_y    = self.to_tensor(batch['outsample_y'])
-            outsample_mask = self.to_tensor(batch['outsample_mask'])
-            s_matrix       = self.to_tensor(batch['s_matrix'])
+                batch = next(train_dataloader)
+                insample_y     = self.to_tensor(batch['insample_y'])
+                insample_x     = self.to_tensor(batch['insample_x'])
+                insample_mask  = self.to_tensor(batch['insample_mask'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
+                outsample_y    = self.to_tensor(batch['outsample_y'])
+                outsample_mask = self.to_tensor(batch['outsample_mask'])
+                s_matrix       = self.to_tensor(batch['s_matrix'])
 
-            optimizer.zero_grad()
-            forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
-                                  insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
+                optimizer.zero_grad()
+                forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
+                                    insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
 
-            training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
-                                            target=outsample_y, mask=outsample_mask)
+                training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
+                                                target=outsample_y, mask=outsample_mask)
 
-            if np.isnan(float(training_loss)):
-                break
+                if np.isnan(float(training_loss)):
+                    break
 
-            training_loss.backward()
-            t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            optimizer.step()
+                training_loss.backward()
+                t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                optimizer.step()
 
             lr_scheduler.step()
             if (step % eval_steps == 0):
@@ -405,7 +411,7 @@ class Nbeats(object):
                 print(display_string)
 
                 self.model.train()
-                train_ts_loader.train()
+                #train_ts_loader.train()
 
             if break_flag:
                 print(10*'-',' Stopped training by early stopping', 10*'-')
@@ -413,7 +419,7 @@ class Nbeats(object):
                 break
 
         #End of fitting
-        if max_epochs >0:
+        if max_epochs > 0:
             self.final_insample_loss = training_loss.cpu().data.numpy() if not break_flag else best_insample_loss #This is batch!
             string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(step,
                                                                             time.time()-start,
@@ -423,7 +429,7 @@ class Nbeats(object):
                 self.final_outsample_loss = self.evaluate_performance(val_ts_loader, validation_loss_fn=validation_loss_fn)
                 string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
             print(string)
-            print('='*30+'End fitting '+'='*30)
+            print('='*30+' End  fitting '+'='*30)
 
     def predict(self, ts_loader, X_test=None, eval_mode=False):
 
