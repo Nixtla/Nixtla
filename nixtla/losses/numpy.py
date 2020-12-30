@@ -87,7 +87,8 @@ def rmse(y: np.ndarray, y_hat: np.ndarray, weights=None) -> float:
     return rmse
 
 # Cell
-def mape(y: np.ndarray, y_hat: np.ndarray) -> float:
+def mape(y: np.ndarray, y_hat: np.ndarray, weights=None) -> float:
+    #TODO: weights no hace nada
     """Calculates Mean Absolute Percentage Error.
     MAPE measures the relative prediction accuracy of a
     forecasting method by calculating the percentual deviation

@@ -105,18 +105,17 @@ class TimeSeriesLoader(object):
         return windows
 
     def __iter__(self):
-        while True:
-            if self._is_train:
-                # ts idxs for hierarchical sampling
-                ts_idxs = np.random.choice(range(self.ts_dataset.n_series),
-                                           size=self.n_series_per_batch,
-                                           replace=False) # If replace=True scales poorly, sample precomputed rolled windows
-            else:
-                # Get last n_series windows, dataset is ordered because of rolling windows
-                ts_idxs = range(self.ts_dataset.n_series)
+        n_series = self.ts_dataset.n_series
+        # Shuffle idx before epoch if self._is_train
+        if self._is_train:
+            sample_idxs = np.random.choice(range(n_series), n_series, replace=False)
+        else:
+            sample_idxs = range(n_series)
+        n_batches = int(np.ceil(n_series / self.n_series_per_batch)) # Must be multiple of batch_size for paralel gpu
 
+        for idx in range(n_batches):
+            ts_idxs = sample_idxs[(idx * self.n_series_per_batch) : (idx + 1) * self.n_series_per_batch]
             batch = self.__get_item__(index=ts_idxs)
-
             yield batch
 
     def __get_item__(self, index):
@@ -138,7 +137,7 @@ class TimeSeriesLoader(object):
             windows = windows[windows_idxs]
         else:
             windows_idxs = index
-            windows = windows[-self.ts_dataset.n_series:]
+            windows = windows[-len(index):]
 
         #TODO: Fix this part. We have not tested the addition of static variables in DataLoaderGeneral
         #.     This is inspired in the repeat of the in DataLoaderFast
@@ -162,8 +161,8 @@ class TimeSeriesLoader(object):
     def _esrnn_batch(self, index):
         #TODO: meter get filter tensor
         ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
-                                                            window_sampling_limit=self.window_sampling_limit,
-                                                            ts_idxs=index)
+                                                                 window_sampling_limit=self.window_sampling_limit,
+                                                                 ts_idxs=index)
 
         y = ts_tensor[:, 0, :]
         categories = []
