@@ -4,21 +4,19 @@ __all__ = ['ModelConfig']
 
 # Cell
 class ModelConfig(object):
-    def __init__(self, max_epochs, batch_size, batch_size_test, freq_of_test,
-                             learning_rate, lr_scheduler_step_size, lr_decay,
-                             per_series_lr_multip, gradient_eps, gradient_clipping_threshold,
-                             rnn_weight_decay,
-                             noise_std,
-                             level_variability_penalty,
-                             testing_percentile, training_percentile,
-                             cell_type,
-                             state_hsize, dilations, add_nl_layer, seasonality, input_size, output_size,
-                             frequency, max_periods, random_seed, device, root_dir):
+    def __init__(self, max_epochs, freq_of_test,
+                learning_rate, lr_scheduler_step_size, lr_decay,
+                per_series_lr_multip, gradient_eps, gradient_clipping_threshold,
+                rnn_weight_decay,
+                noise_std,
+                level_variability_penalty,
+                testing_percentile, training_percentile,
+                cell_type,
+                state_hsize, dilations, add_nl_layer, seasonality, input_size, output_size,
+                frequency, max_periods, random_seed, device, root_dir):
 
         # Train Parameters
         self.max_epochs = max_epochs
-        self.batch_size = batch_size
-        self.batch_size_test = batch_size_test
         self.freq_of_test = freq_of_test
         self.learning_rate = learning_rate
         self.lr_scheduler_step_size = lr_scheduler_step_size

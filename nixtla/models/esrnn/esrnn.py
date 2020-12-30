@@ -117,8 +117,6 @@ class ESRNN(object):
                  input_size=4,
                  output_size=8,
                  max_epochs=15,
-                 batch_size=1,
-                 batch_size_test=64,
                  freq_of_test=-1,
                  learning_rate=1e-3,
                  lr_scheduler_step_size=9,
@@ -141,7 +139,7 @@ class ESRNN(object):
                  random_seed=1,
                  device='cpu', root_dir='./'):
         super(ESRNN, self).__init__()
-        self.mc = ModelConfig(max_epochs=max_epochs, batch_size=batch_size, batch_size_test=batch_size_test,
+        self.mc = ModelConfig(max_epochs=max_epochs,
                             freq_of_test=freq_of_test, learning_rate=learning_rate,
                             lr_scheduler_step_size=lr_scheduler_step_size, lr_decay=lr_decay,
                             per_series_lr_multip=per_series_lr_multip,
@@ -229,7 +227,7 @@ class ESRNN(object):
 
 
     #def fit(self, X_df, y_df, X_test_df=None, shuffle=True, verbose=True):
-    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_epochs=1):
         """
         Fit ESRNN model.
 
@@ -253,7 +251,6 @@ class ESRNN(object):
 
         # Exogenous variables
         exogenous_size = 0 #TODO: mementaneo, no lo queremos ahora
-        max_epochs = 10 #TODO: momentaneo
 
         # Random Seeds (model initialization)
         t.manual_seed(self.mc.random_seed)
@@ -300,13 +297,11 @@ class ESRNN(object):
         eval_loss = PinballLoss(tau=eval_tau)
 
         # Overwrite n_iterations and train datasets
-        if n_iterations is None:
-            n_iterations = self.mc.max_epochs
-
-        train_dataloader = iter(train_ts_loader)
+        if max_epochs is None:
+            max_epochs = self.mc.max_epochs
 
         start = time.time()
-        self.trajectories = {'step':[],'train_loss':[], 'val_loss':[]}
+        self.trajectories = {'epoch':[],'train_loss':[], 'val_loss':[]}
 
         # for epoch in range(max_epochs):
         #     self.esrnn.train()
@@ -314,37 +309,40 @@ class ESRNN(object):
 
         #     losses = []
         # Training Loop
-        for step in range(n_iterations):
-            self.es_optimizer.zero_grad()
-            self.rnn_optimizer.zero_grad()
+        for epoch in range(max_epochs):
+            losses = []
+            for batch in iter(train_ts_loader):
+                self.esrnn.train()
+                self.es_optimizer.zero_grad()
+                self.rnn_optimizer.zero_grad()
 
-            batch = next(train_dataloader)
-            y = self.to_tensor(x=batch['y'])
-            idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
-            categories = self.to_tensor(x=batch['categories'])
-            windows_y, windows_y_hat, levels = self.esrnn(y=y, idxs=idxs, categories=categories)
+                y          = self.to_tensor(x=batch['y'])
+                idxs       = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                categories = self.to_tensor(x=batch['categories']) #TODO: S_matrix
+                windows_y, windows_y_hat, levels = self.esrnn(y=y, idxs=idxs, categories=categories)
 
-            # Pinball loss on normalized values
-            training_loss = train_loss(windows_y, windows_y_hat, levels)
-            training_loss.backward()
+                # Pinball loss on normalized values
+                training_loss = train_loss(windows_y, windows_y_hat, levels)
+                training_loss.backward()
+                losses.append(training_loss.cpu().data.numpy())
 
-            t.nn.utils.clip_grad_norm_(self.esrnn.rnn.parameters(),
-                                        self.mc.gradient_clipping_threshold)
-            t.nn.utils.clip_grad_norm_(self.esrnn.es.parameters(),
-                                        self.mc.gradient_clipping_threshold)
-            self.rnn_optimizer.step()
-            self.es_optimizer.step()
+                t.nn.utils.clip_grad_norm_(self.esrnn.rnn.parameters(),
+                                            self.mc.gradient_clipping_threshold)
+                t.nn.utils.clip_grad_norm_(self.esrnn.es.parameters(),
+                                            self.mc.gradient_clipping_threshold)
+                self.rnn_optimizer.step()
+                self.es_optimizer.step()
 
-            # Decay learning rate
-            self.es_scheduler.step()
-            self.rnn_scheduler.step()
+                # Decay learning rate
+                self.es_scheduler.step()
+                self.rnn_scheduler.step()
 
             # Evaluation
-            if (step % eval_steps == 0):
-                display_string = 'Step: {}, Time: {:03.3f}, Insample loss: {:.5f}'.format(step,
+            if (epoch % eval_epochs == 0):
+                display_string = 'Epoch: {}, Time: {:03.3f}, Insample loss: {:.5f}'.format(epoch,
                                                                                 time.time()-start,
-                                                                                training_loss.cpu().data.numpy())
-                self.trajectories['step'].append(step)
+                                                                                np.mean(losses))
+                self.trajectories['epoch'].append(epoch)
                 self.trajectories['train_loss'].append(training_loss.cpu().data.numpy())
 
                 if val_ts_loader is not None:
@@ -365,82 +363,42 @@ class ESRNN(object):
         self.mc.n_series = n_series
         self.esrnn = _ESRNN(self.mc).to(self.mc.device)
 
-    def predict(self, X_df, decomposition=False):
-        """
-        Predict using the ESRNN model.
 
-        Parameters
-        ----------
-        X_df : pandas dataframe
-            Dataframe in LONG format with columns 'unique_id', 'ds'
-            and 'x'.
-            - 'unique_id' an identifier of each independent time series.
-            - 'ds' is a datetime column
-            - 'x' is a single exogenous variable
-
-        Returns
-        -------
-        Y_hat_panel : pandas dataframe
-            Dataframe in LONG format with columns 'unique_id', 'ds'
-            and 'x'.
-            - 'unique_id' an identifier of each independent time series.
-            - 'ds' datetime columnn that matches the dates in X_df
-            - 'y_hat' is the column with the predicted target values
-        """
-
-        #print(9*'='+' Predicting ESRNN ' + 9*'=' + '\n')
-        assert type(X_df) == pd.core.frame.DataFrame
-        assert 'unique_id' in X_df
+    def predict(self, ts_loader, X_test=None):
         assert self._fitted, "Model not fitted yet"
-
         self.esrnn.eval()
+        ts_loader.eval()
+        frequency = ts_loader.get_frequency()
 
-        # Create fast dataloader
-        if self.mc.n_series < self.mc.batch_size_test: new_batch_size = self.mc.n_series
-        else: new_batch_size = self.mc.batch_size_test
-        self.train_dataloader.update_batch_size(new_batch_size)
-        dataloader = self.train_dataloader
+        # Build forecasts
+        unique_ids = ts_loader.get_meta_data_col('unique_id')
+        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
 
-        # Create Y_hat_panel placeholders
-        output_size = self.mc.output_size
-        n_unique_id = len(dataloader.sort_key['unique_id'])
-        panel_unique_id = pd.Series(dataloader.sort_key['unique_id']).repeat(output_size)
+        with t.no_grad():
+            forecasts = []
+            for batch in iter(ts_loader):
+                y          = self.to_tensor(x=batch['y'])
+                idxs       = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                categories = self.to_tensor(x=batch['categories']) #TODO: S_matrix
+                forecast = self.esrnn.predict(y=y, idxs=idxs, categories=categories)
+                print('forecast shape', forecast.shape)
+                forecasts += [forecast.cpu().data.numpy()]
+        forecasts = np.vstack(forecasts)
+        print('forecasts shape', forecasts.shape)
 
-        #access column with last train date
-        panel_last_ds = pd.Series(dataloader.X[:, 2])
-        panel_ds = []
-        for i in range(len(panel_last_ds)):
-            ranges = pd.date_range(start=panel_last_ds[i], periods=output_size+1, freq=self.mc.frequency)
-            panel_ds += list(ranges[1:])
+        # Predictions for panel
+        Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
+        for i, unique_id in enumerate(unique_ids):
+            Y_hat_id = pd.DataFrame([unique_id]*self.mc.output_size, columns=["unique_id"])
+            ds = pd.date_range(start=last_ds[i], periods=self.mc.output_size+1, freq=frequency)
+            Y_hat_id["ds"] = ds[1:]
+            Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
 
-        panel_y_hat= np.zeros((output_size * n_unique_id))
+        Y_hat_panel['y_hat'] = forecasts.flatten()
 
-        # Predict
-        count = 0
-        for j in range(dataloader.n_batches):
-            batch = dataloader.get_batch()
-            batch_size = batch.y.shape[0]
+        if X_test is not None:
+            Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
 
-            y_hat = self.esrnn.predict(batch)
-            y_hat = y_hat.data.cpu().numpy()
-
-            panel_y_hat[count:count+output_size*batch_size] = y_hat.flatten()
-            count += output_size*batch_size
-
-        Y_hat_panel_dict = {'unique_id': panel_unique_id,
-                                                'ds': panel_ds,
-                                                'y_hat': panel_y_hat}
-
-        assert len(panel_ds) == len(panel_y_hat) == len(panel_unique_id)
-
-        Y_hat_panel = pd.DataFrame.from_dict(Y_hat_panel_dict)
-
-        if 'ds' in X_df:
-            Y_hat_panel = X_df.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
-        else:
-            Y_hat_panel = X_df.merge(Y_hat_panel, on=['unique_id'], how='left')
-
-        self.train_dataloader.update_batch_size(self.mc.batch_size)
         return Y_hat_panel
 
     def save(self, model_dir=None, copy=None):

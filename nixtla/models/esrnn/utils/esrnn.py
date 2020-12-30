@@ -277,9 +277,9 @@ class _ESRNN(nn.Module):
 
         return windows_y, windows_y_hat, levels
 
-    def predict(self, ts_object): #TODO: cambiar
+    def predict(self, y, idxs, categories):
         # ES Forward
-        windows_y_hat, _, levels, seasonalities = self.es(ts_object)
+        windows_y_hat, _, levels, seasonalities = self.es(y=y, idxs=idxs, categories=categories)
 
         # RNN Forward
         windows_y_hat = self.rnn(windows_y_hat)
