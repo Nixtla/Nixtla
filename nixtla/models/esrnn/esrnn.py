@@ -316,10 +316,11 @@ class ESRNN(object):
                 self.es_optimizer.zero_grad()
                 self.rnn_optimizer.zero_grad()
 
-                y          = self.to_tensor(x=batch['y'])
-                idxs       = self.to_tensor(x=batch['idxs'], dtype=t.long)
-                categories = self.to_tensor(x=batch['categories']) #TODO: S_matrix
-                windows_y, windows_y_hat, levels = self.esrnn(y=y, idxs=idxs, categories=categories)
+                insample_y  = self.to_tensor(x=batch['insample_y'])
+                idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                categories  = self.to_tensor(x=batch['categories']) #TODO: S_matrix
+
+                windows_y, windows_y_hat, levels = self.esrnn(y=insample_y, idxs=idxs, categories=categories)
 
                 # Pinball loss on normalized values
                 training_loss = train_loss(windows_y, windows_y_hat, levels)
@@ -377,14 +378,13 @@ class ESRNN(object):
         with t.no_grad():
             forecasts = []
             for batch in iter(ts_loader):
-                y          = self.to_tensor(x=batch['y'])
-                idxs       = self.to_tensor(x=batch['idxs'], dtype=t.long)
-                categories = self.to_tensor(x=batch['categories']) #TODO: S_matrix
-                forecast = self.esrnn.predict(y=y, idxs=idxs, categories=categories)
-                print('forecast shape', forecast.shape)
+                insample_y  = self.to_tensor(x=batch['insample_y'])
+                idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                categories  = self.to_tensor(x=batch['categories']) #TODO: S_matrix
+
+                forecast = self.esrnn.predict(y=insample_y, idxs=idxs, categories=categories)
                 forecasts += [forecast.cpu().data.numpy()]
         forecasts = np.vstack(forecasts)
-        print('forecasts shape', forecasts.shape)
 
         # Predictions for panel
         Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])

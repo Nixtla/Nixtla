@@ -163,11 +163,15 @@ class TimeSeriesLoader(object):
         ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
                                                                  window_sampling_limit=self.window_sampling_limit,
                                                                  ts_idxs=index)
+        # Trim batch to shorter time series to avoid zero padding
+        insample_y = ts_tensor[:, 0, :]
+        batch_len_series = np.array(self.ts_dataset.len_series)[index]
+        min_batch_len = np.min(batch_len_series)
+        insample_y = insample_y[:, -min_batch_len:]
 
-        y = ts_tensor[:, 0, :]
         categories = []
 
-        batch = {'y': y, 'idxs': index, 'categories': categories}
+        batch = {'insample_y': insample_y, 'idxs': index, 'categories': categories}
 
         return batch
 
