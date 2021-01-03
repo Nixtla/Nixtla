@@ -44,7 +44,6 @@ class TCN(object):
     """
 
     def __init__(self,
-                 input_size_multiplier,
                  output_size,
                  n_channels,
                  kernel_size,
@@ -66,7 +65,6 @@ class TCN(object):
 
         #------------------------ Model Attributes ------------------------#
         # Architecture parameters
-        self.input_size = int(input_size_multiplier*output_size)
         self.output_size = output_size
         self.initialization = initialization
         self.n_channels = n_channels

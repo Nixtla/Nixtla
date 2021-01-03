@@ -10,12 +10,20 @@ import numpy as np
 
 # Cell
 class _ES(nn.Module):
-    def __init__(self, mc):
+    def __init__(self, n_series, input_size, output_size, n_s, seasonality, noise_std, device):
         super(_ES, self).__init__()
-        self.mc = mc
-        self.n_series = self.mc.n_series
-        self.output_size = self.mc.output_size
-        assert len(self.mc.seasonality) in [0, 1, 2]
+
+        self.n_series = n_series
+        self.input_size = input_size
+        self.output_size = output_size
+        self.n_s = n_s
+        self.seasonality = seasonality
+        assert len(self.seasonality) in [0, 1, 2]
+
+        self.noise_std = noise_std
+
+        self.device = device
+
 
     def gaussian_noise(self, input_data, std=0.2):
         size = input_data.size()
@@ -32,16 +40,16 @@ class _ES(nn.Module):
     def predict(self, trend, levels, seasonalities):
         pass
 
-    def forward(self, y, idxs, categories):
-        # parse mc
-        input_size = self.mc.input_size
-        output_size = self.mc.output_size
-        exogenous_size = self.mc.exogenous_size
-        noise_std = self.mc.noise_std
-        seasonality = self.mc.seasonality
+    def forward(self, insample_y, s_matrix, idxs):
+        # parse attributes
+        input_size = self.input_size
+        output_size = self.output_size
+        n_s = self.n_s
+        noise_std = self.noise_std
+        seasonality = self.seasonality
         batch_size = len(idxs)
 
-        n_series, n_time = y.shape
+        n_series, n_time = insample_y.shape
         if self.training:
             windows_end = n_time-input_size-output_size+1
             windows_range = range(windows_end)
@@ -54,11 +62,11 @@ class _ES(nn.Module):
         assert n_windows>0
 
         # Initialize windows, levels and seasonalities
-        levels, seasonalities = self.compute_levels_seasons(y, idxs)
-        windows_y_hat = torch.zeros((n_windows, batch_size, input_size+exogenous_size),
-                                                                device=self.mc.device)
+        levels, seasonalities = self.compute_levels_seasons(y=insample_y, idxs=idxs)
+        windows_y_hat = torch.zeros((n_windows, batch_size, input_size + n_s),
+                                     device=self.device)
         windows_y = torch.zeros((n_windows, batch_size, output_size),
-                                                        device=self.mc.device)
+                                device=self.device)
 
         for i, window in enumerate(windows_range):
             # Windows yhat
@@ -66,7 +74,7 @@ class _ES(nn.Module):
             y_hat_end = input_size + window
 
             # Y_hat deseasonalization and normalization
-            window_y_hat = self.normalize(y=y[:, y_hat_start:y_hat_end],
+            window_y_hat = self.normalize(y=insample_y[:, y_hat_start:y_hat_end],
                                           level=levels[:, [y_hat_end-1]],
                                           seasonalities=seasonalities,
                                           start=y_hat_start, end=y_hat_end)
@@ -74,9 +82,9 @@ class _ES(nn.Module):
             if self.training:
                 window_y_hat = self.gaussian_noise(window_y_hat, std=noise_std)
 
-            # Concatenate categories
-            if exogenous_size>0:
-                window_y_hat = torch.cat((window_y_hat, categories), 1)
+            # Concatenate S_matrix
+            if n_s > 0:
+                window_y_hat = torch.cat((window_y_hat, s_matrix), 1)
 
             windows_y_hat[i, :, :] += window_y_hat
 
@@ -85,7 +93,7 @@ class _ES(nn.Module):
                 y_start = y_hat_end
                 y_end = y_start+output_size
                 # Y deseasonalization and normalization
-                window_y = self.normalize(y=y[:, y_start:y_end],
+                window_y = self.normalize(y=insample_y[:, y_start:y_end],
                                           level=levels[:, [y_start]],
                                           seasonalities=seasonalities,
                                           start=y_start, end=y_end)
@@ -94,15 +102,16 @@ class _ES(nn.Module):
         return windows_y_hat, windows_y, levels, seasonalities
 
 class _ESM(_ES):
-    def __init__(self, mc):
-        super(_ESM, self).__init__(mc)
+    def __init__(self, n_series, input_size, output_size, n_s, seasonality, noise_std, device):
+        super(_ESM, self).__init__(n_series, input_size, output_size, n_s, seasonality, noise_std, device)
         # Level and Seasonality Smoothing parameters
         # 1 level, S seasonalities, S init_seas
-        embeds_size = 1 + len(self.mc.seasonality) + sum(self.mc.seasonality)
+        embeds_size = 1 + len(self.seasonality) + sum(self.seasonality)
         init_embeds = torch.ones((self.n_series, embeds_size)) * 0.5
         self.embeds = nn.Embedding(self.n_series, embeds_size)
         self.embeds.weight.data.copy_(init_embeds)
-        self.register_buffer('seasonality', torch.LongTensor(self.mc.seasonality))
+        #self.register_buffer('seasonality', torch.LongTensor(self.seasonality))
+        self.seasonality = torch.LongTensor(self.seasonality)
 
     #@jit.script_method
     def compute_levels_seasons(self, y, idxs):
@@ -196,8 +205,8 @@ class _ESM(_ES):
         return y_n
 
     def predict(self, trend, levels, seasonalities):
-        output_size = self.mc.output_size
-        seasonality = self.mc.seasonality
+        output_size = self.output_size
+        seasonality = self.seasonality
         n_time = levels.shape[1]
 
         # Denormalize
@@ -220,30 +229,38 @@ class _ESM(_ES):
         return y_hat
 
 class _RNN(nn.Module):
-    def __init__(self, mc):
+    def __init__(self, input_size, output_size, n_s, cell_type, dilations, state_hsize, add_nl_layer):
         super(_RNN, self).__init__()
-        self.mc = mc
-        self.layers = len(mc.dilations)
+
+        self.input_size = input_size
+        self.output_size = output_size
+        self.n_s = n_s
+
+        self.cell_type = cell_type
+        self.dilations = dilations
+        self.state_hsize = state_hsize
+        self.add_nl_layer = add_nl_layer
+        self.layers = len(dilations)
 
         layers = []
-        for grp_num in range(len(mc.dilations)):
+        for grp_num in range(len(self.dilations)):
             if grp_num == 0:
-                input_size = mc.input_size + mc.exogenous_size
+                input_size = self.input_size + self.n_s
             else:
-                input_size = mc.state_hsize
+                input_size = self.state_hsize
             layer = DRNN(input_size,
-                                     mc.state_hsize,
-                                     n_layers=len(mc.dilations[grp_num]),
-                                     dilations=mc.dilations[grp_num],
-                                     cell_type=mc.cell_type)
+                         self.state_hsize,
+                         n_layers=len(self.dilations[grp_num]),
+                         dilations=self.dilations[grp_num],
+                         cell_type=self.cell_type)
             layers.append(layer)
 
         self.rnn_stack = nn.Sequential(*layers)
 
-        if self.mc.add_nl_layer:
-            self.MLPW  = nn.Linear(mc.state_hsize, mc.state_hsize)
+        if self.add_nl_layer:
+            self.MLPW  = nn.Linear(self.state_hsize, self.state_hsize)
 
-        self.adapterW  = nn.Linear(mc.state_hsize, mc.output_size)
+        self.adapterW  = nn.Linear(self.state_hsize, self.output_size)
 
     def forward(self, input_data):
         for layer_num in range(len(self.rnn_stack)):
@@ -253,7 +270,7 @@ class _RNN(nn.Module):
                 output += residual
             input_data = output
 
-        if self.mc.add_nl_layer:
+        if self.add_nl_layer:
             input_data = self.MLPW(input_data)
             input_data = torch.tanh(input_data)
 
@@ -262,24 +279,30 @@ class _RNN(nn.Module):
 
 
 class _ESRNN(nn.Module):
-    def __init__(self, mc):
+    def __init__(self, n_series, input_size, output_size, n_s, seasonality,
+                 noise_std, cell_type, dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
-        self.mc = mc
-        self.es = _ESM(mc).to(self.mc.device)
-        self.rnn = _RNN(mc).to(self.mc.device)
 
-    def forward(self, y, idxs, categories):
+        self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
+                       n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                       device=device).to(device)
+        self.rnn = _RNN(input_size=input_size, output_size=output_size, n_s=n_s,
+                        cell_type=cell_type, dilations=dilations, state_hsize=state_hsize,
+                        add_nl_layer=add_nl_layer).to(device)
+
+    def forward(self, insample_y, s_matrix, idxs):
         # ES Forward
-        windows_y_hat, windows_y, levels, seasonalities = self.es(y=y, idxs=idxs, categories=categories)
-
+        windows_y_hat, windows_y, levels, seasonalities = self.es(insample_y=insample_y,
+                                                                  s_matrix=s_matrix, idxs=idxs)
         # RNN Forward
         windows_y_hat = self.rnn(windows_y_hat)
 
         return windows_y, windows_y_hat, levels
 
-    def predict(self, y, idxs, categories):
+    def predict(self, insample_y, s_matrix, idxs):
         # ES Forward
-        windows_y_hat, _, levels, seasonalities = self.es(y=y, idxs=idxs, categories=categories)
+        windows_y_hat, _, levels, seasonalities = self.es(insample_y=insample_y,
+                                                          s_matrix=s_matrix, idxs=idxs)
 
         # RNN Forward
         windows_y_hat = self.rnn(windows_y_hat)
