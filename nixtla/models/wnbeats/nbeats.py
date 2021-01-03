@@ -35,7 +35,7 @@ def init_weights(module, initialization):
         elif initialization == 'glorot_normal':
             t.nn.init.xavier_normal_(module.weight)
         elif initialization == 'lecun_normal':
-            pass #t.nn.init.normal_(module.weight, 0.0, std=1/np.sqrt(module.weight.numel()))
+            t.nn.init.normal_(module.weight, 0.0, std=1/np.sqrt(module.weight.numel()))
         else:
             assert 1<0, f'Initialization {initialization} not found'
 
@@ -73,7 +73,7 @@ class Nbeats(object):
                  lambda_l1_theta,
                  lambda_l1_input,
                  lambda_l2_xbasis,
-                 max_iterations,
+                 max_epochs,
                  early_stopping,
                  loss,
                  frequency,
@@ -118,7 +118,7 @@ class Nbeats(object):
         self.lambda_l1_theta       = lambda_l1_theta
         self.lambda_l1_input       = lambda_l1_input
         self.lambda_l2_xbasis      = lambda_l2_xbasis
-        self.max_iterations        = max_iterations
+        self.max_epochs            = max_epochs
         self.early_stopping        = early_stopping
 
         # Regularization and optimization parameters
@@ -278,11 +278,11 @@ class Nbeats(object):
         tensor = t.as_tensor(x, dtype=t.float32).to(self.device)
         return tensor
 
-    def evaluate_performance(self, ts_loader, validation_loss_fn):
-        #TODO: mas opciones que mae
+    def predict(self, ts_loader, eval_mode=False):
         self.model.eval()
 
-        losses = []
+        forecasts = []
+        outsample_ys = []
         with t.no_grad():
             for batch in iter(ts_loader):
                 insample_y     = self.to_tensor(batch['insample_y'])
@@ -295,13 +295,34 @@ class Nbeats(object):
 
                 forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
                                       insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
-                batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
-                                                forecast=outsample_y.cpu().data.numpy(),
-                                                weights=outsample_mask.cpu().data.numpy())
-                losses.append(batch_loss)
-                #break #TODO: remove this in future
-        loss = np.mean(losses)
+
+                forecasts += [forecast.cpu().data.numpy()]
+                outsample_ys += [outsample_y.cpu().data.numpy()]
+
+        forecasts = np.vstack(forecasts)
+        outsample_ys = np.vstack(outsample_ys)
+
+        if self.scaler is not None:
+            if len(outsample_ys.shape) == 1:
+                forecasts = forecasts.reshape(-1, 1)
+                outsample_ys = outsample_ys.reshape(-1, 1)
+            forecasts = self.scaler.inverse_transform(forecasts)
+            if eval_mode: # Otherwise outsample_ys is None from batch
+                outsample_ys = self.scaler.inverse_transform(outsample_ys)
+
         self.model.train()
+        if eval_mode:
+            return forecasts, outsample_ys
+        else:
+            return forecasts
+
+    def evaluate_performance(self, ts_loader, validation_loss_fn):
+        y_hat, y = self.predict(ts_loader=ts_loader, eval_mode=True)
+
+        y = y.flatten()
+        y_hat = y_hat.flatten()
+
+        loss = validation_loss_fn(target=y, forecast=y_hat, weights=np.ones(len(y)))
         return loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_steps=1):
@@ -313,27 +334,23 @@ class Nbeats(object):
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
-        random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
+        #random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
 
         # Instantiate model
-        if not self._is_instantiated:
-            block_list = self.create_stack()
-            self.model = NBeats(blocks=t.nn.ModuleList(block_list), in_features=self.n_x_t).to(self.device)
-            self._is_instantiated = True
+        #if not self._is_instantiated:
+        block_list = self.create_stack()
+        self.model = NBeats(blocks=t.nn.ModuleList(block_list), in_features=self.n_x_t).to(self.device)
+        self._is_instantiated = True
 
         # Overwrite max_epochs and train datasets
         if max_epochs is None:
             max_epochs = self.max_epochs
 
-        train_dataloader = iter(train_ts_loader)
-
-        lr_decay_steps = max_epochs // self.n_lr_decay_steps
-        if lr_decay_steps == 0:
-            lr_decay_steps = 1
+        lr_decay_step_size = max_epochs // self.n_lr_decay_steps
 
         #optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_steps, gamma=self.lr_decay)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_step_size, gamma=self.lr_decay)
 
         training_loss_fn = self.__loss_fn(self.loss)
         validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
@@ -353,13 +370,14 @@ class Nbeats(object):
 
         # Training Loop
         best_val_loss = np.inf
+        best_insample_loss = np.inf
         break_flag = False
+        early_stopping_counter = 0
+        # Save initial weights as best_state_dict
+        best_state_dict = copy.deepcopy(self.model.state_dict())
         for step in range(max_epochs):
-            for batch in iter(train_dataloader):
-                self.model.train()
-                #train_ts_loader.train()
-
-                batch = next(train_dataloader)
+            self.model.train()
+            for batch in iter(train_ts_loader):
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
                 insample_mask  = self.to_tensor(batch['insample_mask'])
@@ -374,9 +392,6 @@ class Nbeats(object):
 
                 training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
                                                 target=outsample_y, mask=outsample_mask)
-
-                if np.isnan(float(training_loss)):
-                    break
 
                 training_loss.backward()
                 t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -414,7 +429,8 @@ class Nbeats(object):
                 #train_ts_loader.train()
 
             if break_flag:
-                print(10*'-',' Stopped training by early stopping', 10*'-')
+                print("\n")
+                print(17*'-',' Stopped training with early stopping', 17*'-')
                 self.model.load_state_dict(best_state_dict)
                 break
 
@@ -430,49 +446,7 @@ class Nbeats(object):
                 string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
             print(string)
             print('='*30+' End  fitting '+'='*30)
-
-    def predict(self, ts_loader, X_test=None, eval_mode=False):
-
-        ts_loader.eval()
-        frequency = ts_loader.get_frequency()
-
-        # Build forecasts
-        unique_ids = ts_loader.get_meta_data_var('unique_id')
-        last_ds = ts_loader.get_meta_data_var('last_ds') #TODO: ajustar of offset
-
-        batch = next(iter(ts_loader))
-        insample_y     = self.to_tensor(batch['insample_y'])
-        insample_x     = self.to_tensor(batch['insample_x'])
-        insample_mask  = self.to_tensor(batch['insample_mask'])
-        outsample_x    = self.to_tensor(batch['outsample_x'])
-        outsample_y    = self.to_tensor(batch['outsample_y'])
-        outsample_mask = self.to_tensor(batch['outsample_mask'])
-        s_matrix       = self.to_tensor(batch['s_matrix'])
-
-        self.model.eval()
-        with t.no_grad():
-            forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
-                                  insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
-
-        if eval_mode:
-            return forecast, outsample_y, outsample_mask
-
-        # Predictions for panel
-        Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
-        for i, unique_id in enumerate(unique_ids):
-            Y_hat_id = pd.DataFrame([unique_id]*self.output_size, columns=["unique_id"])
-            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=self.frequency)
-            Y_hat_id["ds"] = ds[1:]
-            Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
-
-        forecast = forecast.cpu().detach().numpy()
-        Y_hat_panel['y_hat'] = forecast.flatten()
-
-        if X_test is not None:
-            Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
-
-        return Y_hat_panel
-
+            print("\n")
 
     def save(self, model_dir, model_id):
 
@@ -495,3 +469,75 @@ class Nbeats(object):
         checkpoint = t.load(model_file, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.to(self.device)
+
+
+    def recalibrate_and_forecast_next_day(self, mc, df, next_day_date):
+        """Method that builds an easy-to-use interface for daily recalibration and forecasting of the DNN model
+
+        The method receives a pandas dataframe ``df`` and a day ``next_day_date``. Then, it
+        recalibrates the model using data up to the day before ``next_day_date`` and makes a prediction
+        for day ``next_day_date``.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataframe of historical data containing prices and N exogenous inputs. The index of the
+            dataframe should be dates with hourly frequency. The columns should have the following
+            names ['Price', 'Exogenous 1', 'Exogenous 2', ...., 'Exogenous N']
+        next_day_date : TYPE
+            Date of the day-ahead
+
+        Returns
+        -------
+        numpy.array
+            An array containing the predictions in the provided date
+
+        """
+
+        #---------------------------------------- Parse data ----------------------------------------#
+
+        # We define the new training dataset considering the last calibration_window years of data
+        df_train = df.loc[:next_day_date - pd.Timedelta(hours=1)]
+        df_train = df_train.loc[next_day_date - pd.Timedelta(hours=mc['calibration_window'] * 364 * 24):]
+
+        # We define the test dataset as the next day (they day of interest) plus the last two weeks
+        # in order to be able to build the necessary input features.
+        df_test = df.loc[next_day_date - pd.Timedelta(weeks=2):, :]
+
+        # Generating training, validation, and test input and outpus. For the test dataset,
+        # even though the dataframe contains 15 days of data (next day + last 2 weeks),
+        # we provide as parameter the date of interest so that Xtest and Ytest only reflect that
+        Xtrain, Ytrain, Xval, Yval, Xtest, _, _ = \
+            _build_and_split_XYs(dfTrain=df_train, features=mc, percentage_val=0.25,
+                                 shuffle_train=True, dfTest=df_test, date_test=next_day_date,
+                                 data_augmentation=mc['data_augmentation'],
+                                 n_exogenous_inputs=len(df_train.columns) - 1)
+
+        #---------------------------------------- Scale data ----------------------------------------#
+        # If required, datasets are scaled
+        if mc['scaleX'] in ['Norm', 'Norm1', 'Std', 'Median', 'Invariant']:
+            [Xtrain, Xval, Xtest], _ = scaling([Xtrain, Xval, Xtest], mc['scaleX'])
+
+        if mc['scaleY'] in ['Norm', 'Norm1', 'Std', 'Median', 'Invariant']:
+            [Ytrain, Yval], self.scaler = scaling([Ytrain, Yval], mc['scaleY'])
+        else:
+            self.scaler = None
+
+        train_dataset = TimeSeriesDataset(X=Xtrain, Y=Ytrain)
+        train_loader = DataLoader(train_dataset, batch_size=mc['batch_size'], shuffle=True, num_workers=0)
+
+        val_dataset = TimeSeriesDataset(X=Xval, Y=Yval)
+        val_loader = DataLoader(val_dataset, batch_size=len(Xval), shuffle=False, num_workers=0)
+
+        test_dataset = TimeSeriesDataset(X=Xtest, Y=None)
+        test_loader = DataLoader(test_dataset, batch_size=len(Xtest), shuffle=False, num_workers=0)
+
+        #---------------------------------------- Recalibrate ----------------------------------------#
+        # Initialize and fit model
+        self.fit(train_loader, val_ts_loader=val_loader, verbose=True, eval_steps=mc['eval_steps'])
+
+        #---------------------------------------- Predict ----------------------------------------#
+        # Make prediction
+        y_hat = self.predict(ts_loader=test_loader, eval_mode=False)
+
+        return y_hat
