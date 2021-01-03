@@ -119,14 +119,14 @@ class TimeSeriesLoader(object):
             yield batch
 
     def __get_item__(self, index):
-        if self.model == 'nbeats':
-            return self._nbeats_batch(index)
+        if (self.model == 'nbeats') or (self.model == 'tcn'):
+            return self._windows_batch(index)
         elif self.model == 'esrnn':
-            return self._esrnn_batch(index)
+            return self._full_series_batch(index)
         else:
             assert 1<0, 'error'
 
-    def _nbeats_batch(self, index):
+    def _windows_batch(self, index):
 
         # Create windows for each sampled ts and sample random unmasked windows from each ts
         windows = self._create_windows_tensor(ts_idxs=index)
@@ -158,7 +158,7 @@ class TimeSeriesLoader(object):
                  'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
         return batch
 
-    def _esrnn_batch(self, index):
+    def _full_series_batch(self, index):
         #TODO: meter get filter tensor
         ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
                                                                  window_sampling_limit=self.window_sampling_limit,
