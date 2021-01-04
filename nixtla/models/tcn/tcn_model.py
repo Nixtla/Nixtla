@@ -11,19 +11,16 @@ import numpy as np
 # Cell
 # TODO: rename
 class TCNModule(nn.Module):
-    def __init__(self, output_size, num_inputs, num_channels, kernel_size, dropout):
+    def __init__(self, output_size, num_inputs, num_channels, num_static, kernel_size, dropout):
         super(TCNModule, self).__init__()
+        assert num_channels[-1] == 1, 'Last channel must be 1.'
         self.output_size = output_size
         self.tcn = TemporalConvNet(num_inputs=num_inputs, num_channels=num_channels,
                                     kernel_size=kernel_size, dropout=dropout)
-        self.linear = nn.Linear(output_size, output_size)
+        self.linear = nn.Linear(output_size + num_static, output_size)
 
-    def forward(self, insample_y, insample_x, insample_mask, outsample_y):
-        #TODO: insample_mask
-        # size = insample_y.size()
-        # noise = t.autograd.Variable(insample_y.data.new(size).normal_(0, 0.2))
-        insample_y = insample_y #+ noise
-        outsample_y = outsample_y
+    def forward(self, insample_y, insample_x, s_matrix, outsample_y):
+
         insample_y = insample_y.unsqueeze(1)
         normalizer = insample_y[:,:,[-1]]
 
@@ -33,7 +30,13 @@ class TCNModule(nn.Module):
         insample_y = t.cat([insample_y, insample_x], dim=1)
         forecast = self.tcn(insample_y)
         forecast = forecast[:, :, -self.output_size:]
-        #forecast = self.linear(forecast)
+
+        forecast = forecast.squeeze(1)
+        forecast_context = t.cat([forecast, s_matrix], dim=1)
+        forecast_context = self.linear(forecast_context)
+
+        forecast = forecast + forecast_context
+
         outsample_y = outsample_y/normalizer
         #outsample_y = t.log(outsample_y)
 
@@ -45,20 +48,23 @@ class TCNModule(nn.Module):
 
         return forecast, outsample_y
 
-    def predict(self, insample_y, insample_x):
+    def predict(self, insample_y, insample_x, s_matrix):
         #TODO: insample_mask
-        insample_y = insample_y.unsqueeze(1)
-        normalizer = insample_y[:,:,[-1]]
-
-        # Normalize
+        normalizer = insample_y[:, [-1]]
         insample_y = insample_y/normalizer
         #insample_y = t.log(insample_y/normalizer)
+
+        insample_y = insample_y.unsqueeze(1)
         insample_y = t.cat([insample_y, insample_x], dim=1)
         forecast = self.tcn(insample_y)
         forecast = forecast[:, :, -self.output_size:]
+
+        forecast = forecast.squeeze(1)
+        forecast_context = t.cat([forecast, s_matrix], dim=1)
+        forecast_context = self.linear(forecast_context)
+
+        forecast = forecast + forecast_context
+
         #forecast = t.exp(forecast)
         forecast = forecast * normalizer
-        forecast = forecast.squeeze(1)
-        #forecast = self.linear(forecast)
-
         return forecast

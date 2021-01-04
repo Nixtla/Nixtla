@@ -180,23 +180,6 @@ class ESRNN(object):
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
 
-    def __val_loss_fn(self, loss_name='MAE'):
-        #TODO: mase not implemented
-        def loss(forecast, target, weights):
-            if loss_name == 'MAPE':
-                return mape(y=target, y_hat=forecast, weights=weights)
-            elif loss_name == 'SMAPE':
-                return smape(y=target, y_hat=forecast, weights=weights)
-            elif loss_name == 'MSE':
-                return mse(y=target, y_hat=forecast, weights=weights)
-            elif loss_name == 'RMSE':
-                return rmse(y=target, y_hat=forecast, weights=weights)
-            elif loss_name == 'MAE':
-                return mae(y=target, y_hat=forecast, weights=weights)
-            else:
-                raise Exception(f'Unknown loss function: {loss_name}')
-        return loss
-
     # def evaluate_performance(self, ts_loader, validation_loss_fn):
     #     """
     #     Auxiliary function, evaluate ESRNN model for training

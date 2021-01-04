@@ -150,13 +150,12 @@ class TCN(object):
                 # Parse batch
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
                 outsample_y    = self.to_tensor(batch['outsample_y'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x)
+                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x,
+                                              s_matrix=s_matrix)
 
                 batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
                                                 forecast=outsample_y.cpu().data.numpy(),
@@ -167,23 +166,19 @@ class TCN(object):
         return loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_epochs=1):
-        # TODO: Indexes hardcoded, information duplicated in train and val datasets
-        assert (self.input_size)==train_ts_loader.input_size, \
-            f'model input_size {self.input_size} data input_size {train_ts_loader.input_size}'
-
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
         random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
 
         # Attributes of ts_dataset
-        self.n_x_t, _ = train_ts_loader.get_n_variables()
+        self.n_x_t, self.n_s = train_ts_loader.get_n_variables()
         self.n_x_t += 1 # add y
 
         # Instantiate model
         if not self._is_instantiated:
             self.model = TCNModule(output_size=self.output_size, num_inputs = self.n_x_t,
-                                   num_channels=self.n_channels,
+                                   num_channels=self.n_channels, num_static = self.n_s,
                                    kernel_size=self.kernel_size, dropout=self.dropout_prob)
             init_function = partial(init_weights, initialization=self.initialization)
             self.model.apply(init_function)
@@ -232,15 +227,13 @@ class TCN(object):
                 # Parse batch
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
                 outsample_y    = self.to_tensor(batch['outsample_y'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
                 optimizer.zero_grad()
                 forecast, outsample_y = self.model(insample_y=insample_y, insample_x=insample_x,
-                                                  insample_mask=insample_mask, outsample_y=outsample_y)
+                                                   s_matrix=s_matrix, outsample_y=outsample_y)
 
                 training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
                                                 target=outsample_y, mask=outsample_mask)
@@ -320,13 +313,12 @@ class TCN(object):
             for batch in iter(ts_loader):
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
                 outsample_y    = self.to_tensor(batch['outsample_y'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x)
+                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x,
+                                              s_matrix=s_matrix)
                 forecasts += [forecast.cpu().data.numpy()]
                 outsample_ys += [outsample_y.cpu().data.numpy()]
                 outsample_masks += [outsample_mask.cpu().data.numpy()]
