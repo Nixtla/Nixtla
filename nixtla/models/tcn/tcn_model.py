@@ -30,7 +30,7 @@ class TCNModule(nn.Module):
         insample_y = t.cat([insample_y, insample_x], dim=1)
         forecast = self.tcn(insample_y)
         forecast = forecast[:, :, -self.output_size:]
-
+        #TODO: linear convolucion de kernel 1, sin FC, version metrica solo en la ultima
         forecast = forecast.squeeze(1)
         forecast_context = t.cat([forecast, s_matrix], dim=1)
         forecast_context = self.linear(forecast_context)
