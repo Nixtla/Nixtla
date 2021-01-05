@@ -14,3 +14,6 @@ dependencies:
   - pip:
     - nbdev
     - tabulate
+    - python-dotenv
+    - fsspec
+    - s3fs
