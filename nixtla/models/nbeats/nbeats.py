@@ -18,8 +18,8 @@ from functools import partial
 
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis
 from .nbeats_model import ExogenousBasisInterpretable, ExogenousBasisWavenet, ExogenousBasisTCN
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
-from ...losses.numpy import mae, mse, mape, smape, rmse
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss
+from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 
 # Cell
@@ -75,6 +75,7 @@ class Nbeats(object):
                  n_iterations,
                  early_stopping,
                  loss,
+                 loss_hypar,
                  frequency,
                  random_seed,
                  seasonality,
@@ -112,6 +113,7 @@ class Nbeats(object):
         self.n_iterations = n_iterations
         self.early_stopping = early_stopping
         self.loss = loss
+        self.loss_hypar = loss_hypar
         self.l1_theta = l1_theta
         self.l1_conv = 1e-3 # Not a hyperparameter
 
@@ -251,12 +253,12 @@ class Nbeats(object):
         return block_list
 
     def __loss_fn(self, loss_name: str):
-        def loss(x, freq, forecast, target, mask):
+        def loss(x, loss_hypar, forecast, target, mask):
             if loss_name == 'MAPE':
                 return MAPELoss(y=target, y_hat=forecast, mask=mask) + \
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
             elif loss_name == 'MASE':
-                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=freq, mask=mask) + \
+                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=loss_hypar, mask=mask) + \
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
             elif loss_name == 'SMAPE':
                 return SMAPELoss(y=target, y_hat=forecast, mask=mask) + \
@@ -266,6 +268,9 @@ class Nbeats(object):
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
             elif loss_name == 'MAE':
                 return MAELoss(y=target, y_hat=forecast, mask=mask) + \
+                       self.loss_l1_conv_layers() + self.loss_l1_theta()
+            elif loss_name == 'PINBALL':
+                return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=loss_hypar) + \
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
@@ -284,6 +289,9 @@ class Nbeats(object):
                 return rmse(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'MAE':
                 return mae(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'PINBALL':
+                return pinball_loss(y=target, y_hat=forecast, weights=weights,
+                                    tau=0.5)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -409,7 +417,7 @@ class Nbeats(object):
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
 
-                training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
+                training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
                                                 target=outsample_y, mask=outsample_mask)
 
                 if np.isnan(float(training_loss)):

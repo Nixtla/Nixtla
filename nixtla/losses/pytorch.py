@@ -230,7 +230,7 @@ def MAELoss(y, y_hat, mask=None):
     mae = t.mean(mae)
     return mae
 
-def PinballLoss(y, y_hat, mask=None):
+def PinballLoss(y, y_hat, mask=None, tau=0.5):
     """Pinball Loss
     Computes the pinball loss between y and y_hat.
 
@@ -253,7 +253,7 @@ def PinballLoss(y, y_hat, mask=None):
     if mask is None:
         mask = t.ones(y_hat.size())
     delta_y = t.sub(y, y_hat)
-    pinball = t.max(t.mul(self.tau, delta_y), t.mul((self.tau - 1), delta_y))
+    pinball = t.max(t.mul(tau, delta_y), t.mul((tau - 1), delta_y))
     pinball = pinball * mask
     pinball = t.mean(pinball)
     return pinball
