@@ -31,9 +31,9 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int,
                  batch_size: int,
+                 n_series_per_batch: int=None,
                  is_train_loader: bool,
-                 shuffle: bool,
-                 n_series_per_batch: int=None):
+                 shuffle: bool):
         """
         """
         # Dataloader attributes
