@@ -26,7 +26,8 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int, # TODO: Usada en hack ENORME para window frequency sampling
                  batch_size: int,
-                 is_train_loader: bool):
+                 is_train_loader: bool,
+                 shuffle:bool):
         """
         """
         # Dataloader attributes
@@ -40,6 +41,7 @@ class TimeSeriesLoader(object):
         self.ts_dataset = ts_dataset
         self.t_cols = self.ts_dataset.t_cols
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
+        self.shuffle = shuffle # Boolean to shuffle data, useful for validation
 
         # Create rolling window matrix in advanced for faster access to data and broadcasted s_matrix
         self._create_train_data()
@@ -98,22 +100,28 @@ class TimeSeriesLoader(object):
     def __iter__(self):
         #TODO: revisar como se hace el -1 de batch_size en un dataloader de torch. Otra opcion es simplemente batch_size grande,
         # tambien se puede arregar con epoca
-        while True:
-            if self._is_train:
-                if self.batch_size > 0:
-                    sampled_ts_indices = np.random.choice(self.windows_sampling_idx, size=self.batch_size, replace=True)
-                else:
-                    sampled_ts_indices = self.windows_sampling_idx
+        if self._is_train:
+            if self.shuffle:
+                sample_idxs = np.random.choice(a=self.windows_sampling_idx,
+                                               size=len(self.windows_sampling_idx), replace=False)
             else:
                 # Get last n_series windows, dataset is ordered because of unfold
-                sampled_ts_indices = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
+                sample_idxs = self.windows_sampling_idx
+        else:
+            # Get last observations for each time series for last prediction
+            # This is necessary because windows are created and stored in advance
+            sample_idxs = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
 
-            batch = self.__get_item__(sampled_ts_indices)
+        assert len(sample_idxs)>0, 'Check the data as sample_idxs are empty'
 
+        n_batches = int(np.ceil(len(sample_idxs) / self.batch_size)) # Must be multiple of batch_size for paralel gpu
+
+        for idx in range(n_batches):
+            ws_idxs = sample_idxs[(idx * self.batch_size) : (idx + 1) * self.batch_size]
+            batch = self.__get_item__(index=ws_idxs)
             yield batch
 
     def __get_item__(self, index):
-        assert 1<0, "Adaptar el Fast Dataloader a operar con epochs"
         if self.model == 'nbeats':
             return self._nbeats_batch(index)
         elif self.model == 'esrnn':

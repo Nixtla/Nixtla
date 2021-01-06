@@ -12,8 +12,6 @@ from fastcore.foundation import patch
 from .tsdataset import TimeSeriesDataset
 from collections import defaultdict
 
-# np.random.seed(1)
-
 # Cell
 # TODO: train_masks no estan definidas para el DataloaderGeneral
 # TODO: revisar _create_windows_tensor method para checar que la declaracion de la train_mask y su uso es correcto
@@ -22,6 +20,7 @@ from collections import defaultdict
 #.      por el momento tenemos solo validacion boostrapeada, no existe modo no shuffle
 #.      para evaluacion no estocástica, nuestra validación está hackeada.
 # TODO: _get_sampleable_windows_idxs linea muy malvada de windows con frequencia aumenta de 3.0 a 3.6 segundos el batch
+# TODO thin about _is_train, is_train_loader interaction
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset: TimeSeriesDataset,
@@ -33,6 +32,7 @@ class TimeSeriesLoader(object):
                  idx_to_sample_freq: int,
                  batch_size: int,
                  is_train_loader: bool,
+                 shuffle: bool,
                  n_series_per_batch: int=None):
         """
         """
@@ -52,7 +52,8 @@ class TimeSeriesLoader(object):
         else:
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
-        self._is_train = True
+        self._is_train = True        # TODO thin about _is_train, is_train_loader interaction <-------
+        self.shuffle = shuffle
 
         # Dataloader protections
         assert self.batch_size % self.n_series_per_batch == 0, \
@@ -107,10 +108,11 @@ class TimeSeriesLoader(object):
     def __iter__(self):
         n_series = self.ts_dataset.n_series
         # Shuffle idx before epoch if self._is_train
-        if self._is_train:
-            sample_idxs = np.random.choice(range(n_series), n_series, replace=False)
+        if self.shuffle:
+            sample_idxs = np.random.choice(a=range(n_series), size=n_series, replace=False)
         else:
-            sample_idxs = range(n_series)
+            sample_idxs = np.array(range(n_series))
+
         n_batches = int(np.ceil(n_series / self.n_series_per_batch)) # Must be multiple of batch_size for paralel gpu
 
         for idx in range(n_batches):
