@@ -290,8 +290,7 @@ class Nbeats(object):
             elif loss_name == 'MAE':
                 return mae(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'PINBALL':
-                return pinball_loss(y=target, y_hat=forecast, weights=weights,
-                                    tau=0.5)
+                return pinball_loss(y=target, y_hat=forecast, weights=weights, tau=0.5)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss

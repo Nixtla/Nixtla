@@ -168,8 +168,10 @@ def pinball_loss(y: np.ndarray, y_hat: np.ndarray, tau: float=0.5, weights=None)
     ------
     return: pinball_loss
     """
+    assert (weights is None) or (np.sum(weights)>0), 'Sum of weights cannot be 0'
+    assert (weights is None) or (len(weights)==len(y)), 'Wrong weight dimension'
+
     delta_y = y - y_hat
     pinball = np.maximum(tau * delta_y, (tau - 1) * delta_y)
-    pinball = pinball.mean()
-
+    pinball = np.average(pinball, weights=weights) #pinball.mean()
     return pinball

@@ -113,6 +113,7 @@ class TimeSeriesLoader(object):
             yield batch
 
     def __get_item__(self, index):
+        assert 1<0, "Adaptar el Fast Dataloader a operar con epochs"
         if self.model == 'nbeats':
             return self._nbeats_batch(index)
         elif self.model == 'esrnn':
