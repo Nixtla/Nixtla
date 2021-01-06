@@ -13,6 +13,7 @@ from .ontsdataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell
+# TODO: __iter__ con la ultima parte de las windows
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset:TimeSeriesDataset,
@@ -23,7 +24,8 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int, # TODO: Usada en hack ENORME para window frequency sampling
                  batch_size: int,
-                 is_train_loader: bool):
+                 is_train_loader: bool,
+                 shuffle: bool):
         """
         """
         self.model = model
@@ -37,6 +39,7 @@ class TimeSeriesLoader(object):
         self.t_cols = self.ts_dataset.t_cols
         self.X_cols = self.ts_dataset.X_cols
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
+        self.shuffle = shuffle # Boolean to shuffle data, useful for validation
 
         # Create rolling window matrix in advanced for faster access to data and broadcasted s_matrix
         self._create_train_data()
@@ -97,19 +100,24 @@ class TimeSeriesLoader(object):
     def __iter__(self):
         #TODO: revisar como se hace el -1 de batch_size en un dataloader de torch. Otra opcion es simplemente batch_size grande,
         # tambien se puede arregar con epoca
-        while True:
-            if self._is_train:
-                if self.batch_size > 0:
-                    sampled_ts_indices = np.random.choice(a=self.windows_sampling_idx, p=self.windows_prob,
-                                                          size=self.batch_size, replace=True)
-                else:
-                    sampled_ts_indices = self.windows_sampling_idx
+        if self._is_train:
+            if self.shuffle:
+                # Weird hack to allow for probabilistic sampling, not totally an 'epoch'
+                sample_idxs = np.random.choice(a=self.windows_sampling_idx, p=self.windows_prob,
+                                                size=len(self.windows_sampling_idx), replace=True)
             else:
                 # Get last n_series windows, dataset is ordered because of unfold
-                sampled_ts_indices = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
+                sample_idxs = self.windows_sampling_idx
+        else:
+            sample_idxs = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
 
-            batch = self.__get_item__(sampled_ts_indices)
+        assert len(sample_idxs)>0, 'Check the data as sample_idxs are empty'
 
+        n_batches = int(np.ceil(len(sample_idxs) / self.batch_size)) # Must be multiple of batch_size for paralel gpu
+
+        for idx in range(n_batches):
+            ws_idxs = sample_idxs[(idx * self.batch_size) : (idx + 1) * self.batch_size]
+            batch = self.__get_item__(index=ws_idxs)
             yield batch
 
     def __get_item__(self, index):
