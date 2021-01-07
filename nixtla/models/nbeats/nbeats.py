@@ -49,7 +49,7 @@ class Nbeats(object):
     IDENTITY_BLOCK = 'identity'
 
     def __init__(self,
-                 input_size_multiplier,
+                 input_size,
                  output_size,
                  shared_weights,
                  activation,
@@ -86,7 +86,7 @@ class Nbeats(object):
 
         #------------------------ Model Attributes ------------------------#
         # Architecture parameters
-        self.input_size = int(input_size_multiplier*output_size)
+        self.input_size = input_size
         self.output_size = output_size
         self.shared_weights = shared_weights
         self.activation = activation
@@ -98,8 +98,6 @@ class Nbeats(object):
         self.n_harmonics = n_harmonics
         self.n_polynomials = n_polynomials
         self.exogenous_n_channels = exogenous_n_channels
-        self.include_var_dict = include_var_dict
-        self.t_cols = t_cols
 
         # Regularization and optimization parameters
         self.batch_normalization = batch_normalization
@@ -116,11 +114,14 @@ class Nbeats(object):
         self.loss_hypar = loss_hypar
         self.l1_theta = l1_theta
         self.l1_conv = 1e-3 # Not a hyperparameter
+        self.random_seed = random_seed
 
-        # Regularization and optimization parameters
+        # Data parameters
         self.frequency = frequency
         self.seasonality = seasonality
-        self.random_seed = random_seed
+        self.include_var_dict = include_var_dict
+        self.t_cols = t_cols
+        #self.scaler = scaler
 
         if device is None:
             device = 'cuda' if t.cuda.is_available() else 'cpu'
@@ -341,6 +342,33 @@ class Nbeats(object):
         self.model.train()
         return loss
 
+    def predict_all(self, ts_loader):
+        self.model.eval()
+        shuffle = ts_loader.shuffle
+        ts_loader.shuffle = False
+
+        forecasts = []
+        with t.no_grad():
+            for batch in iter(ts_loader):
+                # Parse batch
+                insample_y     = self.to_tensor(batch['insample_y'])
+                insample_x     = self.to_tensor(batch['insample_x'])
+                insample_mask  = self.to_tensor(batch['insample_mask'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
+                outsample_y    = self.to_tensor(batch['outsample_y'])
+                outsample_mask = self.to_tensor(batch['outsample_mask'])
+                s_matrix       = self.to_tensor(batch['s_matrix'])
+
+                forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
+                                        insample_x_t=insample_x, outsample_x_t=outsample_x,
+                                        insample_mask=insample_mask)
+                forecasts.append(forecast.cpu().data.numpy())
+
+        forecasts = np.vstack(forecast)
+        self.model.train()
+        ts_loader.shuffle = ts_loader.shuffle
+        return forecasts
+
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
         assert (self.input_size)==train_ts_loader.input_size, \
@@ -373,12 +401,7 @@ class Nbeats(object):
         training_loss_fn = self.__loss_fn(self.loss)
         validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
 
-        if verbose and (n_iterations > 0):
-            print('='*30+' Start fitting '+'='*30)
-            print(f'Number of exogenous variables: {self.n_x_t}')
-            print(f'Number of static variables: {self.n_x_s} , with dim_hidden: {self.x_s_n_hidden}')
-            print(f'Number of iterations: {n_iterations}')
-            print(f'Number of blocks: {len(self.model.blocks)}')
+        print('='*30+' Start fitting '+'='*30)
 
         #self.loss_dict = {} # Restart self.loss_dict
         start = time.time()
@@ -417,7 +440,7 @@ class Nbeats(object):
                                         insample_mask=insample_mask)
 
                 training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
-                                                target=outsample_y, mask=outsample_mask)
+                                                 target=outsample_y, mask=outsample_mask)
 
                 if np.isnan(float(training_loss)):
                     break
@@ -437,7 +460,7 @@ class Nbeats(object):
 
                     if val_ts_loader is not None:
                         loss = self.evaluate_performance(ts_loader=val_ts_loader,
-                                                        validation_loss_fn=validation_loss_fn)
+                                                         validation_loss_fn=validation_loss_fn)
                         display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
                         self.trajectories['val_loss'].append(loss)
 
