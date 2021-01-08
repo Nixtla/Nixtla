@@ -347,6 +347,7 @@ class Nbeats(object):
         shuffle = ts_loader.shuffle
         ts_loader.shuffle = False
 
+        y_true = []
         forecasts = []
         with t.no_grad():
             for batch in iter(ts_loader):
@@ -362,12 +363,16 @@ class Nbeats(object):
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
+
+                y_true.append(batch['outsample_y'])
                 forecasts.append(forecast.cpu().data.numpy())
 
-        forecasts = np.vstack(forecast)
+        y_true = np.vstack(y_true)
+        forecasts = np.vstack(forecasts)
+
         self.model.train()
         ts_loader.shuffle = ts_loader.shuffle
-        return forecasts
+        return y_true, forecasts
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
