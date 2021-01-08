@@ -6,8 +6,6 @@ __all__ = ['run_val_nbeatsx', 'get_experiment_space', 'parse_trials', 'forecast_
 import time
 import os
 # Limit number of threads in numpy and others to avoid throttling
-# os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
-# print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
 os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=4
 os.environ["OPENBLAS_NUM_THREADS"] = "2" # export OPENBLAS_NUM_THREADS=4
 os.environ["MKL_NUM_THREADS"] = "3" # export MKL_NUM_THREADS=6
@@ -381,5 +379,5 @@ def parse_args():
 #     print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
 #     main(args)
 
-# PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50  --experiment_id "20210108_0" --gpu_id 0
-# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50  --experiment_id "20210108_0" --gpu_id 0
+# PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
+# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
