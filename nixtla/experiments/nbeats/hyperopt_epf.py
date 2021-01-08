@@ -23,14 +23,14 @@ import random
 from datetime import datetime
 from functools import partial
 
-from ..data.scalers import Scaler
-from ..data.datasets.epf import EPF, EPFInfo
-from ..data.tsdataset import TimeSeriesDataset
-from ..data.tsloader_fast import TimeSeriesLoader
-from ..losses.numpy import mae, mape, smape, rmse, pinball_loss
+from ...data.scalers import Scaler
+from ...data.datasets.epf import EPF, EPFInfo
+from ...data.tsdataset import TimeSeriesDataset
+from ...data.tsloader_fast import TimeSeriesLoader
+from ...losses.numpy import mae, mape, smape, rmse, pinball_loss
 
 # Models
-from ..models.nbeats.nbeats import Nbeats
+from ...models.nbeats.nbeats import Nbeats
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -142,7 +142,7 @@ def hyperopt_space_nbeatsx_pinball(args):
              'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.1)),
              'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
              'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
-             'loss_hypar': hp.uniform('dropout_prob', 0.45, 0.55),
+             'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
              'random_seed': hp.quniform('random_seed', 1, 20, 1)}
     return space
 
@@ -212,11 +212,6 @@ def main(args):
 
     hyperopt_file = output_dir + f'hyperopt_{args.experiment_id}.p'
     result_test_file = output_dir + f'result_test_{args.experiment_id}.p'
-
-    #os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
-    #import torch
-    #from src.utils.experiment.run_nbeatsx import run_val_nbeatsx, run_test_nbeatsx
-    #print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
 
     #---------------------------------------------- Read  Data ----------------------------------------------#
     print('\n'+75*'-')
@@ -319,3 +314,15 @@ def main(args):
 
     run_val_nbeatsx(best_mc, train_loader=train_loader, val_loader=val_loader,
                     trials=trials, trials_file_name=hyperopt_file, final_evaluation=True)
+
+#if __name__ == '__main__':
+#
+#    # parse arguments
+#    args = parse_args()
+#    if args is None:
+#        exit()
+#
+#    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
+#    print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
+#    print(f"args.loss_hypar {args.loss_hypar}")
+#    main(args)
