@@ -487,14 +487,14 @@ class Nbeats(object):
                     train_ts_loader.train()
 
             if break_flag:
-                print(10*'-',' Stopped training by early stopping', 10*'-')
+                print(17*'-',' Stopped training  by early stopping', 17*'-')
                 self.model.load_state_dict(best_state_dict)
                 break
 
         #End of fitting
         if n_iterations >0:
             self.final_insample_loss = training_loss.cpu().data.numpy() if not break_flag else best_insample_loss #This is batch!
-            string = 'Iteration: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
+            string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                             time.time()-start,
                                                                             self.loss,
                                                                             self.final_insample_loss)
@@ -503,7 +503,8 @@ class Nbeats(object):
                                                                       validation_loss_fn=validation_loss_fn)
                 string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
             print(string)
-            print('='*30+'End fitting '+'='*30)
+            print('='*30+'  End fitting  '+'='*30)
+            print('\n')
 
     def predict(self, ts_loader, X_test=None, eval_mode=False):
 
