@@ -23,14 +23,14 @@ import random
 from datetime import datetime
 from functools import partial
 
-from ...data.scalers import Scaler
-from ...data.datasets.epf import EPF, EPFInfo
-from ...data.tsdataset import TimeSeriesDataset
-from ...data.tsloader_fast import TimeSeriesLoader
-from ...losses.numpy import mae, mape, smape, rmse, pinball_loss
+from ..data.scalers import Scaler
+from ..data.datasets.epf import EPF, EPFInfo
+from ..data.tsdataset import TimeSeriesDataset
+from ..data.tsloader_fast import TimeSeriesLoader
+from ..losses.numpy import mae, mape, smape, rmse, pinball_loss
 
 # Models
-from ...models.nbeats.nbeats import Nbeats
+from ..models.nbeats.nbeats import Nbeats
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -94,7 +94,7 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 
     if final_evaluation:
         y_true, y_hat = model.predict_all(ts_loader=val_loader)
-        print('\n'+'Best Model Evaluation')
+        print('Best Model Evaluation')
         print(forecast_evaluation_table(y_true, y_hat))
 
     return results
