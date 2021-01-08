@@ -134,7 +134,7 @@ def hyperopt_space_nbeatsx_pinball(args):
              'lr_decay': hp.choice('lr_decay', [0.5]),
              'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
              'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
-             'n_iterations': hp.choice('n_iterations', [100]), #<------- TODO: Change for max_epochs
+             'n_iterations': args.max_epochs, #<------- TODO: Change for max_epochs
              'early_stopping': hp.choice('early_stopping', [40]),
              'loss': hp.choice('loss', ['PINBALL']),
              'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
@@ -315,6 +315,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, required=True, help='NP')
     parser.add_argument('--model', type=str, required=True, help='Models')
     parser.add_argument('--hyperopt_iters', type=int, help='hyperopt_iters')
+    parser.add_argument('--max_epochs', type=int, help='max train epochs')
     parser.add_argument('--experiment_id', default=None, required=False, type=str, help='string to identify experiment')
     parser.add_argument('--gpu_id', type=int, default=0, required=False, help='GPU')
     return parser.parse_args()
