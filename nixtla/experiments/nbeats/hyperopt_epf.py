@@ -368,16 +368,18 @@ def parse_args():
     parser.add_argument('--gpu_id', type=int, default=0, required=False, help='GPU')
     return parser.parse_args()
 
-# if __name__ == '__main__':
 
-#     # parse arguments
-#     args = parse_args()
-#     if args is None:
-#         exit()
+# Cell
+if __name__ == '__main__':
 
-#     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
-#     print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
-#     main(args)
+    # parse arguments
+    args = parse_args()
+    if args is None:
+        exit()
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
+    print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
+    main(args)
 
 # PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
 # PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
