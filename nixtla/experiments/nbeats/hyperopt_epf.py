@@ -136,7 +136,7 @@ def get_experiment_space(args):
                  'lr_decay': hp.choice('lr_decay', [0.5]),
                  'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                  'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
-                 'n_iterations': args.max_epochs, #<------- TODO: Change for max_epochs
+                 'n_iterations': hp.choice('n_iterations', [args.max_epochs]), #<------- TODO: Change for max_epochs
                  'early_stopping': hp.choice('early_stopping', [40]),
                  'loss': hp.choice('loss', ['PINBALL']),
                  'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
@@ -180,7 +180,7 @@ def get_experiment_space(args):
                 'lr_decay': hp.choice('lr_decay', [0.5]),
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                 'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
-                'n_iterations': args.max_epochs, #<------- TODO: Change for max_epochs
+                'n_iterations': hp.choice('n_iterations', [args.max_epochs]), #<------- TODO: Change for max_epochs
                 'early_stopping': hp.choice('early_stopping', [40]),
                 'loss': hp.choice('loss', ['PINBALL']),
                 'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
@@ -365,7 +365,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, required=True, help='NP')
     parser.add_argument('--space', type=str, required=True, help='Experiment hyperparameter space')
     parser.add_argument('--hyperopt_iters', type=int, help='hyperopt_iters')
-    parser.add_argument('--max_epochs', type=int, help='max train epochs')
+    parser.add_argument('--max_epochs', type=int, required=True, help='max train epochs')
     parser.add_argument('--experiment_id', default=None, required=False, type=str, help='string to identify experiment')
     parser.add_argument('--gpu_id', type=int, default=0, required=False, help='GPU')
     return parser.parse_args()
@@ -377,12 +377,9 @@ def parse_args():
 #     if args is None:
 #         exit()
 
-#     assert args.space in EXPERIMENT_SPACES.keys(), \
-#         f'Experiment space {args.space} not available in EXPERIMENT_SPACES.keys()'
-
 #     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
 #     print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
 #     main(args)
 
-# PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2  --experiment_id "20210108_0" --gpu_id 0
-# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2  --experiment_id "20210108_0" --gpu_id 0
+# PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50  --experiment_id "20210108_0" --gpu_id 0
+# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50  --experiment_id "20210108_0" --gpu_id 0
