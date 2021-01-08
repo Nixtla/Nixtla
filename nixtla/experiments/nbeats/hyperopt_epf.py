@@ -63,7 +63,7 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
                    include_var_dict={'y': [-2, -3, -8],
                                      'Exogenous1': [-1, -2, -8],
                                      'Exogenous2': [-1, -2, -8],
-                                     'week_day': [-1]},
+                                     'week_day': [-1]}, #TODO: mc['include_var_dict]
                    t_cols=train_loader.ts_dataset.t_cols,
                    batch_normalization=mc['batch_normalization'], #False,
                    dropout_prob_theta=float(mc['dropout_prob_theta']), #0.01,
@@ -93,8 +93,13 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
                 'status': STATUS_OK}
 
     if final_evaluation:
-        y_true, y_hat = model.predict_all(ts_loader=val_loader)
+        print('Best Model Hyperpars')
+        print(75*'=')
+        print(pd.Series(mc))
+        print(75*'='+'\n')
+
         print('Best Model Evaluation')
+        y_true, y_hat = model.predict_all(ts_loader=val_loader)
         print(forecast_evaluation_table(y_true, y_hat))
 
     return results
@@ -103,26 +108,9 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 def hyperopt_space_nbeatsx_pinball(args):
     space = {#----------------------------------------------  Fixed   ----------------------------------------------#
              # Architecture parameters
-             'frequency': hp.choice('frequency', ['H']),
-             'seasonality': hp.choice('seasonality', [24]),
-             'input_size': hp.choice('input_size', [7*24]),
+             'input_size': hp.choice('input_size', [7*24]),  #<------- TODO: Change for n_xt
              'output_size': hp.choice('output_size', [24]),
              'shared_weights': hp.choice('shared_weights', [False]),
-             'n_polynomials': hp.choice('n_polynomials', [2]), #<----- TODO: Eliminate unnecesary hypar
-             'n_harmonics': hp.choice('n_harmonics', [1]), #<--------- TODO: Eliminate unnecesary hypar
-             'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]), #<------- TODO: Change for n_xs_hidden
-             # Regularization and optimization parameters
-             'lr_decay': hp.choice('lr_decay', [0.5]),
-             'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
-             'n_iterations': hp.choice('n_iterations', [100]), #<--------- Important
-             'early_stopping': hp.choice('early_stopping', [40]),
-             'loss': hp.choice('loss', ['PINBALL']),
-             'include_var_dict': hp.choice('include_var_dict', [{'y': [-2, -3, -8],
-                                                                 'Exogenous1': [-1, -2, -8],
-                                                                 'Exogenous2': [-1, -2, -8],
-                                                                 'week_day': [-1]}]),
-             #---------------------------------------------- Explored ----------------------------------------------#
-             # Architecture parameters
              'activation': hp.choice('activation', ['relu','softplus','tanh','selu','lrelu','prelu','sigmoid']),
              'initialization':  hp.choice('initialization', ['orthogonal','he_uniform','he_normal',
                                                              'glorot_uniform','glorot_normal','lecun_normal']),
@@ -133,16 +121,31 @@ def hyperopt_space_nbeatsx_pinball(args):
                                                        ['exogenous_tcn']+1*['identity'] ]),
              'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
              'n_layers': hp.choice('n_layers', [ [2, 2] ]),
-             'n_hidden': hp.quniform('n_hidden_1', 50, 500, 1),
-             'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1),
+             'n_hidden': hp.quniform('n_hidden_1', 50, 500, 1), #<------- TODO: Change for n_theta_list
+             'n_harmonics': hp.choice('n_harmonics', [1]), #<--------- TODO: Eliminate unnecesary hypar
+             'n_polynomials': hp.choice('n_polynomials', [2]), #<----- TODO: Eliminate unnecesary hypar
+             'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1), #<------- TODO: Change for n_xt_channels
+             'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]), #<------- TODO: Change for n_xs_hidden
              # Regularization and optimization parameters
              'batch_normalization': hp.choice('batch_normalization', [True, False]),
              'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 1),
              'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
              'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.1)),
+             'lr_decay': hp.choice('lr_decay', [0.5]),
+             'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
              'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
-             'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
+             'n_iterations': hp.choice('n_iterations', [100]), #<------- TODO: Change for max_epochs
+             'early_stopping': hp.choice('early_stopping', [40]),
+             'loss': hp.choice('loss', ['PINBALL']),
              'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
+             'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
+             # Data parameters
+             'frequency': hp.choice('frequency', ['H']),
+             'seasonality': hp.choice('seasonality', [24]),
+             'include_var_dict': hp.choice('include_var_dict', [{'y': [-2, -3, -8],
+                                                                 'Exogenous1': [-1, -2, -8],
+                                                                 'Exogenous2': [-1, -2, -8],
+                                                                 'week_day': [-1]}]),
              'random_seed': hp.quniform('random_seed', 1, 20, 1)}
     return space
 
@@ -223,7 +226,7 @@ def main(args):
     Xt_scaled_df = Xt_df.copy()
 
     # Transform data with scale transformation
-    offset = 365 * 24
+    offset = 365 * 24 * 2
     scaler = Scaler(normalizer='norm')
     Xt_scaled_df['Exogenous1'] = scaler.scale(x=Xt_scaled_df['Exogenous1'].values, offset=offset)
 
@@ -264,7 +267,8 @@ def main(args):
     print(f'Train mask percentage: {np.round(np.sum(train_outsample_mask)/len(train_outsample_mask),2)}')
     print('X: time series features, of shape (#hours, #times,#features): \t' + str(Xt_df.shape))
     print('Y: target series (in X), of shape (#hours, #times): \t \t' + str(Y_df.shape))
-    print(f'{len(Xt_df)} hours = {np.round(len(Xt_df)/(24*365),2)} years')
+    print(f'Train {sum(1-train_outsample_mask)} hours = {np.round(sum(1-train_outsample_mask)/(24*365),2)} years')
+    print(f'Validation {sum(train_outsample_mask)} hours = {np.round(sum(train_outsample_mask)/(24*365),2)} years')
     # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
     #Y_df.head()
     print('\n')
@@ -324,7 +328,7 @@ def parse_args():
 #
 #    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
 #    print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
-#    print(f"args.loss_hypar {args.loss_hypar}")
 #    main(args)
 
 # PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --hyperopt_iters 2 --model "nbeatsx_overfit" --experiment_id "20210108_0" --gpu_id 0
+# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --hyperopt_iters 2 --model "nbeatsx_overfit" --experiment_id "20210108_0" --gpu_id 0
