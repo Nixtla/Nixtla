@@ -13,14 +13,13 @@ from .tsdataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell
-# TODO: train_masks no estan definidas para el DataloaderGeneral
 # TODO: revisar _create_windows_tensor method para checar que la declaracion de la train_mask y su uso es correcto
 #.      no sabemos si hay algo diferente respecto a su uso en el DataLoaderFast
 # TODO: pensar variable shuffle para compatibilidad con dataloader de pytorch y keras
 #.      por el momento tenemos solo validacion boostrapeada, no existe modo no shuffle
 #.      para evaluacion no estocástica, nuestra validación está hackeada.
 # TODO: _get_sampleable_windows_idxs linea muy malvada de windows con frequencia aumenta de 3.0 a 3.6 segundos el batch
-# TODO thin about _is_train, is_train_loader interaction
+
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset: TimeSeriesDataset,
@@ -31,9 +30,9 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int,
                  batch_size: int,
-                 n_series_per_batch: int=None,
                  is_train_loader: bool,
-                 shuffle: bool):
+                 shuffle: bool,
+                 n_series_per_batch: int=None):
         """
         """
         # Dataloader attributes
@@ -52,7 +51,6 @@ class TimeSeriesLoader(object):
         else:
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
-        self._is_train = True        # TODO thin about _is_train, is_train_loader interaction <-------
         self.shuffle = shuffle
 
         # Dataloader protections
@@ -64,15 +62,11 @@ class TimeSeriesLoader(object):
             f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
     def _get_sampleable_windows_idxs(self, ts_windows_flatten):
-        # Only sample during training windows with at least one active output mask
-        sampling_idx = t.sum(ts_windows_flatten[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
-        sampling_idx = t.nonzero(sampling_idx > 0)
+        # Only sample during training windows with at least one active output mask and input mask
+        outsample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
+        insample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('insample_mask'), :self.input_size], axis=1)
+        sampling_idx = t.nonzero(outsample_condition * insample_condition > 0) #element-wise product
         sampling_idx = list(sampling_idx.flatten().numpy())
-        # TODO: pensar como resolver el hack de +1,
-        #.      el +1 está diseñado para addressear el shift que tenemos que garantiza que el primer train tenga
-        #.      por lo menos un input en la train_mask, además este código necesita la condición de que la serie más larga empieza
-        #.      en el ds del que se va a querer samplear con la frecuencia particular. Hay dos hacks ENORMES.
-        sampling_idx = [idx for idx in sampling_idx if (idx+1) % self.idx_to_sample_freq==0] # TODO: Esta linea muy malvada aumenta .6 segundos
         return sampling_idx
 
     def _create_windows_tensor(self, ts_idxs=None):
@@ -92,7 +86,7 @@ class TimeSeriesLoader(object):
         mask = train_mask if self.is_train_loader else (1 - train_mask)
         tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
 
-        padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)
+        padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
 
         # Last output_size outsample_mask and y to 0
@@ -100,10 +94,19 @@ class TimeSeriesLoader(object):
         tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
         # Creating rolling windows and 'flattens' them
-        windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=1)
-        windows = windows.permute(2,0,1,3)
+        windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
+        # n_serie, n_channel, n_time, window_size -> n_serie, n_time, n_channel, window_size
+        #print(f'n_serie, n_channel, n_time, window_size = {windows.shape}')
+        windows = windows.permute(0,2,1,3)
+        #print(f'n_serie, n_time, n_channel, window_size = {windows.shape}')
         windows = windows.reshape(-1, self.ts_dataset.n_channels, self.input_size + self.output_size)
-        return windows
+
+        # Broadcast s_matrix: This works because unfold in windows_tensor, orders: serie, time
+        s_matrix = self.ts_dataset.s_matrix[ts_idxs]
+        windows_per_serie = len(windows)//len(ts_idxs)
+        s_matrix = s_matrix.repeat(windows_per_serie, 0)
+
+        return windows, s_matrix
 
     def __iter__(self):
         n_series = self.ts_dataset.n_series
@@ -129,24 +132,24 @@ class TimeSeriesLoader(object):
             assert 1<0, 'error'
 
     def _windows_batch(self, index):
+        """ NBEATS, TCN models """
 
         # Create windows for each sampled ts and sample random unmasked windows from each ts
-        windows = self._create_windows_tensor(ts_idxs=index)
+        windows, s_matrix = self._create_windows_tensor(ts_idxs=index)
+        sampleable_windows = self._get_sampleable_windows_idxs(ts_windows_flatten=windows)
+        self.sampleable_windows = sampleable_windows
 
-        if self._is_train:
-            sampleable_windows = self._get_sampleable_windows_idxs(ts_windows_flatten=windows)
+        # Get sample windows_idxs of batch
+        if self.shuffle:
             windows_idxs = np.random.choice(sampleable_windows, self.batch_size, replace=True)
-            windows = windows[windows_idxs]
         else:
-            windows_idxs = index
-            windows = windows[-len(index):]
+            windows_idxs = sampleable_windows
 
-        #TODO: Fix this part. We have not tested the addition of static variables in DataLoaderGeneral
-        #.     This is inspired in the repeat of the in DataLoaderFast
-        s_matrix = self.ts_dataset.s_matrix[index]
-        s_matrix = s_matrix.repeat(self.windows_per_serie, 1)
+        # Index the windows and s_matrix tensors of batch
+        windows = windows[windows_idxs]
         s_matrix = s_matrix[windows_idxs]
 
+        # Parse windows to elements of batch
         insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
         insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
         insample_mask = windows[:, self.t_cols.index('insample_mask'), :self.input_size]
@@ -155,13 +158,17 @@ class TimeSeriesLoader(object):
         outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
         outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
 
+        assert all(insample_mask.sum(axis=1)>0), 'Insample mask contains windows with all zeros.'
+        assert all(outsample_mask.sum(axis=1)>0), 'Outsample mask contains windows with all zeros.'
+
         batch = {'s_matrix': s_matrix,
                  'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
                  'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
         return batch
 
     def _full_series_batch(self, index):
-        #TODO: meter get filter tensor
+        """ ESRNN, RNN models """
+
         ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
                                                                  window_sampling_limit=self.window_sampling_limit,
                                                                  ts_idxs=index)

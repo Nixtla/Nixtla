@@ -45,23 +45,14 @@ class TimeSeriesLoader(object):
 
         # Create rolling window matrix in advanced for faster access to data and broadcasted s_matrix
         self._create_train_data()
-        self._is_train = True # Boolean variable for train and eval mode for dataloader (random vs ordered batches)
-
-        #TODO: mejorar estos prints
-        # print('X: time series features, of shape (#series,#times,#features): \t' + str(X.shape))
-        # print('Y: target series (in X), of shape (#series,#times): \t \t' + str(Y.shape))
-        # print('S: static features, of shape (#series,#features): \t \t' + str(S.shape))
 
     def _update_sampling_windows_idxs(self):
-        # Only sample during training windows with at least one active output mask
-        sampling_idx = t.sum(self.ts_windows[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
-        sampling_idx = t.nonzero(sampling_idx > 0)
+
+        # Only sample during training windows with at least one active output mask and input mask
+        outsample_condition = t.sum(self.ts_windows[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
+        insample_condition = t.sum(self.ts_windows[:, self.t_cols.index('insample_mask'), :self.input_size], axis=1)
+        sampling_idx = t.nonzero(outsample_condition * insample_condition > 0) #element-wise product
         sampling_idx = list(sampling_idx.flatten().numpy())
-        # TODO: pensar como resolver el hack de +1,
-        #.      el +1 está diseñado para addressear el shift que tenemos que garantiza que el primer train tenga
-        #.      por lo menos un input en la train_mask, además este código necesita la condición de que la serie más larga empieza
-        #.      en el ds del que se va a querer samplear con la frecuencia particular. Hay dos hacks ENORMES.
-        sampling_idx = [idx for idx in sampling_idx if (idx+1) % self.idx_to_sample_freq==0] # TODO: Esta linea muy malvada aumenta .6 segundos
         return sampling_idx
 
     def _create_windows_tensor(self):
@@ -81,36 +72,35 @@ class TimeSeriesLoader(object):
         mask = train_mask if self.is_train_loader else (1 - train_mask)
         tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
 
-        padder = t.nn.ConstantPad1d(padding=(self.input_size-1, right_padding), value=0)
+        padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
 
         # Last output_size outsample_mask and y to 0
         tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
         tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
-        # Creating rolling windows
-        windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=1)
-        windows = windows.permute(2,0,1,3)
+        # Creating rolling windows and 'flattens' them
+        windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
+        # n_serie, n_channel, n_time, window_size -> n_serie, n_time, n_channel, window_size
+        #print(f'n_serie, n_channel, n_time, window_size = {windows.shape}')
+        windows = windows.permute(0,2,1,3)
+        #print(f'n_serie, n_time, n_channel, window_size = {windows.shape}')
         windows = windows.reshape(-1, self.ts_dataset.n_channels, self.input_size + self.output_size)
-        return windows
+
+        # Broadcast s_matrix: This works because unfold in windows_tensor, orders: time, serie
+        self.s_matrix = self.ts_dataset.s_matrix.repeat(repeats=int(len(windows)/self.ts_dataset.n_series), axis=0)
+
+        return windows, s_matrix
 
     def __len__(self):
         return len(self.len_series)
 
     def __iter__(self):
-        #TODO: revisar como se hace el -1 de batch_size en un dataloader de torch. Otra opcion es simplemente batch_size grande,
-        # tambien se puede arregar con epoca
-        if self._is_train:
-            if self.shuffle:
-                sample_idxs = np.random.choice(a=self.windows_sampling_idx,
-                                               size=len(self.windows_sampling_idx), replace=False)
-            else:
-                # Get last n_series windows, dataset is ordered because of unfold
-                sample_idxs = self.windows_sampling_idx
+        if self.shuffle:
+            sample_idxs = np.random.choice(a=self.windows_sampling_idx,
+                                            size=len(self.windows_sampling_idx), replace=False)
         else:
-            # Get last observations for each time series for last prediction
-            # This is necessary because windows are created and stored in advance
-            sample_idxs = list(range(self.n_windows-self.ts_dataset.n_series, self.n_windows))
+            sample_idxs = self.windows_sampling_idx
 
         assert len(sample_idxs)>0, 'Check the data as sample_idxs are empty'
 
@@ -152,10 +142,8 @@ class TimeSeriesLoader(object):
         """
         #print('Creating windows matrix ...')
         # Create rolling window matrix for fast information retrieval
-        self.ts_windows = self._create_windows_tensor()
+        self.ts_windows, self.s_matrix = self._create_windows_tensor()
         self.n_windows = len(self.ts_windows)
-        # Broadcast s_matrix: This works because unfold in windows_tensor, padded windows, unshuffled data.
-        self.s_matrix = self.ts_dataset.s_matrix.repeat(int(self.n_windows/self.ts_dataset.n_series), 1)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
     def update_offset(self, offset):
@@ -184,9 +172,3 @@ class TimeSeriesLoader(object):
 
     def get_frequency(self):
         return self.ts_dataset.frequency
-
-    def train(self):
-        self._is_train = True
-
-    def eval(self):
-        self._is_train = False

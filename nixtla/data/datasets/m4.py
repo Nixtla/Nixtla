@@ -86,7 +86,7 @@ class M4(TimeSeriesDataclass):
     @staticmethod
     def load(directory: str,
              group: str,
-             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+             return_tensor: bool = True):# -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads M4 data.
 
@@ -152,11 +152,12 @@ class M4(TimeSeriesDataclass):
 
 #         df = df.filter(items=['unique_id', 'ds', 'y'])
 
-        if return_tensor:
-            #S['category'] = S['category'].astype('category').cat.codes
-            return TimeSeriesDataset(Y_df=df, S_df=None, X_df=None)
-        else:
-            return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
+        # if return_tensor:
+        #     #S['category'] = S['category'].astype('category').cat.codes
+        #     return TimeSeriesDataset(Y_df=df, S_df=None, X_df=None)
+        # else:
+        #     return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
+        return df
 
     @staticmethod
     def download(directory: Path) -> None:
