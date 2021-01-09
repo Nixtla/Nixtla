@@ -88,7 +88,7 @@ class TimeSeriesLoader(object):
         windows = windows.reshape(-1, self.ts_dataset.n_channels, self.input_size + self.output_size)
 
         # Broadcast s_matrix: This works because unfold in windows_tensor, orders: time, serie
-        self.s_matrix = self.ts_dataset.s_matrix.repeat(repeats=int(len(windows)/self.ts_dataset.n_series), axis=0)
+        s_matrix = self.ts_dataset.s_matrix.repeat(repeats=int(len(windows)/self.ts_dataset.n_series), axis=0)
 
         return windows, s_matrix
 

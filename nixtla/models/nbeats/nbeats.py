@@ -49,7 +49,7 @@ class Nbeats(object):
     IDENTITY_BLOCK = 'identity'
 
     def __init__(self,
-                 input_size,
+                 input_size_multiplier,
                  output_size,
                  shared_weights,
                  activation,
@@ -86,7 +86,7 @@ class Nbeats(object):
 
         #------------------------ Model Attributes ------------------------#
         # Architecture parameters
-        self.input_size = input_size
+        self.input_size = int(input_size_multiplier*output_size)
         self.output_size = output_size
         self.shared_weights = shared_weights
         self.activation = activation
@@ -316,7 +316,6 @@ class Nbeats(object):
         return tensor
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
-        #TODO: mas opciones que mae
         self.model.eval()
 
         losses = []
@@ -341,38 +340,6 @@ class Nbeats(object):
         loss = np.mean(losses)
         self.model.train()
         return loss
-
-    def predict_all(self, ts_loader):
-        self.model.eval()
-        shuffle = ts_loader.shuffle
-        ts_loader.shuffle = False
-
-        y_true = []
-        forecasts = []
-        with t.no_grad():
-            for batch in iter(ts_loader):
-                # Parse batch
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
-
-                forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
-                                        insample_x_t=insample_x, outsample_x_t=outsample_x,
-                                        insample_mask=insample_mask)
-
-                y_true.append(batch['outsample_y'])
-                forecasts.append(forecast.cpu().data.numpy())
-
-        y_true = np.vstack(y_true)
-        forecasts = np.vstack(forecasts)
-
-        self.model.train()
-        ts_loader.shuffle = ts_loader.shuffle
-        return y_true, forecasts
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
@@ -429,7 +396,6 @@ class Nbeats(object):
                     continue
 
                 self.model.train()
-                train_ts_loader.train()
                 # Parse batch
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
@@ -484,12 +450,11 @@ class Nbeats(object):
                     print(display_string)
 
                     self.model.train()
-                    train_ts_loader.train()
 
-            if break_flag:
-                print(17*'-',' Stopped training  by early stopping', 17*'-')
-                self.model.load_state_dict(best_state_dict)
-                break
+                if break_flag:
+                    print(18*'-',' Stopped training  by early stopping', 18*'-')
+                    self.model.load_state_dict(best_state_dict)
+                    break
 
         #End of fitting
         if n_iterations >0:
@@ -507,39 +472,37 @@ class Nbeats(object):
             print('\n')
 
     def predict(self, ts_loader, X_test=None, eval_mode=False):
-
-        ts_loader.eval()
-        frequency = ts_loader.get_frequency()
-
-        # Build forecasts
-        unique_ids = ts_loader.get_meta_data_col('unique_id')
-        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
-
         self.model.eval()
+        assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
+
+        forecasts = []
+        outsample_ys = []
+        outsample_masks = []
         with t.no_grad():
-            forecasts = []
-            outsample_ys = []
-            outsample_masks = []
             for batch in iter(ts_loader):
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
                 insample_mask  = self.to_tensor(batch['insample_mask'])
                 outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
                 forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
                                       insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
-                forecasts += [forecast.cpu().data.numpy()]
-                outsample_ys += [outsample_y.cpu().data.numpy()]
-                outsample_masks += [outsample_mask.cpu().data.numpy()]
+                forecasts.append(forecast.cpu().data.numpy())
+                outsample_ys.append(batch['outsample_y'])
+                outsample_masks.append(batch['outsample_mask'])
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
+        self.model.train()
         if eval_mode:
-            return forecasts, outsample_ys, outsample_masks
+            return outsample_ys, forecasts, outsample_masks
+
+        # Pandas wrangling
+        frequency = ts_loader.get_frequency()
+        unique_ids = ts_loader.get_meta_data_col('unique_id')
+        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
 
         # Predictions for panel
         Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
