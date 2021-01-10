@@ -84,6 +84,18 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 
     model.fit(train_ts_loader=train_loader, val_ts_loader=val_loader, verbose=True, eval_steps=10) # aqui val_loader==Test
 
+    # TODO: Pytorch numerical error hacky protection
+    hyperopt_reported_loss = model.final_outsample_loss
+    if np.isnan(model.final_insample_loss):
+        hyperopt_reported_loss = 100
+    if model.final_insample_loss<=0:
+        hyperopt_reported_loss = 100
+
+    if np.isnan(model.final_outsample_loss):
+        hyperopt_reported_loss = 100
+    if model.final_outsample_loss<=0:
+        hyperopt_reported_loss = 100
+
     results =  {'loss': model.final_outsample_loss,
                 'loss_name': mc['val_loss'], #val_mae <--------
                 'mc': mc,
@@ -94,10 +106,10 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
                 'status': STATUS_OK}
 
     if final_evaluation:
-        print('Best Model Hyperpars')
-        print(75*'=')
-        print(pd.Series(mc))
-        print(75*'='+'\n')
+        #print('Best Model Hyperpars')
+        #print(75*'=')
+        #print(pd.Series(mc))
+        #print(75*'='+'\n')
 
         print('Best Model Evaluation')
         y_true, y_hat, _ = model.predict(ts_loader=val_loader, eval_mode=True)
@@ -152,7 +164,6 @@ def get_experiment_space(args):
 
 
     elif args.space=='nbeats_collapsed':
-        print("entra aqui")
         space= {# Architecture parameters
                 'input_size_multiplier': hp.choice('input_size_multiplier', [7]),  #<------- TODO: Change for n_xt
                 'output_size': hp.choice('output_size', [24]),
@@ -217,30 +228,14 @@ def parse_trials(trials):
     return trials_df
 
 def forecast_evaluation_table(y_true, y_hat):
-    #print("y_true.shape", y_true.shape)
-    #print("y_hat.shape", y_hat.shape)
+    y_true = y_true.reshape(-1)
+    y_hat = y_hat.reshape(-1)
 
-    n_days = len(y_true) // 24
-    y_true = y_true[-n_days*24:, :]
-    y_hat  = y_hat[-n_days*24:, :]
-
-    #print("y_true.shape (#fcds, #lt)", y_true.shape)
-    #print("y_hat.shape  (#fcds, #lt)", y_hat.shape)
-
-    #y_true = y_true.reshape(n_days, 24, 24)
-    #y_hat = y_hat.reshape(n_days, 24, 24)
-
-    #y_true = y_true[:,0,:]
-    #y_hat = y_hat[:,0,:]
-
-    #print("y_true.shape (#fcd_day, #fcd_hour, #lt)", y_true.shape)
-    #print("y_hat.shape (#fcd_day, #fcd_hour, #lt)", y_hat.shape)
-
-    _pinball50 = np.round(pinball_loss(y_true, y_hat, tau=0.5),2)
-    _mae   = np.round(mae(y_true, y_hat),2)
-    _mape  = np.round(mape(y_true, y_hat),2)
-    _smape = np.round(smape(y_true, y_hat),2)
-    _rmse  = np.round(rmse(y_true, y_hat),2)
+    _pinball50 = np.round(pinball_loss(y_true, y_hat, tau=0.5),5)
+    _mae   = np.round(mae(y_true, y_hat),5)
+    _mape  = np.round(mape(y_true, y_hat),5)
+    _smape = np.round(smape(y_true, y_hat),5)
+    _rmse  = np.round(rmse(y_true, y_hat),5)
 
     evaluations = pd.DataFrame({'metric': ['pinball50', 'mae', 'mape', 'smape', 'rmse'],
                                 'nbeatsx': [_pinball50, _mae, _mape, _smape, _rmse]})
@@ -380,8 +375,6 @@ if __name__ == '__main__':
     if args is None:
         exit()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu_id)
-    print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
     main(args)
 
 # CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPEval_20210110"

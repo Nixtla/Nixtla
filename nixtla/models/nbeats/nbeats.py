@@ -161,7 +161,6 @@ class Nbeats(object):
                 if self.shared_weights and block_id>0:
                     nbeats_block = block_list[-1]
                 else:
-                    print("self.stack_types[i]", self.stack_types[i])
                     if self.stack_types[i] == 'seasonality':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,
@@ -321,7 +320,10 @@ class Nbeats(object):
     def evaluate_performance(self, ts_loader, validation_loss_fn):
         self.model.eval()
 
-        losses = []
+        #losses = []
+        forecasts = []
+        outsample_ys = []
+        outsample_masks = []
         with t.no_grad():
             for batch in iter(ts_loader):
                 # Parse batch
@@ -336,13 +338,25 @@ class Nbeats(object):
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
-                batch_loss = validation_loss_fn(target=outsample_y.cpu().data.numpy(),
-                                                forecast=forecast.cpu().data.numpy(),
-                                                weights=outsample_mask.cpu().data.numpy())
-                losses.append(batch_loss)
-        loss = np.mean(losses)
+                #batch_loss = validation_loss_fn(target=outsample_y.cpu().data.numpy(),
+                #                                forecast=forecast.cpu().data.numpy(),
+                #                                weights=outsample_mask.cpu().data.numpy())
+                #losses.append(batch_loss)
+                forecasts.append(forecast.cpu().data.numpy())
+                outsample_ys.append(batch['outsample_y'])
+                outsample_masks.append(batch['outsample_mask'])
+
+        forecasts = np.vstack(forecasts)
+        outsample_ys = np.vstack(outsample_ys)
+        outsample_masks = np.vstack(outsample_masks)
+        #loss = np.mean(losses)
+
+        complete_loss = validation_loss_fn(target=outsample_ys,
+                                           forecast=forecasts,
+                                           weights=outsample_masks)
+
         self.model.train()
-        return loss
+        return complete_loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
@@ -455,7 +469,7 @@ class Nbeats(object):
                     self.model.train()
 
                 if break_flag:
-                    print(18*'-',' Stopped training  by early stopping', 18*'-')
+                    print(19*'-',' Stopped training by early stopping', 19*'-')
                     self.model.load_state_dict(best_state_dict)
                     break
 
