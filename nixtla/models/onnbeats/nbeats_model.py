@@ -33,35 +33,37 @@ class NBeatsBlock(nn.Module):
         """
         """
         super().__init__()
+
+        if x_s_n_inputs == 0:
+            x_s_n_hidden = 0
+        theta_n_hidden = [x_t_n_inputs + x_s_n_hidden] + theta_n_hidden
+
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden
         self.theta_with_exogenous = theta_with_exogenous
         self.batch_normalization = batch_normalization
         self.dropout_prob = dropout_prob
 
-        if x_s_n_inputs == 0:
-            x_s_n_hidden = 0
-        input_layer = [nn.Linear(in_features=x_t_n_inputs + x_s_n_hidden, out_features=theta_n_hidden), nn.ReLU()]
-
         hidden_layers = []
-        for _ in range(n_layers-1):
-            hidden_layers.append(nn.Linear(in_features=theta_n_hidden, out_features=theta_n_hidden))
+        for i in range(n_layers):
+            hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
             hidden_layers.append(nn.ReLU())
 
             if self.batch_normalization:
-                hidden_layers.append(nn.BatchNorm1d(theta_n_hidden))
+                hidden_layers.append(nn.BatchNorm1d(theta_n_hidden[i+1]))
 
             if self.dropout_prob>0:
                 hidden_layers.append(nn.Dropout(p=self.dropout_prob))
 
-        output_layer = [nn.Linear(in_features=theta_n_hidden, out_features=theta_n_dim)]
-        layers = input_layer + hidden_layers + output_layer
+        output_layer = [nn.Linear(in_features=theta_n_hidden[-1], out_features=theta_n_dim)]
+        layers = hidden_layers + output_layer
 
         # x_s_n_inputs is computed with data, x_s_n_hidden is provided by user, if 0 no statics are used
         if (self.x_s_n_inputs > 0) and (self.x_s_n_hidden > 0):
             self.static_encoder = _StaticFeaturesEncoder(in_features=x_s_n_inputs, out_features=x_s_n_hidden)
         self.layers = nn.Sequential(*layers)
         self.basis = basis
+
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor,
                 outsample_x_t: t.Tensor, x_s: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
@@ -71,10 +73,8 @@ class NBeatsBlock(nn.Module):
             x_s = self.static_encoder(x_s)
             insample_y = t.cat((insample_y, x_s), 1)
 
-        # Temporal exogenous, only forecasted exogenous are used
-        # TODO: for epf not wavenet, include wavenet encoder in the future
+        # Temporal exogenous
         if (self.theta_with_exogenous) and (len(outsample_x_t)>0):
-            #outsample_x_t_flatten = outsample_x_t.reshape(len(outsample_x_t), -1)
             insample_x_t_last_flatten = insample_x_t[:,:,-1].reshape(len(insample_x_t), -1)
             insample_y = t.cat((insample_y, insample_x_t_last_flatten), 1)
 

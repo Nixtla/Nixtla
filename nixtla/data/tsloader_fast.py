@@ -98,7 +98,7 @@ class TimeSeriesLoader(object):
     def __iter__(self):
         if self.shuffle:
             sample_idxs = np.random.choice(a=self.windows_sampling_idx,
-                                            size=len(self.windows_sampling_idx), replace=False)
+                                           size=len(self.windows_sampling_idx), replace=False)
         else:
             sample_idxs = self.windows_sampling_idx
 

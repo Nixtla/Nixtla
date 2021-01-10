@@ -20,7 +20,7 @@ class TimeSeriesDataset(Dataset):
                  f_cols: list=None,
                  S_df: pd.DataFrame=None,
                  ts_train_mask: list=None,
-                 windows_prob = None):
+                 loss_weights: list=None):
         """
         """
         assert type(Y_df) == pd.core.frame.DataFrame
@@ -29,9 +29,6 @@ class TimeSeriesDataset(Dataset):
             assert type(X_df) == pd.core.frame.DataFrame
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
             assert f_cols is not None, "Define f_cols"
-        if windows_prob is None:
-            windows_prob = np.ones(len(Y_df))
-        assert len(windows_prob) == len(Y_df)
 
         print('Processing dataframes ...')
         # Pandas dataframes to data lists
@@ -43,7 +40,6 @@ class TimeSeriesDataset(Dataset):
         self.n_channels = len(self.t_cols) # y, X_cols, insample_mask and outsample_mask
         self.frequency  = pd.infer_freq(Y_df.head()['ds']) #TODO: improve, can die with head
         self.f_cols     = f_cols
-        self.windows_prob = windows_prob
 
         # Number of X and S features
         self.n_x = 0 if X_df is None else len(self.X_cols)
@@ -56,9 +52,11 @@ class TimeSeriesDataset(Dataset):
         self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
         if ts_train_mask is None: ts_train_mask = np.ones(self.max_len)
         assert len(ts_train_mask)==self.max_len, f'Outsample mask must have {self.max_len} length'
+        self.ts_train_mask = ts_train_mask
 
-        self._declare_outsample_train_mask(ts_train_mask)
-
+        if loss_weights is None: loss_weights = np.ones(self.max_len)
+        assert len(loss_weights)==self.max_len, f'Loss weights must have {self.max_len} length'
+        self.loss_weights = loss_weights
 
     def _df_to_lists(self, Y_df, S_df, X_df):
         """
@@ -133,10 +131,6 @@ class TimeSeriesDataset(Dataset):
 
         return ts_tensor, s_matrix, np.array(len_series)
 
-    def _declare_outsample_train_mask(self, ts_train_mask):
-        # Update attribute and ts_tensor
-        self.ts_train_mask = ts_train_mask
-
     def get_meta_data_col(self, col):
         """
         """
@@ -156,13 +150,11 @@ class TimeSeriesDataset(Dataset):
             filtered_ts_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
         ts_train_mask = self.ts_train_mask[first_ds:last_outsample_ds]
-
-        # Windows prob should be equal to number of windows in fitlered tensor, which is last-first without the last output_size
-        windows_prob = self.windows_prob[first_ds:(last_outsample_ds-output_size)]
+        loss_weights = self.loss_weights[first_ds:last_outsample_ds]
 
         assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
             f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
-        return filtered_ts_tensor, right_padding, ts_train_mask, windows_prob
+        return filtered_ts_tensor, right_padding, ts_train_mask, loss_weights
 
     def get_f_idxs(self, cols):
         # Check if cols are available f_cols and return the idxs

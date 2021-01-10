@@ -323,7 +323,6 @@ class Nbeats(object):
                 if (iteration > n_iterations) or (break_flag):
                     continue
                 self.model.train()
-                train_ts_loader.train()
 
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
@@ -376,7 +375,6 @@ class Nbeats(object):
                     print(display_string)
 
                     self.model.train()
-                    train_ts_loader.train()
 
                 if break_flag:
                     print(10*'-',' Stopped training by early stopping', 10*'-')
@@ -396,43 +394,48 @@ class Nbeats(object):
             print(string)
             print('='*30+'End fitting '+'='*30)
 
-    #TODO: predict podria no funcionar con muchas series, para on ahora no importa
     def predict(self, ts_loader, X_test=None, eval_mode=False):
+        self.model.eval()
+        assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
-        ts_loader.eval()
+        forecasts = []
+        outsample_ys = []
+        outsample_masks = []
+        with t.no_grad():
+            for batch in iter(ts_loader):
+                insample_y     = self.to_tensor(batch['insample_y'])
+                insample_x     = self.to_tensor(batch['insample_x'])
+                insample_mask  = self.to_tensor(batch['insample_mask'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
+                s_matrix       = self.to_tensor(batch['s_matrix'])
+
+                forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
+                                      insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
+                forecasts.append(forecast.cpu().data.numpy())
+                outsample_ys.append(batch['outsample_y'])
+                outsample_masks.append(batch['outsample_mask'])
+        forecasts = np.vstack(forecasts)
+        outsample_ys = np.vstack(outsample_ys)
+        outsample_masks = np.vstack(outsample_masks)
+
+        self.model.train()
+        if eval_mode:
+            return outsample_ys, forecasts, outsample_masks
+
+        # Pandas wrangling
         frequency = ts_loader.get_frequency()
-
-        # Build forecasts
         unique_ids = ts_loader.get_meta_data_col('unique_id')
         last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
-
-        batch = next(iter(ts_loader))
-        insample_y     = self.to_tensor(batch['insample_y'])
-        insample_x     = self.to_tensor(batch['insample_x'])
-        insample_mask  = self.to_tensor(batch['insample_mask'])
-        outsample_x    = self.to_tensor(batch['outsample_x'])
-        outsample_y    = self.to_tensor(batch['outsample_y'])
-        outsample_mask = self.to_tensor(batch['outsample_mask'])
-        s_matrix       = self.to_tensor(batch['s_matrix'])
-
-        self.model.eval()
-        with t.no_grad():
-            forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
-                                  insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
-
-        if eval_mode:
-            return forecast, outsample_y, outsample_mask
 
         # Predictions for panel
         Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
         for i, unique_id in enumerate(unique_ids):
             Y_hat_id = pd.DataFrame([unique_id]*self.output_size, columns=["unique_id"])
-            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=self.frequency)
+            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=frequency)
             Y_hat_id["ds"] = ds[1:]
             Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
 
-        forecast = forecast.cpu().detach().numpy()
-        Y_hat_panel['y_hat'] = forecast.flatten()
+        Y_hat_panel['y_hat'] = forecasts.flatten()
 
         if X_test is not None:
             Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
