@@ -99,7 +99,7 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 
     model.fit(train_ts_loader=train_loader, val_ts_loader=val_loader, verbose=True, eval_steps=10) # aqui val_loader==Test
 
-    # TODO: Pytorch numerical error hacky protection
+    # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
     hyperopt_reported_loss = model.final_outsample_loss
     if np.isnan(model.final_insample_loss):
         hyperopt_reported_loss = 100
@@ -361,7 +361,7 @@ def parse_args():
     parser.add_argument('--dataset', type=str, required=True, help='NP')
     parser.add_argument('--space', type=str, required=True, help='Experiment hyperparameter space')
     parser.add_argument('--hyperopt_iters', type=int, help='hyperopt_iters')
-    parser.add_argument('--max_epochs', type=int, required=True, default=2000, help='max train epochs')
+    parser.add_argument('--max_epochs', type=int, required=False, default=2000, help='max train epochs')
     parser.add_argument('--val_loss', type=str, required=False, default=None, help='validation loss')
     parser.add_argument('--experiment_id', default=None, required=False, type=str, help='string to identify experiment')
     return parser.parse_args()
@@ -379,3 +379,8 @@ if __name__ == '__main__':
 
 # CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPEval_20210110"
 # CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPEval_20210110"
+
+#CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "MAE"   --experiment_id "MAE_eval_20210110"
+#CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "MAPE"  --experiment_id "MAPE_eval_20210110"
+#CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPE_eval_20210110"
+#CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "RMSE"  --experiment_id "RMSE_eval_20210110"
