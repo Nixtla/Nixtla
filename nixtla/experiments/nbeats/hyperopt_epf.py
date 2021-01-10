@@ -47,7 +47,7 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 
     start_time = time.time()
 
-    model = Nbeats(input_size=int(mc['input_size']),
+    model = Nbeats(input_size_multiplier=int(mc['input_size_multiplier']),
                    output_size=int(mc['output_size']),
                    shared_weights=int(mc['shared_weights']),
                    activation=mc['activation'],
@@ -75,15 +75,17 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
                    l1_theta=float(mc['l1_theta']), #0.0001,
                    n_iterations=int(mc['n_iterations']), #200,
                    early_stopping=int(mc['early_stopping']), #40,
-                   loss=mc['loss'], #'MAE',
+                   loss=mc['loss'], #'PINBALL',
                    loss_hypar=float(mc['loss_hypar']), #0.5,
+                   val_loss=mc['val_loss'], #'MAE',
                    frequency=mc['frequency'], #'H',
                    random_seed=int(mc['random_seed']), #1,
                    seasonality=int(mc['seasonality'])) #24)
 
     model.fit(train_ts_loader=train_loader, val_ts_loader=val_loader, verbose=True, eval_steps=10) # aqui val_loader==Test
 
-    results =  {'loss': model.final_outsample_loss, #val_mae <--------
+    results =  {'loss': model.final_outsample_loss,
+                'loss_name': mc['val_loss'], #val_mae <--------
                 'mc': mc,
                 'final_insample_loss': model.final_insample_loss,
                 'final_outsample_loss': model.final_outsample_loss,
@@ -98,7 +100,7 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
         print(75*'='+'\n')
 
         print('Best Model Evaluation')
-        y_true, y_hat = model.predict_all(ts_loader=val_loader)
+        y_true, y_hat, _ = model.predict(ts_loader=val_loader, eval_mode=True)
         print(forecast_evaluation_table(y_true, y_hat))
 
     return results
@@ -106,9 +108,8 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
 # Cell
 def get_experiment_space(args):
     if args.space=='nbeats_extended1':
-        space = {#----------------------------------------------  Fixed   ----------------------------------------------#
-                 # Architecture parameters
-                 'input_size': hp.choice('input_size', [7*24]),  #<------- TODO: Change for n_xt
+        space = {# Architecture parameters
+                 'input_size_multiplier': hp.choice('input_size_multiplier', [7]),  #<------- TODO: Change for n_xt
                  'output_size': hp.choice('output_size', [24]),
                  'shared_weights': hp.choice('shared_weights', [False]),
                  'activation': hp.choice('activation', ['relu','softplus','tanh','selu','lrelu','prelu','sigmoid']),
@@ -138,6 +139,7 @@ def get_experiment_space(args):
                  'early_stopping': hp.choice('early_stopping', [40]),
                  'loss': hp.choice('loss', ['PINBALL']),
                  'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
+                 'val_loss': hp.choice('val_loss', [args.val_loss]),
                  'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
                  # Data parameters
                  'frequency': hp.choice('frequency', ['H']),
@@ -150,18 +152,18 @@ def get_experiment_space(args):
 
 
     elif args.space=='nbeats_collapsed':
-        space= {#----------------------------------------------  Fixed   ----------------------------------------------#
-                # Architecture parameters
-                'input_size': hp.choice('input_size', [7*24]),  #<------- TODO: Change for n_xt
+        print("entra aqui")
+        space= {# Architecture parameters
+                'input_size_multiplier': hp.choice('input_size_multiplier', [7]),  #<------- TODO: Change for n_xt
                 'output_size': hp.choice('output_size', [24]),
                 'shared_weights': hp.choice('shared_weights', [False]),
                 'activation': hp.choice('activation', ['relu','softplus','tanh','selu','lrelu','prelu','sigmoid']),
                 'initialization':  hp.choice('initialization', ['orthogonal','he_uniform','he_normal',
                                                                 'glorot_uniform','glorot_normal','lecun_normal']),
-                'stack_types': hp.choice('stack_types', [ ['identity'],
-                                                            1*['identity']+['exogenous_wavenet'],
+                'stack_types': hp.choice('stack_types', [ #['identity'],
+                                                          #  1*['identity']+['exogenous_wavenet'],
                                                             ['exogenous_wavenet']+1*['identity'],
-                                                            1*['identity']+['exogenous_tcn'],
+                                                          #  1*['identity']+['exogenous_tcn'],
                                                             ['exogenous_tcn']+1*['identity'] ]),
                 'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
                 'n_layers': hp.choice('n_layers', [ [2, 2] ]),
@@ -171,17 +173,18 @@ def get_experiment_space(args):
                 'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1), #<------- TODO: Change for n_xt_channels
                 'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]), #<------- TODO: Change for n_xs_hidden
                 # Regularization and optimization parameters
-                'batch_normalization': hp.choice('batch_normalization', [True, False]),
+                'batch_normalization': hp.choice('batch_normalization', [False]),
                 'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 1),
                 'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
                 'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.1)),
-                'lr_decay': hp.choice('lr_decay', [0.5]),
+                'lr_decay': hp.uniform('lr_decay', 0.3, 1.0),
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
-                'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
+                'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
                 'n_iterations': hp.choice('n_iterations', [args.max_epochs]), #<------- TODO: Change for max_epochs
                 'early_stopping': hp.choice('early_stopping', [40]),
                 'loss': hp.choice('loss', ['PINBALL']),
-                'loss_hypar': hp.uniform('loss_hypar', 0.45, 0.55),
+                'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
+                'val_loss': hp.choice('val_loss', [args.val_loss]),
                 'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
                 # Data parameters
                 'frequency': hp.choice('frequency', ['H']),
@@ -190,7 +193,7 @@ def get_experiment_space(args):
                                                                     'Exogenous1': [-1, -2, -8],
                                                                     'Exogenous2': [-1, -2, -8],
                                                                     'week_day': [-1]}]),
-                'random_seed': hp.quniform('random_seed', 1, 20, 1)}
+                'random_seed': hp.quniform('random_seed', 10, 20, 1)}
 
     else:
         print(f'Experiment space {args.space} not available')
@@ -363,9 +366,9 @@ def parse_args():
     parser.add_argument('--dataset', type=str, required=True, help='NP')
     parser.add_argument('--space', type=str, required=True, help='Experiment hyperparameter space')
     parser.add_argument('--hyperopt_iters', type=int, help='hyperopt_iters')
-    parser.add_argument('--max_epochs', type=int, required=True, help='max train epochs')
+    parser.add_argument('--max_epochs', type=int, required=True, default=2000, help='max train epochs')
+    parser.add_argument('--val_loss', type=str, required=False, default=None, help='validation loss')
     parser.add_argument('--experiment_id', default=None, required=False, type=str, help='string to identify experiment')
-    parser.add_argument('--gpu_id', type=int, default=0, required=False, help='GPU')
     return parser.parse_args()
 
 
@@ -381,5 +384,5 @@ if __name__ == '__main__':
     print('cuda devices,', os.environ['CUDA_VISIBLE_DEVICES'])
     main(args)
 
-# PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
-# PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_extended1" --hyperopt_iters 2 --max_epochs 50 --experiment_id "20210108_1" --gpu_id 0
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python nixtla/experiments/nbeats/hyperopt_epf.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPEval_20210110"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset 'NP' --space "nbeats_collapsed" --hyperopt_iters 200 --val_loss "SMAPE" --experiment_id "SMAPEval_20210110"
