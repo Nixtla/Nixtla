@@ -36,7 +36,7 @@ class NBeatsBlock(nn.Module):
 
         if x_s_n_inputs == 0:
             x_s_n_hidden = 0
-        theta_n_hidden = [x_t_n_inputs + x_s_n_hidden] + theta_n_hidden
+        theta_n_hidden = [x_t_n_inputs + x_s_n_hidden] + n_layers*[theta_n_hidden]
 
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden

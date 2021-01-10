@@ -159,6 +159,7 @@ class Nbeats(object):
                 if self.shared_weights and block_id>0:
                     nbeats_block = block_list[-1]
                 else:
+                    print("self.stack_types[i]", self.stack_types[i])
                     if self.stack_types[i] == 'seasonality':
                         nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
                                                    x_s_n_inputs = self.n_x_s,

@@ -16,8 +16,8 @@ from torch import optim
 from pathlib import Path
 from functools import partial
 
-from ..nbeats.onnbeats_model import NBeats, NBeatsBlock, IdentityBasis
-from ..nbeats.onnbeats_model import TrendBasis, SeasonalityBasis, ExogenousFutureBasis, ExogenousBasisInterpretable
+from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis
+from .nbeats_model import TrendBasis, SeasonalityBasis, ExogenousFutureBasis, ExogenousBasisInterpretable
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, RMSELoss
 from ...losses.numpy import mae, mse, mape, smape, rmse
 
