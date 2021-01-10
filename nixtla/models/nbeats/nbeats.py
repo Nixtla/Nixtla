@@ -76,10 +76,10 @@ class Nbeats(object):
                  early_stopping,
                  loss,
                  loss_hypar,
+                 val_loss,
                  frequency,
                  random_seed,
                  seasonality,
-                 val_loss=None,
                  device=None):
         super(Nbeats, self).__init__()
 
