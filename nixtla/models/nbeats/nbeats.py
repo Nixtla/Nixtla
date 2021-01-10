@@ -113,7 +113,6 @@ class Nbeats(object):
         self.early_stopping = early_stopping
         self.loss = loss
         self.loss_hypar = loss_hypar
-        if val_loss is None: val_loss = loss
         self.val_loss = val_loss
         self.l1_theta = l1_theta
         self.l1_conv = 1e-3 # Not a hyperparameter
@@ -470,7 +469,7 @@ class Nbeats(object):
             if val_ts_loader is not None:
                 self.final_outsample_loss = self.evaluate_performance(ts_loader=val_ts_loader,
                                                                       validation_loss_fn=validation_loss_fn)
-                string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
+                string += ", Outsample {}: {:.5f}".format(self.val_loss, self.final_outsample_loss)
             print(string)
             print('='*30+'  End fitting  '+'='*30)
             print('\n')
