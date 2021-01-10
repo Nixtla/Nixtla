@@ -79,6 +79,7 @@ class Nbeats(object):
                  frequency,
                  random_seed,
                  seasonality,
+                 val_loss=None,
                  device=None):
         super(Nbeats, self).__init__()
 
@@ -112,6 +113,8 @@ class Nbeats(object):
         self.early_stopping = early_stopping
         self.loss = loss
         self.loss_hypar = loss_hypar
+        if val_loss is None: val_loss = loss
+        self.val_loss = val_loss
         self.l1_theta = l1_theta
         self.l1_conv = 1e-3 # Not a hyperparameter
         self.random_seed = random_seed
@@ -372,7 +375,7 @@ class Nbeats(object):
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_steps, gamma=self.lr_decay)
         training_loss_fn = self.__loss_fn(self.loss)
-        validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
+        validation_loss_fn = self.__val_loss_fn(self.val_loss) #Uses numpy losses
 
         print('='*30+' Start fitting '+'='*30)
 
@@ -433,7 +436,7 @@ class Nbeats(object):
                     if val_ts_loader is not None:
                         loss = self.evaluate_performance(ts_loader=val_ts_loader,
                                                          validation_loss_fn=validation_loss_fn)
-                        display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
+                        display_string += ", Outsample {}: {:.5f}".format(self.val_loss, loss)
                         self.trajectories['val_loss'].append(loss)
 
                         if self.early_stopping:
