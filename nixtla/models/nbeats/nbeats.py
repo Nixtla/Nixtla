@@ -334,8 +334,8 @@ class Nbeats(object):
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
-                batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
-                                                forecast=outsample_y.cpu().data.numpy(),
+                batch_loss = validation_loss_fn(target=outsample_y.cpu().data.numpy(),
+                                                forecast=forecast.cpu().data.numpy(),
                                                 weights=outsample_mask.cpu().data.numpy())
                 losses.append(batch_loss)
         loss = np.mean(losses)
