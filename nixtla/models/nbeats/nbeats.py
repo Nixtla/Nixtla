@@ -475,7 +475,8 @@ class Nbeats(object):
 
         #End of fitting
         if n_iterations >0:
-            self.final_insample_loss = np.float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss #This is batch!
+            # This is batch loss!
+            self.final_insample_loss = np.float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
             string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                             time.time()-start,
                                                                             self.loss,

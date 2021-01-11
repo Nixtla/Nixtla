@@ -63,21 +63,32 @@ class TimeSeriesLoader(object):
         # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data
-        tensor, right_padding, train_mask = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
-                                                                                   window_sampling_limit=self.window_sampling_limit)
-        tensor = t.Tensor(tensor)
+
+        # ANTES
+        #tensor, right_padding, train_mask = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+        #                                                                           window_sampling_limit=self.window_sampling_limit)
 
         # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
         # is_train_loader inverts the train_mask in case the dataloader is in validation mode
-        mask = train_mask if self.is_train_loader else (1 - train_mask)
-        tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
+        # elementwise multiplication (#n_batch, #n_time) x (#n_batch, #n_time)
+        #mask = train_mask if self.is_train_loader else (1 - train_mask)
+        #tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
+
+        # AHORA
+        tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+                                                                        window_sampling_limit=self.window_sampling_limit)
+        tensor = t.Tensor(tensor)
+
+        if not self.is_train_loader:
+            tensor[:, self.t_cols.index('outsample_mask'), :] = (1-tensor[:, self.t_cols.index('outsample_mask'), :])
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
 
+        # ANTES
         # Last output_size outsample_mask and y to 0
-        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
-        tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
+        #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
+        #tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
         # Creating rolling windows and 'flattens' them
         windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
@@ -102,7 +113,7 @@ class TimeSeriesLoader(object):
         else:
             sample_idxs = self.windows_sampling_idx
 
-        assert len(sample_idxs)>0, 'Check the data as sample_idxs are empty'
+        assert len(sample_idxs)>0, 'Check the data and masks as sample_idxs are empty'
 
         n_batches = int(np.ceil(len(sample_idxs) / self.batch_size)) # Must be multiple of batch_size for paralel gpu
 

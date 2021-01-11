@@ -22,8 +22,8 @@ class TimeSeriesDataset(Dataset):
                  Y_df: pd.DataFrame,
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
-                 f_cols: list=None,
-                 ts_train_mask: list=None):
+                 mask_df: list=None,
+                 f_cols: list=None):
         """
         """
         assert type(Y_df) == pd.core.frame.DataFrame
@@ -34,7 +34,8 @@ class TimeSeriesDataset(Dataset):
 
         print('Processing dataframes ...')
         # Pandas dataframes to data lists
-        ts_data, s_data, self.meta_data, self.t_cols, self.X_cols = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df)
+        ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
+                         = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
 
         # Dataset attributes
         self.n_series   = len(ts_data)
@@ -52,13 +53,8 @@ class TimeSeriesDataset(Dataset):
         # numpy  s_matrix of shape (n_series, n_s)
         # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
         self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
-        if ts_train_mask is None: ts_train_mask = np.ones(self.max_len)
-        assert len(ts_train_mask)==self.max_len, f'Outsample mask must have {self.max_len} length'
 
-        self._declare_outsample_train_mask(ts_train_mask)
-
-
-    def _df_to_lists(self, Y_df, S_df, X_df):
+    def _df_to_lists(self, Y_df, S_df, X_df, mask_df):
         """
         """
         unique_ids = Y_df['unique_id'].unique()
@@ -77,18 +73,22 @@ class TimeSeriesDataset(Dataset):
         s_data = []
         meta_data = []
         for i, u_id in enumerate(unique_ids):
-            top_row = np.asscalar(Y_df['unique_id'].searchsorted(u_id, 'left'))
+            top_row    = np.asscalar(Y_df['unique_id'].searchsorted(u_id, 'left'))
             bottom_row = np.asscalar(Y_df['unique_id'].searchsorted(u_id, 'right'))
-            serie = Y_df[top_row:bottom_row]['y'].values
-            last_ds_i = Y_df[top_row:bottom_row]['ds'].max()
 
             # Y values
-            ts_data_i = {'y': serie}
+            y_true = Y_df[top_row:bottom_row]['y'].values
+            ts_data_i = {'y': y_true}
 
             # X values
             for X_col in X_cols:
                 serie =  X_df[top_row:bottom_row][X_col].values
                 ts_data_i[X_col] = serie
+
+            # Mask values
+            outsample_mask = mask_df[top_row:bottom_row]['mask'].values
+            ts_data_i['insample_mask']  = np.ones(len(y_true))
+            ts_data_i['outsample_mask'] = outsample_mask
             ts_data.append(ts_data_i)
 
             # S values
@@ -98,6 +98,7 @@ class TimeSeriesDataset(Dataset):
             s_data.append(s_data_i)
 
             # Metadata
+            last_ds_i  = Y_df[top_row:bottom_row]['ds'].max()
             meta_data_i = {'unique_id': u_id,
                            'last_ds': last_ds_i}
             meta_data.append(meta_data_i)
@@ -116,21 +117,24 @@ class TimeSeriesDataset(Dataset):
 
         len_series = []
         for idx in range(self.n_series):
+            # Left padded time series tensor
+            # TODO: Maybe we can place according to ds
             ts_idx = np.array(list(ts_data[idx].values()))
-            ts_tensor[idx, :self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = ts_idx
-            ts_tensor[idx,  self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = 1
+
+            # ANTES
+            #ts_tensor[idx, :self.t_cols.index('outsample_mask'), -ts_idx.shape[1]:] = ts_idx
+            #ts_tensor[idx,  self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = 1
 
             # To avoid sampling windows without inputs available to predict we shift -1
             # outsample_mask will be completed with the train_mask, this ensures available data
-            ts_tensor[idx,  self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]-1):] = 1
+            #ts_tensor[idx,  self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]-1):] = 1
+
+            # AHORA
+            ts_tensor[idx, :, -ts_idx.shape[1]:] = ts_idx
             s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
 
         return ts_tensor, s_matrix, np.array(len_series)
-
-    def _declare_outsample_train_mask(self, ts_train_mask):
-        # Update attribute and ts_tensor
-        self.ts_train_mask = ts_train_mask
 
     def get_meta_data_col(self, col):
         """
@@ -150,11 +154,13 @@ class TimeSeriesDataset(Dataset):
         else:
             filtered_ts_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
-        ts_train_mask = self.ts_train_mask[first_ds:last_outsample_ds]
+
+        # ANTES
+        #ts_train_mask = self.ts_train_mask[ts_idxs, first_ds:last_outsample_ds]
 
         assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
             f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
-        return filtered_ts_tensor, right_padding, ts_train_mask
+        return filtered_ts_tensor, right_padding #ANTES, ts_train_mask
 
     def get_f_idxs(self, cols):
         # Check if cols are available f_cols and return the idxs
