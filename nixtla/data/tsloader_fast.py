@@ -53,6 +53,10 @@ class TimeSeriesLoader(object):
         insample_condition = t.sum(self.ts_windows[:, self.t_cols.index('insample_mask'), :self.input_size], axis=1)
         sampling_idx = t.nonzero(outsample_condition * insample_condition > 0) #element-wise product
         sampling_idx = list(sampling_idx.flatten().numpy())
+
+        # TODO: pensar caso hipotético de validación a la Hyndman, puede pasar que sea un bug por samplear
+        #.      todas las series de validación y usar esta condición
+        assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
         return sampling_idx
 
     def _create_windows_tensor(self):
@@ -63,32 +67,21 @@ class TimeSeriesLoader(object):
         # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data
-
-        # ANTES
-        #tensor, right_padding, train_mask = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
-        #                                                                           window_sampling_limit=self.window_sampling_limit)
-
-        # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
-        # is_train_loader inverts the train_mask in case the dataloader is in validation mode
-        # elementwise multiplication (#n_batch, #n_time) x (#n_batch, #n_time)
-        #mask = train_mask if self.is_train_loader else (1 - train_mask)
-        #tensor[:, self.t_cols.index('outsample_mask'), :] = tensor[:, self.t_cols.index('outsample_mask'), :] * mask
-
-        # AHORA
         tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
                                                                         window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
 
+        # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
+        # is_train_loader inverts the train_mask in case the dataloader is in validation mode
         if not self.is_train_loader:
             tensor[:, self.t_cols.index('outsample_mask'), :] = (1-tensor[:, self.t_cols.index('outsample_mask'), :])
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
 
-        # ANTES
-        # Last output_size outsample_mask and y to 0
-        #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
-        #tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
+        # Since Xt from future is returned in tensor, protection from leakage is needed
+        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
+        tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
         # Creating rolling windows and 'flattens' them
         windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
@@ -101,7 +94,7 @@ class TimeSeriesLoader(object):
         # Broadcast s_matrix: This works because unfold in windows_tensor, orders: time, serie
         s_matrix = self.ts_dataset.s_matrix.repeat(repeats=int(len(windows)/self.ts_dataset.n_series), axis=0)
 
-        return windows, s_matrix
+        return windows, s_matrix, tensor
 
     def __len__(self):
         return len(self.len_series)
@@ -113,8 +106,6 @@ class TimeSeriesLoader(object):
         else:
             sample_idxs = self.windows_sampling_idx
 
-        assert len(sample_idxs)>0, 'Check the data and masks as sample_idxs are empty'
-
         n_batches = int(np.ceil(len(sample_idxs) / self.batch_size)) # Must be multiple of batch_size for paralel gpu
 
         for idx in range(n_batches):
@@ -124,13 +115,16 @@ class TimeSeriesLoader(object):
 
     def __get_item__(self, index):
         if self.model == 'nbeats':
-            return self._nbeats_batch(index)
+            return self._windows_batch(index)
         elif self.model == 'esrnn':
-            assert 1<0, 'hacer esrnn'
+            #return self._full_series_batch(index)
+            assert 1<0, 'Hierarchical sampling not implemented'
         else:
             assert 1<0, 'error'
 
-    def _nbeats_batch(self, index):
+    def _windows_batch(self, index):
+        """ NBEATS, TCN models """
+
         # Access precomputed rolling window matrix (RAM intensive)
         windows = self.ts_windows[index]
         s_matrix = self.s_matrix[index]
@@ -148,12 +142,35 @@ class TimeSeriesLoader(object):
                  'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
         return batch
 
+    # def _full_series_batch(self, index):
+    #     """ ESRNN, RNN models """
+
+    #     print("[index]", index)
+    #     print("self.ts_tensor.shape", self.ts_tensor.shape)
+
+    #     ts_tensor = self.ts_tensor[index]
+
+    #     # Trim batch to shorter time series to avoid zero padding
+    #     insample_y = ts_tensor[:, self.t_cols.index('y'), :]
+    #     batch_len_series = np.array(self.ts_dataset.len_series)[index]
+    #     min_batch_len = np.min(batch_len_series)
+    #     insample_y = insample_y[:, -min_batch_len:]
+
+    #     insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('insample_mask'), :]
+    #     insample_x = insample_x[:, -min_batch_len:]
+
+    #     s_matrix = self.ts_dataset.s_matrix[index]
+
+    #     batch = {'insample_y': insample_y, 'idxs': index, 'insample_x': insample_x, 's_matrix': s_matrix}
+
+    #     return batch
+
     def _create_train_data(self):
         """
         """
-        #print('Creating windows matrix ...')
+        # print('Creating windows matrix ...')
         # Create rolling window matrix for fast information retrieval
-        self.ts_windows, self.s_matrix = self._create_windows_tensor()
+        self.ts_windows, self.s_matrix, _ = self._create_windows_tensor()
         self.n_windows = len(self.ts_windows)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 

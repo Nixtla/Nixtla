@@ -469,6 +469,7 @@ class Nbeats(object):
                     self.model.train()
 
                 if break_flag:
+                    print('\n')
                     print(19*'-',' Stopped training by early stopping', 19*'-')
                     self.model.load_state_dict(best_state_dict)
                     break

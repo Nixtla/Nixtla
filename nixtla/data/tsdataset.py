@@ -22,7 +22,7 @@ class TimeSeriesDataset(Dataset):
                  Y_df: pd.DataFrame,
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
-                 mask_df: list=None,
+                 mask_df: pd.DataFrame=None,
                  f_cols: list=None):
         """
         """
@@ -34,6 +34,10 @@ class TimeSeriesDataset(Dataset):
 
         print('Processing dataframes ...')
         # Pandas dataframes to data lists
+        if mask_df is None:
+            mask_df = Y_df[['unique_id', 'ds']].copy()
+            mask_df['mask'] = np.ones(len(Y_df))
+
         ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
 

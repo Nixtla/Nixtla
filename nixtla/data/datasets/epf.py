@@ -147,11 +147,11 @@ class EPF:
         Y = []
         X = []
         for group in groups:
-            data = EPF.load(directory, group,
-                            training, days_in_test,
-                            return_tensor=False)
-            Y.append(data.Y)
-            X.append(data.X)
+            Y_df, X_df = EPF.load(directory, group,
+                                  training, days_in_test,
+                                  return_tensor=False)
+            Y.append(Y_df)
+            X.append(X_df)
         Y = pd.concat(Y).sort_values(['unique_id', 'ds']).reset_index(drop=True)
         X = pd.concat(X).sort_values(['unique_id', 'ds']).reset_index(drop=True)
 
@@ -159,10 +159,11 @@ class EPF:
         dummies = pd.get_dummies(S['unique_id'], prefix='static')
         S = pd.concat([S, dummies], axis=1)
 
-        if return_tensor:
-            return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
-        else:
-            return TimeSeriesDataclass(Y=Y, S=S, X=X, group=groups)
+        # if return_tensor:
+        return Y, X, S
+        #     return TimeSeriesDataset(y_df=Y, X_s_df=None, X_t_df=X)
+        # else:
+        #     return TimeSeriesDataclass(Y=Y, S=S, X=X, group=groups)
 
     @staticmethod
     def download(directory: str) -> None:

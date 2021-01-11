@@ -100,18 +100,13 @@ def run_val_nbeatsx(mc, train_loader, val_loader, trials, trials_file_name, fina
     model.fit(train_ts_loader=train_loader, val_ts_loader=val_loader, verbose=True, eval_steps=10) # aqui val_loader==Test
 
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
-    hyperopt_reported_loss = model.final_outsample_loss
-    if np.isnan(model.final_insample_loss):
-        hyperopt_reported_loss = 100
-    if model.final_insample_loss<=0:
-        hyperopt_reported_loss = 100
-
-    if np.isnan(model.final_outsample_loss):
-        hyperopt_reported_loss = 100
-    if model.final_outsample_loss<=0:
+    hyperopt_reported_loss = 100
+    if (not np.isnan(model.final_insample_loss)) and (not np.isnan(model.final_outsample_loss)):
+        hyperopt_reported_loss = model.final_outsample_loss
+    if (model.final_insample_loss<=0) or (model.final_outsample_loss<=0):
         hyperopt_reported_loss = 100
 
-    results =  {'loss': model.final_outsample_loss,
+    results =  {'loss': hyperopt_reported_loss,
                 'loss_name': mc['val_loss'], #val_mae <--------
                 'mc': mc,
                 'final_insample_loss': model.final_insample_loss,
