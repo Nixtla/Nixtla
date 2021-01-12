@@ -32,7 +32,8 @@ class TimeSeriesDataset(Dataset):
             assert type(X_df) == pd.core.frame.DataFrame
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
 
-        print('Processing dataframes ...')
+        #print('\n')
+        #print('Processing dataframes ...')
         # Pandas dataframes to data lists
         if mask_df is None:
             mask_df = Y_df[['unique_id', 'ds']].copy()
@@ -53,7 +54,7 @@ class TimeSeriesDataset(Dataset):
         self.n_x = 0 if X_df is None else len(self.X_cols)
         self.n_s = 0 if S_df is None else S_df.shape[1]-1 # -1 for unique_id
 
-        print('Creating ts tensor ...')
+        # print('Creating ts tensor ...')
         # Balances panel and creates
         # numpy  s_matrix of shape (n_series, n_s)
         # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
