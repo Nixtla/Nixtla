@@ -36,7 +36,8 @@ class TimeSeriesDataset(Dataset):
         # Pandas dataframes to data lists
         if mask_df is None:
             mask_df = Y_df[['unique_id', 'ds']].copy()
-            mask_df['mask'] = np.ones(len(Y_df))
+            mask_df['available_mask'] = np.ones(len(Y_df))
+            mask_df['sample_mask'] = np.ones(len(Y_df))
 
         ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
@@ -90,9 +91,10 @@ class TimeSeriesDataset(Dataset):
                 ts_data_i[X_col] = serie
 
             # Mask values
-            outsample_mask = mask_df[top_row:bottom_row]['mask'].values
-            ts_data_i['insample_mask']  = np.ones(len(y_true))
-            ts_data_i['outsample_mask'] = outsample_mask
+            available_mask = mask_df[top_row:bottom_row]['available_mask'].values
+            sample_mask = mask_df[top_row:bottom_row]['sample_mask'].values
+            ts_data_i['available_mask'] = available_mask # AHORA
+            ts_data_i['sample_mask']  = sample_mask
             ts_data.append(ts_data_i)
 
             # S values
@@ -107,7 +109,7 @@ class TimeSeriesDataset(Dataset):
                            'last_ds': last_ds_i}
             meta_data.append(meta_data_i)
 
-        t_cols = ['y'] + X_cols + ['insample_mask', 'outsample_mask']
+        t_cols = ['y'] + X_cols + ['available_mask', 'sample_mask']
 
         return ts_data, s_data, meta_data, t_cols, X_cols
 

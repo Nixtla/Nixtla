@@ -55,14 +55,13 @@ class TimeSeriesLoader(object):
             f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
     def _get_sampleable_windows_idxs(self, ts_windows_flatten):
-        # Only sample during training windows with at least one active output mask and input mask
-        outsample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
-        insample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('insample_mask'), :self.input_size], axis=1)
-        sampling_idx = t.nonzero(outsample_condition * insample_condition > 0) #element-wise product
+
+        # Only sample during available windows with at least one active output mask and input mask
+        #available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
+        sample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
+        sampling_idx = t.nonzero(sample_condition)
         sampling_idx = list(sampling_idx.flatten().numpy())
 
-        # TODO: pensar caso hipotético de validación a la Hyndman, puede pasar que sea un bug por samplear
-        #.      todas las series de validación y usar esta condición
         assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
         return sampling_idx
 
@@ -80,15 +79,16 @@ class TimeSeriesLoader(object):
 
         # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
         # is_train_loader inverts the train_mask in case the dataloader is in validation mode
-        if not self.is_train_loader:
-            tensor[:, self.t_cols.index('outsample_mask'), :] = (1-tensor[:, self.t_cols.index('outsample_mask'), :])
+        if self.is_train_loader:
+            tensor[:, self.t_cols.index('sample_mask'), :] = \
+                tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :]
+
+            # Since Xt from future is returned in tensor, protection from leakage is needed
+            #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
+            #tensor[:, self.t_cols.index('sample_mask'), -self.output_size:] = 0
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
-
-        # Since Xt from future is returned in tensor, protection from leakage is needed
-        tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
-        tensor[:, self.t_cols.index('outsample_mask'), -self.output_size:] = 0
 
         # Creating rolling windows and 'flattens' them
         windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
@@ -148,16 +148,16 @@ class TimeSeriesLoader(object):
 
         # Parse windows to elements of batch
         insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
-        insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), :self.input_size]
-        insample_mask = windows[:, self.t_cols.index('insample_mask'), :self.input_size]
+        insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), :self.input_size]
+        available_mask = windows[:, self.t_cols.index('available_mask'), :self.input_size]
 
         outsample_y = windows[:, self.t_cols.index('y'), self.input_size:]
-        outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('insample_mask'), self.input_size:]
-        outsample_mask = windows[:, self.t_cols.index('outsample_mask'), self.input_size:]
+        outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), self.input_size:]
+        sample_mask = windows[:, self.t_cols.index('sample_mask'), self.input_size:]
 
         batch = {'s_matrix': s_matrix,
-                 'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':insample_mask,
-                 'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':outsample_mask}
+                 'insample_y': insample_y, 'insample_x':insample_x, 'insample_mask':available_mask,
+                 'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':sample_mask}
         return batch
 
     def _full_series_batch(self, index):
