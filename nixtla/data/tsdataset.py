@@ -31,10 +31,29 @@ class TimeSeriesDataset(Dataset):
         if X_df is not None:
             assert type(X_df) == pd.core.frame.DataFrame
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
+            assert len(Y_df)==len(X_df), f'The dimensions of Y_df and X_df are not the same'
+        assert len(Y_df)==len(mask_df), f'The dimensions of Y_df and mask_df are not the same'
+
+        print("Train Validation splits")
+        mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
+        self.n_tstamps = len(mask_df)
+        self.n_avl = mask_df.available_mask.sum()
+        self.n_trn = mask_df.train_mask.sum()
+        self.n_prd = len(mask_df)-mask_df.sample_mask.sum()
+
+        avl_prc = np.round(self.n_avl/self.n_tstamps,5)
+        trn_prc = np.round(self.n_trn/self.n_tstamps,5)
+        prd_prc = np.round(self.n_prd/self.n_tstamps,5)
+        print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
+        print(f'Total data \t\t\t{self.n_tstamps} time stamps')
+        print(f'Available prc = {avl_prc}, \t{self.n_avl} time stamps')
+        print(f'Train prc = {trn_prc}, \t\t{self.n_trn} time stamps')
+        print(f'Predict prc = {prd_prc}, \t\t{self.n_prd} time stamps')
+        print('\n')
 
         #print('\n')
         #print('Processing dataframes ...')
-        # Pandas dataframes to data lists
+        #Pandas dataframes to data lists
         if mask_df is None:
             mask_df = Y_df[['unique_id', 'ds']].copy()
             mask_df['available_mask'] = np.ones(len(Y_df))
@@ -94,7 +113,7 @@ class TimeSeriesDataset(Dataset):
             # Mask values
             available_mask = mask_df[top_row:bottom_row]['available_mask'].values
             sample_mask = mask_df[top_row:bottom_row]['sample_mask'].values
-            ts_data_i['available_mask'] = available_mask # AHORA
+            ts_data_i['available_mask'] = available_mask
             ts_data_i['sample_mask']  = sample_mask
             ts_data.append(ts_data_i)
 
@@ -110,6 +129,11 @@ class TimeSeriesDataset(Dataset):
                            'last_ds': last_ds_i}
             meta_data.append(meta_data_i)
 
+        #for tss in ts_data:
+        #    print("tss['y'].shape", tss['y'].shape)
+        #    for X_col in X_cols:
+        #        print("tss[X_col].shape", tss[X_col].shape)
+
         t_cols = ['y'] + X_cols + ['available_mask', 'sample_mask']
 
         return ts_data, s_data, meta_data, t_cols, X_cols
@@ -122,11 +146,15 @@ class TimeSeriesDataset(Dataset):
         s_matrix  = np.zeros((self.n_series, self.n_s))
         ts_tensor = np.zeros((self.n_series, self.n_channels, self.max_len))
 
+        print("ts_tensor.shape", ts_tensor.shape)
+
         len_series = []
         for idx in range(self.n_series):
             # Left padded time series tensor
             # TODO: Maybe we can place according to ds
             ts_idx = np.array(list(ts_data[idx].values()))
+
+            print("ts_idx.shape", ts_idx.shape)
 
             # ANTES
             #ts_tensor[idx, :self.t_cols.index('outsample_mask'), -ts_idx.shape[1]:] = ts_idx
@@ -140,6 +168,24 @@ class TimeSeriesDataset(Dataset):
             ts_tensor[idx, :, -ts_idx.shape[1]:] = ts_idx
             s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
+
+            # ###########
+            # ###########
+            # ###########
+            # print("\n")
+            # markets = ['BE', 'FR', 'NP', 'PJM']
+            # available_mask = ts_tensor[idx, self.t_cols.index('available_mask'), :]
+            # sample_mask = ts_tensor[idx, self.t_cols.index('sample_mask'), :]
+            # train_mask = available_mask * sample_mask
+            # n_hours = len(available_mask)
+
+            # market = markets[idx]
+            # print(f'DATASET {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
+            # print(f'DATASET {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
+            # print(f'DATASET {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
+            # ###########
+            # ###########
+            # ###########
 
         return ts_tensor, s_matrix, np.array(len_series)
 
@@ -162,11 +208,8 @@ class TimeSeriesDataset(Dataset):
             filtered_ts_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
 
-        # ANTES
-        #ts_train_mask = self.ts_train_mask[ts_idxs, first_ds:last_outsample_ds]
-
-        assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
-            f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
+        #assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
+        #    f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
         return filtered_ts_tensor, right_padding #ANTES, ts_train_mask
 
     def get_f_idxs(self, cols):
