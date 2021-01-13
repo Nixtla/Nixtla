@@ -19,23 +19,23 @@ import statsmodels.api as sm
 #TODO: funciona solo para una serie
 
 class Scaler(object):
-    def __init__(self, normalizer):
+    def _init_(self, normalizer):
         assert (normalizer in ['std', 'invariant', 'norm', 'norm1', 'median']), 'Normalizer not defined'
         self.normalizer = normalizer
         self.x_shift = None
         self.x_scale = None
 
-    def scale(self, x, offset):
+    def scale(self, x, mask):
         if self.normalizer == 'invariant':
-            x_scaled, x_shift, x_scale = invariant_scaler(x, offset)
+            x_scaled, x_shift, x_scale = invariant_scaler(x, mask)
         elif self.normalizer == 'median':
-            x_scaled, x_shift, x_scale = median_scaler(x, offset)
+            x_scaled, x_shift, x_scale = median_scaler(x, mask)
         elif self.normalizer == 'std':
-            x_scaled, x_shift, x_scale = std_scaler(x, offset)
+            x_scaled, x_shift, x_scale = std_scaler(x, mask)
         elif self.normalizer == 'norm':
-            x_scaled, x_shift, x_scale = norm_scaler(x, offset)
+            x_scaled, x_shift, x_scale = norm_scaler(x, mask)
         elif self.normalizer == 'norm1':
-            x_scaled, x_shift, x_scale = norm1_scaler(x, offset)
+            x_scaled, x_shift, x_scale = norm1_scaler(x, mask)
 
         self.x_shift = x_shift
         self.x_scale = x_scale
@@ -59,10 +59,10 @@ class Scaler(object):
         return np.array(x_inv_scaled)
 
 # Norm
-def norm_scaler(x, offset):
-    max_train_position = len(x)-offset
-    x_max = np.max(x[:max_train_position])
-    x_min = np.min(x[:max_train_position])
+def norm_scaler(x, mask):
+    x_max = np.max(x[mask])
+    x_min = np.min(x[mask])
+
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
     return x, x_min, x_max
 
@@ -70,10 +70,10 @@ def inv_norm_scaler(x, x_min, x_max):
     return x * (x_max - x_min) + x_min
 
 # Norm1
-def norm1_scaler(x, offset):
-    max_train_position = len(x)-offset
-    x_max = np.max(x[:max_train_position])
-    x_min = np.min(x[:max_train_position])
+def norm1_scaler(x, mask):
+    x_max = np.max(x[mask])
+    x_min = np.min(x[mask])
+
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
     x = x * (2) - 1
     return x, x_min, x_max
@@ -83,10 +83,10 @@ def inv_norm1_scaler(x, x_min, x_max):
     return x * (x_max - x_min) + x_min
 
 # Std
-def std_scaler(x, offset):
-    max_train_position = len(x)-offset
-    x_mean = np.mean(x[:max_train_position])
-    x_std = np.std(x[:max_train_position])
+def std_scaler(x, mask):
+    x_mean = np.mean(x[mask])
+    x_std = np.std(x[mask])
+
     x = (x - x_mean) / x_std #TODO: cuidado dividir por zero
     return x, x_mean, x_std
 
@@ -94,12 +94,11 @@ def inv_std_scaler(x, x_mean, x_std):
     return (x * x_std) + x_mean
 
 # Median
-def median_scaler(x, offset):
-    max_train_position = len(x)-offset
-    x_median = np.median(x[:max_train_position])
-    x_mad = sm.robust.scale.mad(x[:max_train_position])
+def median_scaler(x, mask):
+    x_median = np.median(x[mask])
+    x_mad = sm.robust.scale.mad(x[mask])
     if x_mad == 0:
-        x_mad = np.std(x[:max_train_position], ddof = 1) / 0.6744897501960817
+        x_mad = np.std(x[mask], ddof = 1) / 0.6744897501960817
     x = (x - x_median) / x_mad
     return x, x_median, x_mad
 
@@ -107,12 +106,11 @@ def inv_median_scaler(x, x_median, x_mad):
     return x * x_mad + x_median
 
 # Invariant
-def invariant_scaler(x, offset):
-    max_train_position = len(x)-offset
-    x_median = np.median(x[:max_train_position])
-    x_mad = sm.robust.scale.mad(x[:max_train_position])
+def invariant_scaler(x, mask):
+    x_median = np.median(x[mask])
+    x_mad = sm.robust.scale.mad(x[mask])
     if x_mad == 0:
-        x_mad = np.std(x[:max_train_position], ddof = 1) / 0.6744897501960817
+        x_mad = np.std(x[mask], ddof = 1) / 0.6744897501960817
     x = np.arcsinh((x - x_median) / x_mad)
     return x, x_median, x_mad
 
