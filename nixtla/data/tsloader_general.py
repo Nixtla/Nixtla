@@ -26,7 +26,7 @@ class TimeSeriesLoader(object):
                  batch_size: int,
                  is_train_loader: bool,
                  shuffle: bool,
-                 random_seed: int
+                 random_seed: int,
                  n_series_per_batch: int=None):
         """
         """

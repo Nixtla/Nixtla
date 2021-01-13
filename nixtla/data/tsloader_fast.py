@@ -199,9 +199,9 @@ class TimeSeriesLoader(object):
         self.n_windows = len(self.ts_windows)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
-        expected_windows = self.ts_dataset.n_trn if self.is_train_loader else self.ts_dataset.n_prd
-        assert expected_windows == (len(self.windows_sampling_idx) * self.idx_to_sample_freq), \
-            f'Check predict windows {self.ts_dataset.n_trn} sample windows {len(self.windows_sampling_idx)}'
+        #expected_windows = self.ts_dataset.n_trn if self.is_train_loader else self.ts_dataset.n_prd
+        #assert expected_windows == (len(self.windows_sampling_idx) * self.idx_to_sample_freq), \
+        #    f'Check predict windows {self.ts_dataset.n_trn} sample windows {len(self.windows_sampling_idx)}'
         assert (self.ts_dataset.n_prd % self.ts_dataset.n_series == 0), 'Predictions tensor is unbalanced'
         assert (self.ts_dataset.n_prd % self.idx_to_sample_freq == 0), 'Predictions tensor is unbalanced'
 
