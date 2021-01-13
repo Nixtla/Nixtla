@@ -122,10 +122,7 @@ class TimeSeriesDataset(Dataset):
             ts_idx = np.array(list(ts_data[idx].values()))
             ts_tensor[idx, :self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = ts_idx
             ts_tensor[idx,  self.t_cols.index('insample_mask'), -ts_idx.shape[1]:] = 1
-
-            # To avoid sampling windows without inputs available to predict we shift -1
-            # outsample_mask will be completed with the train_mask, this ensures available data
-            ts_tensor[idx,  self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]-1):] = 1
+            ts_tensor[idx,  self.t_cols.index('outsample_mask'), -(ts_idx.shape[1]):] = 1
             s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
 
