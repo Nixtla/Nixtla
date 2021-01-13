@@ -22,7 +22,7 @@ import statsmodels.api as sm
 #TODO: funciona solo para una serie
 
 class Scaler(object):
-    def _init_(self, normalizer):
+    def __init__(self, normalizer):
         assert (normalizer in ['std', 'invariant', 'norm', 'norm1', 'median']), 'Normalizer not defined'
         self.normalizer = normalizer
         self.x_shift = None

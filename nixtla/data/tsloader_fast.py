@@ -43,17 +43,27 @@ class TimeSeriesLoader(object):
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
         self.shuffle = shuffle # Boolean to shuffle data, useful for validation
 
+        assert offset==0, 'sample_mask and offset interaction not implemented'
+        assert window_sampling_limit==self.ts_dataset.max_len, \
+            'sample_mask and window_samplig_limit interaction not implemented'
+
         # Create rolling window matrix in advanced for faster access to data and broadcasted s_matrix
         self._create_sample_data()
 
     def _update_sampling_windows_idxs(self):
-
         # Only sample during available windows with at least one active output mask and input mask
-        #available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
-        sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
-        sampling_idx = t.nonzero(sample_condition)
-        sampling_idx = list(sampling_idx.flatten().numpy())
+        #n_windows, n_channels, max_len
+        print("self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size]", \
+                self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size].shape)
 
+        #assert 1<0
+        available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
+        sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
+
+        #sampling_idx = t.nonzero(available_condition * sample_condition > 0)
+        sampling_idx = t.nonzero(sample_condition)
+
+        sampling_idx = list(sampling_idx.flatten().numpy())
         assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
         return sampling_idx
 
@@ -66,18 +76,35 @@ class TimeSeriesLoader(object):
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data
         tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
-                                                                        window_sampling_limit=self.window_sampling_limit)
+                                                                       window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
 
         # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
         # is_train_loader inverts the train_mask in case the dataloader is in validation mode
+        # ###########
+        # ###########
+        # ###########
+        # markets = ['BE', 'FR', 'NP', 'PJM']
+        # for idx, market in enumerate(markets):
+        #     print("\n")
+        #     available_mask = tensor[idx, self.ts_dataset.t_cols.index('available_mask'), :]
+        #     sample_mask = tensor[idx, self.ts_dataset.t_cols.index('sample_mask'), :]
+        #     train_mask = available_mask * sample_mask
+        #     n_hours = len(available_mask)
+        #     print("available_mask.shape", available_mask.shape)
+
+        #     print(f'LOADER {market} Available Mask {t.sum(available_mask/n_hours)}')
+        #     print(f'LOADER {market} Sample Mask {t.sum(sample_mask/n_hours)}')
+        #     print(f'LOADER {market} Train Mask {t.sum(train_mask/n_hours)}')
+        #     ###########
+        #     ###########
+        #     ###########
+
         if self.is_train_loader:
             tensor[:, self.t_cols.index('sample_mask'), :] = \
-                tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :]
-
-            # Since Xt from future is returned in tensor, protection from leakage is needed
-            #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
-            #tensor[:, self.t_cols.index('sample_mask'), -self.output_size:] = 0
+                (tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :])
+        else:
+            tensor[:, self.t_cols.index('sample_mask'), :] = (1-tensor[:, self.t_cols.index('sample_mask'), :])
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
@@ -172,6 +199,12 @@ class TimeSeriesLoader(object):
         self.ts_windows, self.s_matrix, _ = self._create_windows_tensor()
         self.n_windows = len(self.ts_windows)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
+
+        expected_windows = self.ts_dataset.n_trn if self.is_train_loader else self.ts_dataset.n_prd
+        assert expected_windows == (len(self.windows_sampling_idx) * self.idx_to_sample_freq), \
+            f'Check predict windows {self.ts_dataset.n_trn} sample windows {len(self.windows_sampling_idx)}'
+        assert (self.ts_dataset.n_prd % self.ts_dataset.n_series == 0), 'Predictions tensor is unbalanced'
+        assert (self.ts_dataset.n_prd % self.idx_to_sample_freq == 0), 'Predictions tensor is unbalanced'
 
     def update_offset(self, offset):
         if offset == self.offset:
