@@ -8,6 +8,9 @@ import numpy as np
 import statsmodels.api as sm
 
 # Cell
+import numpy as np
+import statsmodels.api as sm
+
 #TODO: rehacer todo, es codigo provisional porque corre
 #TODO: filtrar por adelantado con offset
 #TODO: codigo duplicado en clases muy parecidas
@@ -60,8 +63,9 @@ class Scaler(object):
 
 # Norm
 def norm_scaler(x, mask):
-    x_max = np.max(x[mask])
-    x_min = np.min(x[mask])
+    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+    x_max = np.max(x[mask==1])
+    x_min = np.min(x[mask==1])
 
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
     return x, x_min, x_max
@@ -71,8 +75,9 @@ def inv_norm_scaler(x, x_min, x_max):
 
 # Norm1
 def norm1_scaler(x, mask):
-    x_max = np.max(x[mask])
-    x_min = np.min(x[mask])
+    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+    x_max = np.max(x[mask==1])
+    x_min = np.min(x[mask==1])
 
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
     x = x * (2) - 1
@@ -84,8 +89,9 @@ def inv_norm1_scaler(x, x_min, x_max):
 
 # Std
 def std_scaler(x, mask):
-    x_mean = np.mean(x[mask])
-    x_std = np.std(x[mask])
+    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+    x_mean = np.mean(x[mask==1])
+    x_std = np.std(x[mask==1])
 
     x = (x - x_mean) / x_std #TODO: cuidado dividir por zero
     return x, x_mean, x_std
@@ -95,10 +101,11 @@ def inv_std_scaler(x, x_mean, x_std):
 
 # Median
 def median_scaler(x, mask):
-    x_median = np.median(x[mask])
-    x_mad = sm.robust.scale.mad(x[mask])
+    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+    x_median = np.median(x[mask==1])
+    x_mad = sm.robust.scale.mad(x[mask==1])
     if x_mad == 0:
-        x_mad = np.std(x[mask], ddof = 1) / 0.6744897501960817
+        x_mad = np.std(x[mask==1], ddof = 1) / 0.6744897501960817
     x = (x - x_median) / x_mad
     return x, x_median, x_mad
 
@@ -107,13 +114,13 @@ def inv_median_scaler(x, x_median, x_mad):
 
 # Invariant
 def invariant_scaler(x, mask):
-    x_median = np.median(x[mask])
-    x_mad = sm.robust.scale.mad(x[mask])
+    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+    x_median = np.median(x[mask==1])
+    x_mad = sm.robust.scale.mad(x[mask==1])
     if x_mad == 0:
-        x_mad = np.std(x[mask], ddof = 1) / 0.6744897501960817
+        x_mad = np.std(x[mask==1], ddof = 1) / 0.6744897501960817
     x = np.arcsinh((x - x_median) / x_mad)
     return x, x_median, x_mad
 
 def inv_invariant_scaler(x, x_median, x_mad):
     return np.sinh(x) * x_mad + x_median
-
