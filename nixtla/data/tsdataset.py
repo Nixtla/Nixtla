@@ -33,6 +33,7 @@ class TimeSeriesDataset(Dataset):
             assert all([(col in X_df) for col in ['unique_id', 'ds']])
             assert len(Y_df)==len(X_df), f'The dimensions of Y_df and X_df are not the same'
         assert len(Y_df)==len(mask_df), f'The dimensions of Y_df and mask_df are not the same'
+        assert all([(col in mask_df) for col in ['unique_id', 'ds', 'available_mask', 'sample_mask']])
 
         print("Train Validation splits")
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']

@@ -199,6 +199,8 @@ class TimeSeriesLoader(object):
         self.n_windows = len(self.ts_windows)
         self.windows_sampling_idx = self._update_sampling_windows_idxs()
 
+        # TODO: rethink this protection, very small series such that len(ts) < input_size + output_size
+        #       would not allow for complete window_sampling_idx
         #expected_windows = self.ts_dataset.n_trn if self.is_train_loader else self.ts_dataset.n_prd
         #assert expected_windows == (len(self.windows_sampling_idx) * self.idx_to_sample_freq), \
         #    f'Check predict windows {self.ts_dataset.n_trn} sample windows {len(self.windows_sampling_idx)}'
