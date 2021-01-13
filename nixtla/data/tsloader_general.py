@@ -13,6 +13,7 @@ from .tsdataset import TimeSeriesDataset
 from collections import defaultdict
 
 # Cell
+# TODO: Check if the saturday zero protection is still in place
 class TimeSeriesLoader(object):
     def __init__(self,
                  ts_dataset: TimeSeriesDataset,
@@ -25,6 +26,7 @@ class TimeSeriesLoader(object):
                  batch_size: int,
                  is_train_loader: bool,
                  shuffle: bool,
+                 random_seed: int
                  n_series_per_batch: int=None):
         """
         """
@@ -45,6 +47,12 @@ class TimeSeriesLoader(object):
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
         self.shuffle = shuffle
+        self.random_seed = random_seed
+        np.random.seed(self.random_seed)
+
+        assert offset==0, 'sample_mask and offset interaction not implemented'
+        assert window_sampling_limit==self.ts_dataset.max_len, \
+            'sample_mask and window_samplig_limit interaction not implemented'
 
         # Dataloader protections
         assert self.batch_size % self.n_series_per_batch == 0, \
@@ -55,13 +63,13 @@ class TimeSeriesLoader(object):
             f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
     def _get_sampleable_windows_idxs(self, ts_windows_flatten):
-
         # Only sample during available windows with at least one active output mask and input mask
+        #n_windows, n_channels, max_len
         #available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
         sample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
         sampling_idx = t.nonzero(sample_condition)
-        sampling_idx = list(sampling_idx.flatten().numpy())
 
+        sampling_idx = list(sampling_idx.flatten().numpy())
         assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
         return sampling_idx
 
@@ -81,7 +89,9 @@ class TimeSeriesLoader(object):
         # is_train_loader inverts the train_mask in case the dataloader is in validation mode
         if self.is_train_loader:
             tensor[:, self.t_cols.index('sample_mask'), :] = \
-                tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :]
+                (tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :])
+        else:
+            tensor[:, self.t_cols.index('sample_mask'), :] = (1-tensor[:, self.t_cols.index('sample_mask'), :])
 
             # Since Xt from future is returned in tensor, protection from leakage is needed
             #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
@@ -172,7 +182,7 @@ class TimeSeriesLoader(object):
         min_batch_len = np.min(batch_len_series)
         insample_y = insample_y[:, -min_batch_len:]
 
-        insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('insample_mask'), :]
+        insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
         insample_x = insample_x[:, -min_batch_len:]
 
         s_matrix = self.ts_dataset.s_matrix[index]

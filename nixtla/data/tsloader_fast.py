@@ -27,7 +27,8 @@ class TimeSeriesLoader(object):
                  idx_to_sample_freq: int, # TODO: Usada en hack ENORME para window frequency sampling
                  batch_size: int,
                  is_train_loader: bool,
-                 shuffle:bool):
+                 shuffle:bool,
+                 random_seed: int):
         """
         """
         # Dataloader attributes
@@ -42,6 +43,8 @@ class TimeSeriesLoader(object):
         self.t_cols = self.ts_dataset.t_cols
         self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
         self.shuffle = shuffle # Boolean to shuffle data, useful for validation
+        self.random_seed = random_seed
+        np.random.seed(self.random_seed)
 
         assert offset==0, 'sample_mask and offset interaction not implemented'
         assert window_sampling_limit==self.ts_dataset.max_len, \
