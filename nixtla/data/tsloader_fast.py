@@ -53,10 +53,6 @@ class TimeSeriesLoader(object):
     def _update_sampling_windows_idxs(self):
         # Only sample during available windows with at least one active output mask and input mask
         #n_windows, n_channels, max_len
-        print("self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size]", \
-                self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size].shape)
-
-        #assert 1<0
         available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
         sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
 

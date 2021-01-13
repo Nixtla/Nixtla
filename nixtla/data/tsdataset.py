@@ -46,7 +46,7 @@ class TimeSeriesDataset(Dataset):
         prd_prc = np.round(self.n_prd/self.n_tstamps,5)
         print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
         print(f'Total data \t\t\t{self.n_tstamps} time stamps')
-        print(f'Available prc = {avl_prc}, \t{self.n_avl} time stamps')
+        print(f'Available prc = {avl_prc}, \t\t{self.n_avl} time stamps')
         print(f'Train prc = {trn_prc}, \t\t{self.n_trn} time stamps')
         print(f'Predict prc = {prd_prc}, \t\t{self.n_prd} time stamps')
         print('\n')
@@ -146,15 +146,11 @@ class TimeSeriesDataset(Dataset):
         s_matrix  = np.zeros((self.n_series, self.n_s))
         ts_tensor = np.zeros((self.n_series, self.n_channels, self.max_len))
 
-        print("ts_tensor.shape", ts_tensor.shape)
-
         len_series = []
         for idx in range(self.n_series):
             # Left padded time series tensor
             # TODO: Maybe we can place according to ds
             ts_idx = np.array(list(ts_data[idx].values()))
-
-            print("ts_idx.shape", ts_idx.shape)
 
             # ANTES
             #ts_tensor[idx, :self.t_cols.index('outsample_mask'), -ts_idx.shape[1]:] = ts_idx
@@ -208,8 +204,8 @@ class TimeSeriesDataset(Dataset):
             filtered_ts_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
 
-        #assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
-        #    f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
+        assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
+           f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
         return filtered_ts_tensor, right_padding #ANTES, ts_train_mask
 
     def get_f_idxs(self, cols):

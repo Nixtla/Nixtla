@@ -514,6 +514,12 @@ class Nbeats(object):
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
+        n_series = ts_loader.ts_dataset.n_series
+        n_fcds = len(ts_loader.windows_sampling_idx) // (n_series)
+        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
+        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
+        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
+
         self.model.train()
         if eval_mode:
             return outsample_ys, forecasts, outsample_masks
