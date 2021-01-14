@@ -281,19 +281,20 @@ class Nbeats(object):
 
     def __val_loss_fn(self, loss_name='MAE'):
         #TODO: mase not implemented
-        def loss(forecast, target, weights):
+        def loss(forecast, target, target_mask, weights):
             if loss_name == 'MAPE':
-                return mape(y=target, y_hat=forecast, weights=weights)
+                return mape(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
             elif loss_name == 'SMAPE':
-                return smape(y=target, y_hat=forecast, weights=weights)
+                return smape(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
             elif loss_name == 'MSE':
-                return mse(y=target, y_hat=forecast, weights=weights)
+                return mse(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
             elif loss_name == 'RMSE':
-                return rmse(y=target, y_hat=forecast, weights=weights)
+                return rmse(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
             elif loss_name == 'MAE':
-                return mae(y=target, y_hat=forecast, weights=weights)
+                return mae(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
             elif loss_name == 'PINBALL':
-                return pinball_loss(y=target, y_hat=forecast, weights=weights, tau=0.5)
+                return pinball_loss(y=target, y_hat=forecast, y_mask=target_mask,
+                                    weights=weights, tau=0.5)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -316,59 +317,6 @@ class Nbeats(object):
     def to_tensor(self, x: np.ndarray) -> t.Tensor:
         tensor = t.as_tensor(x, dtype=t.float32).to(self.device)
         return tensor
-
-    def evaluate_performance(self, ts_loader, validation_loss_fn):
-        self.model.eval()
-
-        #losses = []
-        forecasts = []
-        outsample_ys = []
-        sample_masks = []
-        with t.no_grad():
-            for batch in iter(ts_loader):
-                # Parse batch
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
-
-                forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
-                                        insample_x_t=insample_x, outsample_x_t=outsample_x,
-                                        insample_mask=insample_mask)
-                #batch_loss = validation_loss_fn(target=outsample_y.cpu().data.numpy(),
-                #                                forecast=forecast.cpu().data.numpy(),
-                #                                weights=outsample_mask.cpu().data.numpy())
-                #losses.append(batch_loss)
-                forecasts.append(forecast.cpu().data.numpy())
-                outsample_ys.append(batch['outsample_y'])
-                sample_masks.append(batch['outsample_mask'])
-
-        forecasts = np.vstack(forecasts)
-        outsample_ys = np.vstack(outsample_ys)
-        sample_masks = np.vstack(sample_masks)
-
-        available_y = (1-np.isnan(outsample_ys))
-
-        if np.sum(np.isnan(forecasts))>0:
-            print(f'y_hat has {np.sum(np.isnan(forecasts))} nan values')
-            print('y_hat.shape', forecasts.shape)
-            print('sample_masks.shape', sample_masks.shape)
-            print('np.sum(1-available_y)', np.sum(1-available_y))
-
-
-        if np.sum(np.isnan(outsample_ys))>0:
-            print(f'y_true has {np.sum(np.isnan(outsample_ys))} nan values')
-            print('y_true.shape', outsample_ys.shape)
-
-        complete_loss = validation_loss_fn(target=outsample_ys,
-                                           forecast=forecasts,
-                                           weights=available_y)
-
-        self.model.train()
-        return complete_loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
@@ -438,67 +386,6 @@ class Nbeats(object):
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
-
-
-                # ###########
-                # ###########
-                # ###########
-
-                # print("\n")
-                # print("\n")
-                # print("\n")
-                # print("INTENTO RARO DE LIMPIEZA8")
-                # insample_y = batch['insample_y'].cpu().numpy()
-                # outsample_y = batch['outsample_y'].cpu().numpy()
-                # insample_x = batch['insample_x'].cpu().numpy()
-                # outsample_x = batch['outsample_x'].cpu().numpy()
-                # available_mask = batch['insample_mask'].cpu().numpy()
-                # sample_mask = batch['outsample_mask'].cpu().numpy()
-
-                # print("insample_y_nans", (np.sum(np.isnan(insample_y))) * 1)
-                # print("outsample_y_nans", (np.sum(np.isnan(outsample_y))) * 1)
-                # print("insample_x_nans", (np.sum(np.isnan(insample_x))) * 1)
-                # print("outsample_x_nans", (np.sum(np.isnan(outsample_x))) * 1)
-                # print("available_mask_nans", np.sum(available_mask))
-                # print("sample_mask_nans", np.sum(sample_mask))
-
-                # data = outsample_x
-                # print("data.shape", data.shape)
-                # data_nans = (np.sum(np.isnan(data), axis=0)) * 1
-                # for channel in range(len(data_nans)):
-                #     print("channel", channel)
-                #     print(data_nans[channel,:])
-
-                # print("sum(data_nans)/len(data_nans)", sum(data_nans)/len(data_nans))
-
-                # insample_availability = (np.sum(available_mask, axis=1) > 0 ) * 1
-                # outsample_availability = (np.sum(sample_mask, axis=1) > 0 ) * 1
-                # print("available_mask.shape", available_mask.shape)
-                # print("sum(available_mask)/len(availability)", sum(insample_availability)/len(insample_availability))
-                # print("sum(sample_mask)/len(availability)", sum(outsample_availability)/len(outsample_availability))
-
-                # print("available_mask[np.isnan(available_mask)]")
-                # print(available_mask[np.isnan(available_mask)])
-
-                # #print(y_true_insample[y_true_nans])
-                # assert 1<0
-
-                # print("\n")
-                # print("\n")
-                # print("\n")
-
-                # ###########
-                # ###########
-                # ###########
-
-                #     print(f'y_true has {np.sum(np.isnan(batch['insample_y'])) } nan values')
-                #     print('y_true.shape', batch['insample_y'].shape)
-
-                # if np.sum(np.isnan(batch['outsample_y']))>1.0:
-                #     print(f'y_true_outsample has {np.sum(np.isnan(batch['outsample_y']))} nan values')
-                #     print('y_true_outsample.shape', batch['outsample_y'].shape)
-
-
 
                 training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
                                                  target=outsample_y, mask=outsample_mask)
@@ -586,13 +473,7 @@ class Nbeats(object):
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
-
-        # Reshape for univariate and panel model compatibility
-        n_series = ts_loader.ts_dataset.n_series
-        n_fcds = len(outsample_ys) // n_series
-        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
-        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
-        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
+        outsample_masks = ((1-np.isnan(outsample_ys)) * (outsample_masks)) * 1
 
         self.model.train()
         if eval_mode:
@@ -618,6 +499,20 @@ class Nbeats(object):
 
         return Y_hat_panel
 
+    def evaluate_performance(self, ts_loader, validation_loss_fn):
+        self.model.eval()
+
+        target, forecast, _ = self.predict(ts_loader=ts_loader, eval_mode=True)
+
+        target = target.reshape(-1)
+        forecast = forecast.reshape(-1)
+        target_mask = (1-np.isnan(target)) * 1
+
+        complete_loss = validation_loss_fn(target=target, forecast=forecast,
+                                           target_mask=target_mask, weights=None)
+
+        self.model.train()
+        return complete_loss
 
     def save(self, model_dir, model_id, state_dict = None):
 
