@@ -323,7 +323,7 @@ class Nbeats(object):
         #losses = []
         forecasts = []
         outsample_ys = []
-        outsample_masks = []
+        sample_masks = []
         with t.no_grad():
             for batch in iter(ts_loader):
                 # Parse batch
@@ -344,33 +344,28 @@ class Nbeats(object):
                 #losses.append(batch_loss)
                 forecasts.append(forecast.cpu().data.numpy())
                 outsample_ys.append(batch['outsample_y'])
-                outsample_masks.append(batch['outsample_mask'])
+                sample_masks.append(batch['outsample_mask'])
 
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
-        outsample_masks = np.vstack(outsample_masks)
-        #loss = np.mean(losses)
+        sample_masks = np.vstack(sample_masks)
 
-        # TODO: think how to do this with weights or mask
-        # np.nan protection
-        # not_nan = ~np.isnan(outsample_ys)
-        # outsample_ys = outsample_ys[non_nan]
-        # forecasts = outsample_ys[non_nan]
-        # outsample_masks = outsample_masks[non_nan]
+        available_y = (1-np.isnan(outsample_ys))
 
         if np.sum(np.isnan(forecasts))>0:
             print(f'y_hat has {np.sum(np.isnan(forecasts))} nan values')
             print('y_hat.shape', forecasts.shape)
+            print('sample_masks.shape', sample_masks.shape)
+            print('np.sum(1-available_y)', np.sum(1-available_y))
+
 
         if np.sum(np.isnan(outsample_ys))>0:
-            print(f'y_true_insample has {np.sum(np.isnan(outsample_ys))} nan values')
-            print('y_true_insample.shape', outsample_ys.shape)
-
-
+            print(f'y_true has {np.sum(np.isnan(outsample_ys))} nan values')
+            print('y_true.shape', outsample_ys.shape)
 
         complete_loss = validation_loss_fn(target=outsample_ys,
                                            forecast=forecasts,
-                                           weights=outsample_masks)
+                                           weights=available_y)
 
         self.model.train()
         return complete_loss
@@ -445,56 +440,56 @@ class Nbeats(object):
                                         insample_mask=insample_mask)
 
 
-                ###########
-                ###########
-                ###########
+                # ###########
+                # ###########
+                # ###########
 
-                print("\n")
-                print("\n")
-                print("\n")
-                print("INTENTO RARO DE LIMPIEZA8")
-                insample_y = batch['insample_y'].cpu().numpy()
-                outsample_y = batch['outsample_y'].cpu().numpy()
-                insample_x = batch['insample_x'].cpu().numpy()
-                outsample_x = batch['outsample_x'].cpu().numpy()
-                available_mask = batch['insample_mask'].cpu().numpy()
-                sample_mask = batch['outsample_mask'].cpu().numpy()
+                # print("\n")
+                # print("\n")
+                # print("\n")
+                # print("INTENTO RARO DE LIMPIEZA8")
+                # insample_y = batch['insample_y'].cpu().numpy()
+                # outsample_y = batch['outsample_y'].cpu().numpy()
+                # insample_x = batch['insample_x'].cpu().numpy()
+                # outsample_x = batch['outsample_x'].cpu().numpy()
+                # available_mask = batch['insample_mask'].cpu().numpy()
+                # sample_mask = batch['outsample_mask'].cpu().numpy()
 
-                print("insample_y_nans", (np.sum(np.isnan(insample_y))) * 1)
-                print("outsample_y_nans", (np.sum(np.isnan(outsample_y))) * 1)
-                print("insample_x_nans", (np.sum(np.isnan(insample_x))) * 1)
-                print("outsample_x_nans", (np.sum(np.isnan(outsample_x))) * 1)
-                print("available_mask_nans", np.sum(available_mask))
-                print("sample_mask_nans", np.sum(sample_mask))
+                # print("insample_y_nans", (np.sum(np.isnan(insample_y))) * 1)
+                # print("outsample_y_nans", (np.sum(np.isnan(outsample_y))) * 1)
+                # print("insample_x_nans", (np.sum(np.isnan(insample_x))) * 1)
+                # print("outsample_x_nans", (np.sum(np.isnan(outsample_x))) * 1)
+                # print("available_mask_nans", np.sum(available_mask))
+                # print("sample_mask_nans", np.sum(sample_mask))
 
-                data = outsample_x
-                print("data.shape", data.shape)
-                data_nans = (np.sum(np.isnan(data), axis=0)) * 1
-                for channel in range(len(data_nans)):
-                    print("channel", channel)
-                    print(data_nans[channel,:])
+                # data = outsample_x
+                # print("data.shape", data.shape)
+                # data_nans = (np.sum(np.isnan(data), axis=0)) * 1
+                # for channel in range(len(data_nans)):
+                #     print("channel", channel)
+                #     print(data_nans[channel,:])
 
-                print("sum(data_nans)/len(data_nans)", sum(data_nans)/len(data_nans))
+                # print("sum(data_nans)/len(data_nans)", sum(data_nans)/len(data_nans))
 
-                insample_availability = (np.sum(available_mask, axis=1) > 0 ) * 1
-                outsample_availability = (np.sum(sample_mask, axis=1) > 0 ) * 1
-                print("available_mask.shape", available_mask.shape)
-                print("sum(available_mask)/len(availability)", sum(insample_availability)/len(insample_availability))
-                print("sum(sample_mask)/len(availability)", sum(outsample_availability)/len(outsample_availability))
+                # insample_availability = (np.sum(available_mask, axis=1) > 0 ) * 1
+                # outsample_availability = (np.sum(sample_mask, axis=1) > 0 ) * 1
+                # print("available_mask.shape", available_mask.shape)
+                # print("sum(available_mask)/len(availability)", sum(insample_availability)/len(insample_availability))
+                # print("sum(sample_mask)/len(availability)", sum(outsample_availability)/len(outsample_availability))
 
-                print("available_mask[np.isnan(available_mask)]")
-                print(available_mask[np.isnan(available_mask)])
+                # print("available_mask[np.isnan(available_mask)]")
+                # print(available_mask[np.isnan(available_mask)])
 
-                #print(y_true_insample[y_true_nans])
-                assert 1<0
+                # #print(y_true_insample[y_true_nans])
+                # assert 1<0
 
-                print("\n")
-                print("\n")
-                print("\n")
+                # print("\n")
+                # print("\n")
+                # print("\n")
 
-                ###########
-                ###########
-                ###########
+                # ###########
+                # ###########
+                # ###########
 
                 #     print(f'y_true has {np.sum(np.isnan(batch['insample_y'])) } nan values')
                 #     print('y_true.shape', batch['insample_y'].shape)

@@ -34,6 +34,8 @@ class TimeSeriesDataset(Dataset):
             assert len(Y_df)==len(X_df), f'The dimensions of Y_df and X_df are not the same'
         assert len(Y_df)==len(mask_df), f'The dimensions of Y_df and mask_df are not the same'
         assert all([(col in mask_df) for col in ['unique_id', 'ds', 'available_mask', 'sample_mask']])
+        assert np.sum(np.isnan(mask_df.available_mask.values))==0
+        assert np.sum(np.isnan(mask_df.sample_mask.values))==0
 
         print("Train Validation splits")
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
@@ -47,7 +49,7 @@ class TimeSeriesDataset(Dataset):
         prd_prc = np.round(self.n_prd/self.n_tstamps,5)
         print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
         print(f'Total data \t\t\t{self.n_tstamps} time stamps')
-        print(f'Available prc = {avl_prc}, \t\t{self.n_avl} time stamps')
+        print(f'Available prc = {avl_prc}, \t{self.n_avl} time stamps')
         print(f'Train prc = {trn_prc}, \t\t{self.n_trn} time stamps')
         print(f'Predict prc = {prd_prc}, \t\t{self.n_prd} time stamps')
         print('\n')
@@ -158,46 +160,44 @@ class TimeSeriesDataset(Dataset):
             s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
 
-            ###########
-            ###########
-            ###########
-            print("\n")
-            print("TSDATASET _create_tensor")
-            markets = ['BE', 'FR', 'NP', 'PJM']
-            available_mask = ts_tensor[idx, self.t_cols.index('available_mask'), :]
-            sample_mask = ts_tensor[idx, self.t_cols.index('sample_mask'), :]
-            train_mask = available_mask * sample_mask
-            n_hours = len(available_mask)
+            # ###########
+            # ###########
+            # ###########
+            # print("\n")
+            # print("TSDATASET _create_tensor")
+            # markets = ['BE', 'FR', 'NP', 'PJM']
+            # available_mask = ts_tensor[idx, self.t_cols.index('available_mask'), :]
+            # sample_mask = ts_tensor[idx, self.t_cols.index('sample_mask'), :]
+            # train_mask = available_mask * sample_mask
+            # n_hours = len(available_mask)
 
-            y = ts_tensor[idx, self.t_cols.index('y'), :]
-            y_nans = ((np.isnan(y)) > 0) * 1
-            print("y_nans prc", np.sum(y_nans)/len(y))
+            # y = ts_tensor[idx, self.t_cols.index('y'), :]
+            # y_nans = ((np.isnan(y)) > 0) * 1
+            # print("y_nans prc", np.sum(y_nans)/len(y))
 
-            x = ts_tensor[idx, self.t_cols.index('Exogenous1'), :]
-            x_nans = ((np.isnan(y)) > 0) * 1
-            print("x_nans prc", np.sum(x_nans)/len(x))
+            # x = ts_tensor[idx, self.t_cols.index('Exogenous1'), :]
+            # x_nans = ((np.isnan(y)) > 0) * 1
+            # print("x_nans prc", np.sum(x_nans)/len(x))
 
-            xy_nans = x_nans * y_nans
-            print("xy_nans prc", np.sum(xy_nans)/len(x))
+            # xy_nans = x_nans * y_nans
+            # print("xy_nans prc", np.sum(xy_nans)/len(x))
 
-            xya_nans = x_nans * y_nans * available_mask
-            print("xya_nans prc", np.sum(xya_nans)/len(x))
+            # xya_nans = x_nans * y_nans * available_mask
+            # print("xya_nans prc", np.sum(xya_nans)/len(x))
 
-            print("y_nans", np.sum(np.isnan(y)) * 1)
-            print("x_nans", np.sum(np.isnan(x)) * 1)
-            print("available_mask_nans", np.sum(np.isnan(available_mask)) * 1)
-            print("sample_mask_nans", np.sum(np.isnan(sample_mask)) * 1)
+            # print("y_nans", np.sum(np.isnan(y)) * 1)
+            # print("x_nans", np.sum(np.isnan(x)) * 1)
+            # print("available_mask_nans", np.sum(np.isnan(available_mask)) * 1)
+            # print("sample_mask_nans", np.sum(np.isnan(sample_mask)) * 1)
 
-            market = markets[idx]
-            print(f'DATASET {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
-            print(f'DATASET {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
-            print(f'DATASET {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
-            print("\n")
-            #assert 1<0, "LA PUTA MADRE"
-            ###########
-            ###########
-            ###########
-
+            # market = markets[idx]
+            # print(f'DATASET {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
+            # print(f'DATASET {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
+            # print(f'DATASET {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
+            # print("\n")
+            # ###########
+            # ###########
+            # ###########
 
         return ts_tensor, s_matrix, np.array(len_series)
 

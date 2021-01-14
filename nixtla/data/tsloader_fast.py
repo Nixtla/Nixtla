@@ -59,17 +59,17 @@ class TimeSeriesLoader(object):
         # sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
 
         if self.is_train_loader:
-            print("\n")
-            print("INTENTO RARO DE LIMPIEZA8")
+            #print("\n")
+            #print("INTENTO RARO DE LIMPIEZA8")
             sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), :], axis=1)
             available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :], axis=1)
             completely_available_condition = (available_condition == (self.input_size+self.output_size)) * 1
             sampling_idx = t.nonzero(completely_available_condition * sample_condition > 0)
-            print("completely_available_condition.shape", completely_available_condition.shape)
-            print("complete prc", float(t.sum(completely_available_condition))/len(completely_available_condition))
-            print("available_condition", available_condition)
-            print("completely_available_condition", completely_available_condition)
-            print("completely_available_condition * sample_condition > 0", completely_available_condition * sample_condition > 0)
+            #print("completely_available_condition.shape", completely_available_condition.shape)
+            #print("complete prc", float(t.sum(completely_available_condition))/len(completely_available_condition))
+            #print("available_condition", available_condition)
+            #print("completely_available_condition", completely_available_condition)
+            #print("completely_available_condition * sample_condition > 0", completely_available_condition * sample_condition > 0)
         else:
             sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
             sampling_idx = t.nonzero(sample_condition)
@@ -95,46 +95,44 @@ class TimeSeriesLoader(object):
 
 
 
-        ###########
-        ###########
-        ###########
-        markets = ['BE', 'FR', 'NP', 'PJM']
-        for idx, market in enumerate(markets):
-            print("\n")
-            available_mask = tensor[idx, self.ts_dataset.t_cols.index('available_mask'), :].cpu().numpy()
-            sample_mask = tensor[idx, self.ts_dataset.t_cols.index('sample_mask'), :].cpu().numpy()
-            train_mask = available_mask * sample_mask
-            n_hours = len(available_mask)
+        # ###########
+        # ###########
+        # ###########
+        # markets = ['BE', 'FR', 'NP', 'PJM']
+        # for idx, market in enumerate(markets):
+        #     print("\n")
+        #     available_mask = tensor[idx, self.ts_dataset.t_cols.index('available_mask'), :].cpu().numpy()
+        #     sample_mask = tensor[idx, self.ts_dataset.t_cols.index('sample_mask'), :].cpu().numpy()
+        #     train_mask = available_mask * sample_mask
+        #     n_hours = len(available_mask)
 
-            print("available_mask.shape", available_mask.shape)
-            y = tensor[idx, self.t_cols.index('y'), :].cpu().data.numpy()
-            y_nans = ((np.isnan(y)) > 0) * 1
-            print("y_nans prc", np.sum(y_nans)/len(y))
+        #     print("available_mask.shape", available_mask.shape)
+        #     y = tensor[idx, self.t_cols.index('y'), :].cpu().data.numpy()
+        #     y_nans = ((np.isnan(y)) > 0) * 1
+        #     print("y_nans prc", np.sum(y_nans)/len(y))
 
-            x = tensor[idx, self.t_cols.index('Exogenous1'), :].cpu().data.numpy()
-            x_nans = ((np.isnan(y)) > 0) * 1
-            print("x_nans prc", np.sum(x_nans)/len(x))
+        #     x = tensor[idx, self.t_cols.index('Exogenous1'), :].cpu().data.numpy()
+        #     x_nans = ((np.isnan(y)) > 0) * 1
+        #     print("x_nans prc", np.sum(x_nans)/len(x))
 
-            xy_nans = x_nans * y_nans
-            print("xy_nans prc", np.sum(xy_nans)/len(x))
+        #     xy_nans = x_nans * y_nans
+        #     print("xy_nans prc", np.sum(xy_nans)/len(x))
 
-            xya_nans = x_nans * y_nans * available_mask
-            print("xya_nans prc", np.sum(xya_nans)/len(x))
+        #     xya_nans = x_nans * y_nans * available_mask
+        #     print("xya_nans prc", np.sum(xya_nans)/len(x))
 
-            print("y_nans", np.sum(np.isnan(y)) * 1)
-            print("x_nans", np.sum(np.isnan(x)) * 1)
-            print("available_mask_nans", np.sum(np.isnan(available_mask)) * 1)
-            print("sample_mask_nans", np.sum(np.isnan(sample_mask)) * 1)
+        #     print("y_nans", np.sum(np.isnan(y)) * 1)
+        #     print("x_nans", np.sum(np.isnan(x)) * 1)
+        #     print("available_mask_nans", np.sum(np.isnan(available_mask)) * 1)
+        #     print("sample_mask_nans", np.sum(np.isnan(sample_mask)) * 1)
 
-            print(f'LOADER {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
-            print(f'LOADER {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
-            print(f'LOADER {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
-            print("\n")
-
-        #assert 1<0, "LA PUTA MADRE2"
-        ###########
-        ###########
-        ###########
+        #     print(f'LOADER {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
+        #     print(f'LOADER {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
+        #     print(f'LOADER {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
+        #     print("\n")
+        # ###########
+        # ###########
+        # ###########
 
 
         #if self.is_train_loader:
