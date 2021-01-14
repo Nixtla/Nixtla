@@ -351,6 +351,23 @@ class Nbeats(object):
         outsample_masks = np.vstack(outsample_masks)
         #loss = np.mean(losses)
 
+        # TODO: think how to do this with weights or mask
+        # np.nan protection
+        # not_nan = ~np.isnan(outsample_ys)
+        # outsample_ys = outsample_ys[non_nan]
+        # forecasts = outsample_ys[non_nan]
+        # outsample_masks = outsample_masks[non_nan]
+
+        if np.sum(np.isnan(forecasts))>0:
+            print(f'y_hat has {np.sum(np.isnan(forecasts))} nan values')
+            print('y_hat.shape', forecasts.shape)
+
+        if np.sum(np.isnan(outsample_ys))>0:
+            print(f'y_true_insample has {np.sum(np.isnan(outsample_ys))} nan values')
+            print('y_true_insample.shape', outsample_ys.shape)
+
+
+
         complete_loss = validation_loss_fn(target=outsample_ys,
                                            forecast=forecasts,
                                            weights=outsample_masks)
@@ -426,6 +443,67 @@ class Nbeats(object):
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
                                         insample_mask=insample_mask)
+
+
+                ###########
+                ###########
+                ###########
+
+                print("\n")
+                print("\n")
+                print("\n")
+                print("INTENTO RARO DE LIMPIEZA8")
+                insample_y = batch['insample_y'].cpu().numpy()
+                outsample_y = batch['outsample_y'].cpu().numpy()
+                insample_x = batch['insample_x'].cpu().numpy()
+                outsample_x = batch['outsample_x'].cpu().numpy()
+                available_mask = batch['insample_mask'].cpu().numpy()
+                sample_mask = batch['outsample_mask'].cpu().numpy()
+
+                print("insample_y_nans", (np.sum(np.isnan(insample_y))) * 1)
+                print("outsample_y_nans", (np.sum(np.isnan(outsample_y))) * 1)
+                print("insample_x_nans", (np.sum(np.isnan(insample_x))) * 1)
+                print("outsample_x_nans", (np.sum(np.isnan(outsample_x))) * 1)
+                print("available_mask_nans", np.sum(available_mask))
+                print("sample_mask_nans", np.sum(sample_mask))
+
+                data = outsample_x
+                print("data.shape", data.shape)
+                data_nans = (np.sum(np.isnan(data), axis=0)) * 1
+                for channel in range(len(data_nans)):
+                    print("channel", channel)
+                    print(data_nans[channel,:])
+
+                print("sum(data_nans)/len(data_nans)", sum(data_nans)/len(data_nans))
+
+                insample_availability = (np.sum(available_mask, axis=1) > 0 ) * 1
+                outsample_availability = (np.sum(sample_mask, axis=1) > 0 ) * 1
+                print("available_mask.shape", available_mask.shape)
+                print("sum(available_mask)/len(availability)", sum(insample_availability)/len(insample_availability))
+                print("sum(sample_mask)/len(availability)", sum(outsample_availability)/len(outsample_availability))
+
+                print("available_mask[np.isnan(available_mask)]")
+                print(available_mask[np.isnan(available_mask)])
+
+                #print(y_true_insample[y_true_nans])
+                assert 1<0
+
+                print("\n")
+                print("\n")
+                print("\n")
+
+                ###########
+                ###########
+                ###########
+
+                #     print(f'y_true has {np.sum(np.isnan(batch['insample_y'])) } nan values')
+                #     print('y_true.shape', batch['insample_y'].shape)
+
+                # if np.sum(np.isnan(batch['outsample_y']))>1.0:
+                #     print(f'y_true_outsample has {np.sum(np.isnan(batch['outsample_y']))} nan values')
+                #     print('y_true_outsample.shape', batch['outsample_y'].shape)
+
+
 
                 training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
                                                  target=outsample_y, mask=outsample_mask)

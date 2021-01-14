@@ -52,14 +52,6 @@ class TimeSeriesDataset(Dataset):
         print(f'Predict prc = {prd_prc}, \t\t{self.n_prd} time stamps')
         print('\n')
 
-        #print('\n')
-        #print('Processing dataframes ...')
-        #Pandas dataframes to data lists
-        if mask_df is None:
-            mask_df = Y_df[['unique_id', 'ds']].copy()
-            mask_df['available_mask'] = np.ones(len(Y_df))
-            mask_df['sample_mask'] = np.ones(len(Y_df))
-
         ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
 
@@ -81,7 +73,7 @@ class TimeSeriesDataset(Dataset):
         self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
 
     def _df_to_lists(self, Y_df, S_df, X_df, mask_df):
-        """
+        """ TODO: Comment on unbalanced panels
         """
         unique_ids = Y_df['unique_id'].unique()
 
@@ -166,23 +158,46 @@ class TimeSeriesDataset(Dataset):
             s_matrix[idx, :] = list(s_data[idx].values())
             len_series.append(ts_idx.shape[1])
 
-            # ###########
-            # ###########
-            # ###########
-            # print("\n")
-            # markets = ['BE', 'FR', 'NP', 'PJM']
-            # available_mask = ts_tensor[idx, self.t_cols.index('available_mask'), :]
-            # sample_mask = ts_tensor[idx, self.t_cols.index('sample_mask'), :]
-            # train_mask = available_mask * sample_mask
-            # n_hours = len(available_mask)
+            ###########
+            ###########
+            ###########
+            print("\n")
+            print("TSDATASET _create_tensor")
+            markets = ['BE', 'FR', 'NP', 'PJM']
+            available_mask = ts_tensor[idx, self.t_cols.index('available_mask'), :]
+            sample_mask = ts_tensor[idx, self.t_cols.index('sample_mask'), :]
+            train_mask = available_mask * sample_mask
+            n_hours = len(available_mask)
 
-            # market = markets[idx]
-            # print(f'DATASET {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
-            # print(f'DATASET {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
-            # print(f'DATASET {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
-            # ###########
-            # ###########
-            # ###########
+            y = ts_tensor[idx, self.t_cols.index('y'), :]
+            y_nans = ((np.isnan(y)) > 0) * 1
+            print("y_nans prc", np.sum(y_nans)/len(y))
+
+            x = ts_tensor[idx, self.t_cols.index('Exogenous1'), :]
+            x_nans = ((np.isnan(y)) > 0) * 1
+            print("x_nans prc", np.sum(x_nans)/len(x))
+
+            xy_nans = x_nans * y_nans
+            print("xy_nans prc", np.sum(xy_nans)/len(x))
+
+            xya_nans = x_nans * y_nans * available_mask
+            print("xya_nans prc", np.sum(xya_nans)/len(x))
+
+            print("y_nans", np.sum(np.isnan(y)) * 1)
+            print("x_nans", np.sum(np.isnan(x)) * 1)
+            print("available_mask_nans", np.sum(np.isnan(available_mask)) * 1)
+            print("sample_mask_nans", np.sum(np.isnan(sample_mask)) * 1)
+
+            market = markets[idx]
+            print(f'DATASET {market} Available Mask {np.round(np.sum(available_mask/n_hours),5)}')
+            print(f'DATASET {market} Sample Mask {np.round(np.sum(sample_mask/n_hours),5)}')
+            print(f'DATASET {market} Train Mask {np.round(np.sum(train_mask/n_hours),5)}')
+            print("\n")
+            #assert 1<0, "LA PUTA MADRE"
+            ###########
+            ###########
+            ###########
+
 
         return ts_tensor, s_matrix, np.array(len_series)
 
@@ -205,8 +220,9 @@ class TimeSeriesDataset(Dataset):
             filtered_ts_tensor = self.ts_tensor[ts_idxs, :, first_ds:last_outsample_ds]
         right_padding = max(last_outsample_ds - self.max_len, 0) #To padd with zeros if there is "nothing" to the right
 
-        assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
-           f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
+        #assert np.sum(np.isnan(filtered_ts_tensor))<1.0, \
+        #   f'The balanced balanced filtered_tensor has {np.sum(np.isnan(filtered_ts_tensor))} nan values'
+
         return filtered_ts_tensor, right_padding #ANTES, ts_train_mask
 
     def get_f_idxs(self, cols):
