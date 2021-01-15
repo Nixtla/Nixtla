@@ -349,6 +349,7 @@ class Nbeats(object):
         training_loss_fn = self.__loss_fn(self.loss)
         validation_loss_fn = self.__val_loss_fn(self.val_loss) #Uses numpy losses
 
+        print('\n')
         print('='*30+' Start fitting '+'='*30)
 
         #self.loss_dict = {} # Restart self.loss_dict
