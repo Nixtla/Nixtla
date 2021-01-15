@@ -44,9 +44,9 @@ class TimeSeriesDataset(Dataset):
         self.n_trn = mask_df.train_mask.sum()
         self.n_prd = len(mask_df)-mask_df.sample_mask.sum()
 
-        avl_prc = np.round(self.n_avl/self.n_tstamps,5)
-        trn_prc = np.round(self.n_trn/self.n_tstamps,5)
-        prd_prc = np.round(self.n_prd/self.n_tstamps,5)
+        avl_prc = np.round((100*self.n_avl)/self.n_tstamps,2)
+        trn_prc = np.round((100*self.n_trn)/self.n_tstamps,2)
+        prd_prc = np.round((100*self.n_prd)/self.n_tstamps,2)
         print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
         print(f'Total data \t\t\t{self.n_tstamps} time stamps')
         print(f'Available percentage={avl_prc}, \t{self.n_avl} time stamps')
