@@ -40,6 +40,11 @@ class Scaler(object):
         elif self.normalizer == 'norm1':
             x_scaled, x_shift, x_scale = norm1_scaler(x, mask)
 
+        assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
+        nan_before_scale = np.sum(np.isnan(x))
+        nan_after_scale = np.sum(np.isnan(x_scaled))
+        assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
+
         self.x_shift = x_shift
         self.x_scale = x_scale
         return np.array(x_scaled)
@@ -63,14 +68,10 @@ class Scaler(object):
 
 # Norm
 def norm_scaler(x, mask):
-    nan_before_scale = np.sum(np.isnan(x))
-    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
     x_max = np.max(x[mask==1])
     x_min = np.min(x[mask==1])
 
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
-    nan_after_scale = np.sum(np.isnan(x))
-    #assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
     return x, x_min, x_max
 
 def inv_norm_scaler(x, x_min, x_max):
@@ -78,14 +79,11 @@ def inv_norm_scaler(x, x_min, x_max):
 
 # Norm1
 def norm1_scaler(x, mask):
-    nan_before_scale = np.sum(np.isnan(x))
-    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
     x_max = np.max(x[mask==1])
     x_min = np.min(x[mask==1])
 
     x = (x - x_min) / (x_max - x_min) #TODO: cuidado dividir por zero
     x = x * (2) - 1
-    assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
     return x, x_min, x_max
 
 def inv_norm1_scaler(x, x_min, x_max):
@@ -94,13 +92,10 @@ def inv_norm1_scaler(x, x_min, x_max):
 
 # Std
 def std_scaler(x, mask):
-    nan_before_scale = np.sum(np.isnan(x))
-    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
     x_mean = np.mean(x[mask==1])
     x_std = np.std(x[mask==1])
 
     x = (x - x_mean) / x_std #TODO: cuidado dividir por zero
-    assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
     return x, x_mean, x_std
 
 def inv_std_scaler(x, x_mean, x_std):
@@ -108,14 +103,11 @@ def inv_std_scaler(x, x_mean, x_std):
 
 # Median
 def median_scaler(x, mask):
-    nan_before_scale = np.sum(np.isnan(x))
-    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
     x_median = np.median(x[mask==1])
     x_mad = sm.robust.scale.mad(x[mask==1])
     if x_mad == 0:
         x_mad = np.std(x[mask==1], ddof = 1) / 0.6744897501960817
     x = (x - x_median) / x_mad
-    assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
     return x, x_median, x_mad
 
 def inv_median_scaler(x, x_median, x_mad):
@@ -123,14 +115,11 @@ def inv_median_scaler(x, x_median, x_mad):
 
 # Invariant
 def invariant_scaler(x, mask):
-    nan_before_scale = np.sum(np.isnan(x))
-    assert len(x[mask==1] == np.sum(mask)), 'Something weird is happening, call Cristian'
     x_median = np.median(x[mask==1])
     x_mad = sm.robust.scale.mad(x[mask==1])
     if x_mad == 0:
         x_mad = np.std(x[mask==1], ddof = 1) / 0.6744897501960817
     x = np.arcsinh((x - x_median) / x_mad)
-    assert nan_before_scale == nan_after_scale, 'Scaler induced nans'
     return x, x_median, x_mad
 
 def inv_invariant_scaler(x, x_median, x_mad):
