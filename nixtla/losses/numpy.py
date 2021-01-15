@@ -10,24 +10,12 @@ from .pytorch import divide_no_nan
 # TODO: Think more efficient way of masking y_mask availability, without indexing (maybe 0s)
 
 # Cell
-def metric_protections(y: np.ndarray, y_hat: np.ndarray,
-                       y_mask, weights):
-
+def metric_protections(y: np.ndarray, y_hat: np.ndarray, weights):
     assert (weights is None) or (np.sum(weights)>0), 'Sum of weights cannot be 0'
     assert (weights is None) or (len(weights)==len(y)), 'Wrong weight dimension'
-    assert (y_mask is None) or (len(y_mask)==len(y)), 'Wrong mask dimension'
-
-    if y_mask is not None:
-        y = y[y_mask]
-        y_hat = y_hat[y_mask]
-        if weights is not None:
-            weights = delta_y[y_mask]
-
-    return y, y_hat, y_mask, weights
 
 # Cell
-def mae(y: np.ndarray, y_hat: np.ndarray,
-        y_mask=None, weights=None):
+def mae(y: np.ndarray, y_hat: np.ndarray, weights=None):
     """Calculates Mean Absolute Error.
 
     The mean absolute error
@@ -38,8 +26,6 @@ def mae(y: np.ndarray, y_hat: np.ndarray,
         actual test values
     y_hat: numpy array
         predicted values
-    y_mask: numpy array
-      optional mask, 1 keep 0 omit
     weights: numpy array
       weights for weigted average
 
@@ -47,16 +33,17 @@ def mae(y: np.ndarray, y_hat: np.ndarray,
     ------
     scalar: MAE
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
     delta_y = np.abs(y - y_hat)
-    mae = np.average(np.abs(y - y_hat), weights=weights)
+    if weights is not None:
+      mae = np.average(delta_y[~np.isnan(delta_y)], weights=weights[~np.isnan(delta_y)])
+    else:
+      mae = np.nanmean(delta_y)
     return mae
 
 # Cell
-def mse(y: np.ndarray, y_hat: np.ndarray,
-        y_mask=None, weights=None) -> float:
+def mse(y: np.ndarray, y_hat: np.ndarray, weights=None) -> float:
     """Calculates Mean Squared Error.
     MSE measures the prediction accuracy of a
     forecasting method by calculating the squared deviation
@@ -69,8 +56,6 @@ def mse(y: np.ndarray, y_hat: np.ndarray,
         actual test values
     y_hat: numpy array
         predicted values
-    y_mask: numpy array
-      optional mask, 1 keep 0 omit
     weights: numpy array
       weights for weigted average
 
@@ -78,15 +63,17 @@ def mse(y: np.ndarray, y_hat: np.ndarray,
     -------
     scalar: MSE
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
-    mse = np.average(np.square(y - y_hat), weights=weights)
+    delta_y = np.square(y - y_hat)
+    if weights is not None:
+      mse = np.average(delta_y[~np.isnan(delta_y)], weights=weights[~np.isnan(delta_y)])
+    else:
+      mse = np.nanmean(delta_y)
     return mse
 
 # Cell
-def rmse(y: np.ndarray, y_hat: np.ndarray,
-         y_mask=None, weights=None) -> float:
+def rmse(y: np.ndarray, y_hat: np.ndarray, weights=None) -> float:
     """Calculates Root Mean Squared Error.
     RMSE measures the prediction accuracy of a
     forecasting method by calculating the squared deviation
@@ -102,8 +89,6 @@ def rmse(y: np.ndarray, y_hat: np.ndarray,
       actual test values
     y_hat: numpy array
       predicted values
-    y_mask: numpy array
-      optional mask, 1 keep 0 omit
     weights: numpy array
       weights for weigted average
 
@@ -111,16 +96,11 @@ def rmse(y: np.ndarray, y_hat: np.ndarray,
     -------
     scalar: RMSE
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
 
-    rmse = sqrt(mse(y, y_hat, weights))
-
-    return rmse
+    return np.sqrt(mse(y, y_hat, weights))
 
 # Cell
-def mape(y: np.ndarray, y_hat: np.ndarray,
-         y_mask=None, weights=None) -> float:
+def mape(y: np.ndarray, y_hat: np.ndarray, weights=None) -> float:
     #TODO: weights no hace nada
     """Calculates Mean Absolute Percentage Error.
     MAPE measures the relative prediction accuracy of a
@@ -134,8 +114,6 @@ def mape(y: np.ndarray, y_hat: np.ndarray,
       actual test values
     y_hat: numpy array
       predicted values
-    y_mask: numpy array
-      optional mask, 1 keep 0 omit
     weights: numpy array
       weights for weigted average
 
@@ -143,15 +121,13 @@ def mape(y: np.ndarray, y_hat: np.ndarray,
     -------
     scalar: MAPE
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
     delta_y = np.abs(y - y_hat)
     scale = np.abs(y)
     mape = divide_no_nan(delta_y, scale)
     mape = np.average(mape, weights=weights)
     mape = 100 * mape
-
     return mape
 
 # Cell
@@ -183,8 +159,7 @@ def smape(y: np.ndarray, y_hat: np.ndarray,
     -------
     scalar: SMAPE
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
     delta_y = np.abs(y - y_hat)
     scale = np.abs(y) + np.abs(y_hat)
@@ -192,12 +167,10 @@ def smape(y: np.ndarray, y_hat: np.ndarray,
     smape = 200 * np.average(smape, weights=weights)
 
     assert smape <= 200, 'SMAPE should be lower than 200'
-
     return smape
 
 # Cell
-def pinball_loss(y: np.ndarray, y_hat: np.ndarray, tau: float=0.5,
-                 y_mask=None, weights=None) -> np.ndarray:
+def pinball_loss(y: np.ndarray, y_hat: np.ndarray, tau: float=0.5, weights=None) -> np.ndarray:
     """Calculates the Pinball Loss.
 
     The Pinball loss measures the deviation of a quantile forecast.
@@ -211,8 +184,6 @@ def pinball_loss(y: np.ndarray, y_hat: np.ndarray, tau: float=0.5,
       actual test values
     y_hat: numpy array of len h (forecasting horizon)
       predicted values
-    y_mask: numpy array
-      optional mask, 1 keep 0 omit
     weights: numpy array
       weights for weigted average
     tau: float
@@ -221,12 +192,15 @@ def pinball_loss(y: np.ndarray, y_hat: np.ndarray, tau: float=0.5,
     ------
     return: pinball_loss
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
     delta_y = y - y_hat
     pinball = np.maximum(tau * delta_y, (tau - 1) * delta_y)
-    pinball = np.average(pinball, weights=weights) #pinball.mean()
+
+    if weights is not None:
+      pinball = np.average(pinball[~np.isnan(pinball)], weights=weights[~np.isnan(pinball)])
+    else:
+      pinball = np.nanmean(pinball)
     return pinball
 
 # Cell
@@ -245,9 +219,12 @@ def accuracy_logits(y: np.ndarray, y_hat: np.ndarray, weights=None, thr=0.5) -> 
     ------
     return accuracy
     """
-    y, y_hat, y_mask, weights = metric_protections(y=y, y_hat=y_hat,
-                                                   y_mask=y_mask, weights=weights)
+    metric_protections(y, y_hat, weights)
 
     y_hat = ((1/(1 + np.exp(-y_hat))) > thr) * 1
-    accuracy = np.average(y_hat==y, weights=weights) * 100
+    correct = (y==y_hat)[~np.isnan(y)]
+    if weights is not None:
+      accuracy = np.average(correct, weights=weights[~np.isnan(y)]) * 100
+    else:
+      accuracy = np.nanmean(correct) * 100
     return accuracy

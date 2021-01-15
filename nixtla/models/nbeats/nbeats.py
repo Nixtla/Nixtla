@@ -281,20 +281,19 @@ class Nbeats(object):
 
     def __val_loss_fn(self, loss_name='MAE'):
         #TODO: mase not implemented
-        def loss(forecast, target, target_mask, weights):
+        def loss(forecast, target, weights):
             if loss_name == 'MAPE':
-                return mape(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
+                return mape(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'SMAPE':
-                return smape(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
+                return smape(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'MSE':
-                return mse(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
+                return mse(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'RMSE':
-                return rmse(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
+                return rmse(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'MAE':
-                return mae(y=target, y_hat=forecast, y_mask=target_mask, weights=weights)
+                return mae(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'PINBALL':
-                return pinball_loss(y=target, y_hat=forecast, y_mask=target_mask,
-                                    weights=weights, tau=0.5)
+                return pinball_loss(y=target, y_hat=forecast, weights=weights, tau=0.5)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -473,7 +472,6 @@ class Nbeats(object):
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
-        outsample_masks = ((1-np.isnan(outsample_ys)) * (outsample_masks)) * 1
 
         self.model.train()
         if eval_mode:
@@ -506,10 +504,8 @@ class Nbeats(object):
 
         target = target.reshape(-1)
         forecast = forecast.reshape(-1)
-        target_mask = (1-np.isnan(target)) * 1
 
-        complete_loss = validation_loss_fn(target=target, forecast=forecast,
-                                           target_mask=target_mask, weights=None)
+        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=None)
 
         self.model.train()
         return complete_loss
