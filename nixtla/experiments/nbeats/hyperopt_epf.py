@@ -59,9 +59,9 @@ def forecast_evaluation_table(model, ts_loader):
 
     y_tot = y_total.reshape(-1)
     y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
-    print("y_total nan perc", y_total_nans_perc)
-    print("y_total.shape \t\t(#n_windows, #lt) \t", y_total.shape)
-    print("y_hat_total.shape  \t(#n_windows, #lt) \t", y_hat_total.shape)
+    print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}', )
+    print(f'y_total.shape (#n_windows, #lt) {y_total.shape}')
+    print(f'y_hat_total.shape (#n_windows, #lt) {y_hat_total.shape}')
     print("\n")
 
     # Reshape for univariate and panel model compatibility
@@ -71,8 +71,8 @@ def forecast_evaluation_table(model, ts_loader):
     y_total = y_total.reshape(n_series, n_fcds, output_size)
     y_hat_total = y_hat_total.reshape(n_series, n_fcds, output_size)
 
-    print("y_total.shape \t\t(#n_series, #n_fcds, #lt) \t", y_total.shape)
-    print("y_hat_total.shape  \t(#n_series, #n_fcds, #lt) \t", y_hat_total.shape)
+    print("y_total.shape (#n_series, #n_fcds, #lt) ", y_total.shape)
+    print("y_hat_total.shape (#n_series, #n_fcds, #lt) ", y_hat_total.shape)
     print("\n")
 
     performances = []
@@ -268,7 +268,7 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df):
 
     print("train_ts_loader.ts_windows.shape", train_ts_loader.ts_windows.shape)
     print(f"len(train_loader.windows_sampling_idx) * 24 = \
-       \t {len(train_ts_loader.windows_sampling_idx)} * 24 = {len(train_ts_loader.windows_sampling_idx) * 24}")
+          {len(train_ts_loader.windows_sampling_idx)} * 24 = {len(train_ts_loader.windows_sampling_idx) * 24}")
     print("\n")
 
     val_ts_loader = TimeSeriesLoader(ts_dataset=ts_dataset,
@@ -284,7 +284,7 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df):
 
     print("val_ts_loader.ts_windows.shape", val_ts_loader.ts_windows.shape)
     print(f"len(val_loader.windows_sampling_idx) * 24 = \
-       \t {len(val_ts_loader.windows_sampling_idx)} * 24 = {len(val_ts_loader.windows_sampling_idx) * 24}")
+          {len(val_ts_loader.windows_sampling_idx)} * 24 = {len(val_ts_loader.windows_sampling_idx) * 24}")
     print("\n")
 
     mc['t_cols'] = ts_dataset.t_cols
@@ -358,9 +358,6 @@ def declare_mask_df_Cristian(mc, Y_df, X_df, S_df):
 
     print(f'Train {sum(train_outsample_mask)} hours = {np.round(sum(train_outsample_mask)/(24*365),2)} years')
     print(f'Validation {sum(1-train_outsample_mask)} hours = {np.round(sum(1-train_outsample_mask)/(24*365),2)} years')
-
-    # NO MAMES ESTA BASURA DE VECTOR BASURA
-    y_validation_vector = Y_df['y'].values[(1-train_outsample_mask)==1] # To compute validation loss in true scale
 
     mask_df = Y_df[['unique_id', 'ds', 'y']].copy()
     mask_df['available_mask'] = np.ones(len(Y_df))
@@ -501,7 +498,7 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
     #------------------------------------------------- Data -------------------------------------------------#
 
     mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Cristian(mc=mc, Y_df=Y_df, X_df=X_df, S_df=None)
-    # mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Kin(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df)
+    #mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Kin(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df)
 
     #---------------------------------- Instantiate model, fit and predict ----------------------------------#
 
@@ -818,7 +815,7 @@ if __name__ == '__main__':
 
     main(args)
 
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAE'   --experiment_id 'MAE_eval_2021_01_15'
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAPE'  --experiment_id 'MAPE_eval_2021_01_15'
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'SMAPE' --experiment_id 'SMAPE_eval_2021_01_15'
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'RMSE'  --experiment_id 'RMSE_eval_2021_01_15'
+# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAE'  --experiment_id 'AvgDiff_2021_01_16'
+# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAE'  --experiment_id 'AvgDiff_2021_01_16'
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAE'  --experiment_id 'AvgDiff_2021_01_16'
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python src/overfit_nbeatsx.py --dataset "['NP']" --space 'nbeats_collapsed' --hyperopt_iters 200 --val_loss 'MAE'  --experiment_id 'AvgDiff_2021_01_16'
