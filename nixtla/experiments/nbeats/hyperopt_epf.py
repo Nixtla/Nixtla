@@ -110,14 +110,14 @@ def protect_nan_reported_loss(model):
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
     reported_loss = model.final_outsample_loss
     if np.isnan(model.final_insample_loss):
-        reported_loss = 100
+        reported_loss = 500
     if model.final_insample_loss<=0:
-        reported_loss = 100
+        reported_loss = 500
 
     if np.isnan(model.final_outsample_loss):
-        reported_loss = 100
+        reported_loss = 500
     if model.final_outsample_loss<=0:
-        reported_loss = 100
+        reported_loss = 500
     return reported_loss
 
 
@@ -145,7 +145,7 @@ def get_last_n_timestamps_mask_df(Y_df, n_timestamps):
 
     return mask_df
 
-def balance_data(Y_df, Xt_df):
+def balance_data(Y_df, X_df):
     # Create balanced placeholder dataframe
     balance_ids = {'unique_id': Y_df.unique_id.unique(),
                    'ds': Y_df.ds.unique()}
@@ -160,20 +160,20 @@ def balance_data(Y_df, Xt_df):
 
     # Balance with merge
     Y_balanced_df = balance_df.merge(Y_df, on=['unique_id', 'ds'], how='left')
-    Xt_balanced_df = balance_df.merge(Xt_df, on=['unique_id', 'ds'], how='left')
+    X_balanced_df = balance_df.merge(X_df, on=['unique_id', 'ds'], how='left')
     weights_balanced_df = balance_df.merge(weights_df, on=['unique_id', 'ds'], how='left')
     #print(weights_balanced_df.groupby(['unique_id', 'weights']).agg({'ds': ['min', 'max']}))
 
     print('\n')
     print('Y_df.shape \t', Y_df.shape)
-    print('Xt_df.shape \t', Xt_df.shape)
+    print('X_df.shape \t', X_df.shape)
     print('Y_balanced_df.shape \t', Y_balanced_df.shape)
-    print('Xt_balanced_df.shape \t', Xt_balanced_df.shape)
+    print('X_balanced_df.shape \t', X_balanced_df.shape)
     print('weights_balanced_df.shape \t', weights_balanced_df.shape)
 
-    return Y_balanced_df, Xt_balanced_df, weights_balanced_df
+    return Y_balanced_df, X_balanced_df, weights_balanced_df
 
-def scale_data(Y_df, Xt_df, mask, normalizer_y, normalizer_x):
+def scale_data(Y_df, X_df, mask, normalizer_y, normalizer_x):
     y_shift = None
     y_scale = None
 
@@ -187,17 +187,17 @@ def scale_data(Y_df, Xt_df, mask, normalizer_y, normalizer_x):
     # Exogenous are always scaled to help learning
     if normalizer_x is not None:
         scaler_x = Scaler(normalizer=normalizer_x)
-        Xt_df['Exogenous1'] = scaler_x.scale(x=Xt_df['Exogenous1'].values, mask=mask)
+        X_df['Exogenous1'] = scaler_x.scale(x=X_df['Exogenous1'].values, mask=mask)
 
         scaler_x = Scaler(normalizer=normalizer_x)
-        Xt_df['Exogenous2'] = scaler_x.scale(x=Xt_df['Exogenous2'].values, mask=mask)
+        X_df['Exogenous2'] = scaler_x.scale(x=X_df['Exogenous2'].values, mask=mask)
 
     filter_variables = ['unique_id', 'ds', 'Exogenous1', 'Exogenous2', 'week_day'] + \
-                       [col for col in Xt_df if (col.startswith('day'))]
+                       [col for col in X_df if (col.startswith('day'))]
                        #[col for col in X_df if (col.startswith('_hour_'))]
-    Xt_df = Xt_df[filter_variables]
+    X_df = X_df[filter_variables]
 
-    return Y_df, Xt_df, scaler_y
+    return Y_df, X_df, scaler_y
 
 
 
@@ -205,10 +205,10 @@ def scale_data(Y_df, Xt_df, mask, normalizer_y, normalizer_x):
 #### KIN
 ############################################################################################
 
-def declare_mask_df_Kin(mc, Y_df, Xt_df, S_df):
+def declare_mask_df_Kin(mc, Y_df, X_df, S_df):
     mask_df = Y_df[['unique_id', 'ds', 'y']].copy()
     mask_df['available_maskY'] = (1-Y_df.y.isnull().values)
-    mask_df['available_maskX'] = (1-Xt_df['Exogenous1'].isnull().values)
+    mask_df['available_maskX'] = (1-X_df['Exogenous1'].isnull().values)
     mask_df['available_mask'] = mask_df['available_maskY'] * mask_df['available_maskX']
 
     del mask_df['y']
@@ -232,28 +232,28 @@ def declare_mask_df_Kin(mc, Y_df, Xt_df, S_df):
     mask_df['sample_mask'] = mask_df['sample_mask2']
     return mask_df
 
-def prepare_data_Kin(mc, Y_df, Xt_df, S_df):
+def prepare_data_Kin(mc, Y_df, X_df, S_df):
 
     #-------------------------------------------- Data Wrangling --------------------------------------------#
-    Y_balanced_df, Xt_balanced_df, weights_balanced_df = balance_data(Y_df, Xt_df)
-    del Y_df, Xt_df
+    Y_balanced_df, X_balanced_df, weights_balanced_df = balance_data(Y_df, X_df)
+    del Y_df, X_df
 
     #------------------------------------- Available and Validation Mask ------------------------------------#
     # Create available_mask and sample_mask
-    mask_df = declare_mask_df_Kin(mc=mc, Y_df=Y_balanced_df, Xt_df=Xt_balanced_df, S_df=S_df)
+    mask_df = declare_mask_df_Kin(mc=mc, Y_df=Y_balanced_df, X_df=X_balanced_df, S_df=S_df)
 
     #---------------------------------------------- Scale Data ----------------------------------------------#
 
     # Scale data # TODO: write sample_mask conditional/groupby(['unique_id]) scaling
     train_mask = mask_df.available_mask.values * mask_df.available_mask.values
-    Y_scaled_df, Xt_scaled_df, scaler_y = scale_data(Y_df=Y_balanced_df, Xt_df=Xt_balanced_df, mask=train_mask,
+    Y_scaled_df, X_scaled_df, scaler_y = scale_data(Y_df=Y_balanced_df, X_df=X_balanced_df, mask=train_mask,
                                       normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
     del Y_balanced_df
-    del Xt_balanced_df
+    del X_balanced_df
 
     #-------------------------------------------- Declare Loaders -------------------------------------------#
 
-    ts_dataset = TimeSeriesDataset(Y_df=Y_scaled_df, X_df=Xt_scaled_df, S_df=S_df, mask_df=mask_df)
+    ts_dataset = TimeSeriesDataset(Y_df=Y_scaled_df, X_df=X_scaled_df, S_df=S_df, mask_df=mask_df)
 
     train_ts_loader = TimeSeriesLoader(ts_dataset=ts_dataset,
                                        model='nbeats',
@@ -341,7 +341,7 @@ def train_val_split(len_series, offset, window_sampling_limit, n_val_weeks, ds_p
 
     return train_idx, val_idx
 
-def declare_mask_df_Cristian(mc, Y_df, Xt_df, S_df):
+def declare_mask_df_Cristian(mc, Y_df, X_df, S_df):
     # train_mask: 1 to keep, 0 to hide
     train_outsample_mask = np.ones(len(Y_df), dtype=int)
     # if random_validation:
@@ -354,7 +354,7 @@ def declare_mask_df_Cristian(mc, Y_df, Xt_df, S_df):
     #     train_outsample_mask[val_idx] = 0
     #else:
     print('Random validation de-activated')
-    train_outsample_mask[-(mc['n_eval_weeks'] * 7 * mc['output_size']):] = 0
+    train_outsample_mask[-(mc['n_val_weeks'] * 7 * mc['output_size']):] = 0
 
     print(f'Train {sum(train_outsample_mask)} hours = {np.round(sum(train_outsample_mask)/(24*365),2)} years')
     print(f'Validation {sum(1-train_outsample_mask)} hours = {np.round(sum(1-train_outsample_mask)/(24*365),2)} years')
@@ -367,24 +367,24 @@ def declare_mask_df_Cristian(mc, Y_df, Xt_df, S_df):
     mask_df['sample_mask'] = train_outsample_mask
     return mask_df
 
-def prepare_data_Cristian(mc, Y_df, Xt_df, S_df):
+def prepare_data_Cristian(mc, Y_df, X_df, S_df):
 
     #window_sampling_limit = int(mc['window_sampling_limit_multiplier']) * int(mc['output_size'])
 
     #--------------------------------------- Train and Validation Mask --------------------------------------#
-    mask_df = declare_mask_df_Cristian(mc=mc, Y_df=Y_df, Xt_df=Xt_df, S_df=S_df)
+    mask_df = declare_mask_df_Cristian(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df)
 
     #---------------------------------------------- Scale Data ----------------------------------------------#
 
     # Transform data with scale transformation (Y_df, X_df, offset, normalizer_x, normalizer_y
     # Avoid change original data
     Y_scaled_df = Y_df.copy()
-    Xt_scaled_df = Xt_df.copy()
+    X_scaled_df = X_df.copy()
 
     # NO ME GUSTA QUE SE LLAME OUTSAMPLE, OUTSAMPLE SE USA COMO SINONIMO DE VALIDATION
     train_mask = mask_df.available_mask.values * mask_df.available_mask.values
-    Y_scaled_df, Xt_scaled_df, scaler_y = scale_data(Y_df=Y_scaled_df,
-                                                     Xt_df=Xt_scaled_df,
+    Y_scaled_df, X_scaled_df, scaler_y = scale_data(Y_df=Y_scaled_df,
+                                                     X_df=X_scaled_df,
                                                      mask=train_mask,
                                                      normalizer_y = mc['normalizer_y'],
                                                      normalizer_x = mc['normalizer_x'])
@@ -392,7 +392,7 @@ def prepare_data_Cristian(mc, Y_df, Xt_df, S_df):
     #-------------------------------------------- Declare Loaders -------------------------------------------#
 
     #ts_dataset = TimeSeriesDataset(Y_df=Y_scaled_df_scaled, X_df=X_df_scaled, ts_train_mask=train_outsample_mask)
-    ts_dataset = TimeSeriesDataset(Y_df=Y_scaled_df, X_df=Xt_scaled_df, S_df=S_df, mask_df=mask_df)
+    ts_dataset = TimeSeriesDataset(Y_df=Y_scaled_df, X_df=X_scaled_df, S_df=S_df, mask_df=mask_df)
 
     train_ts_loader = TimeSeriesLoader(model='nbeats',
                                        ts_dataset=ts_dataset,
@@ -426,7 +426,7 @@ def prepare_data_Cristian(mc, Y_df, Xt_df, S_df):
 # run_val_nbeatsx(hyperparameters, Y_df, X_df, data_augmentation, random_validation, trials, trials_file_name)
 
 
-def run_val_nbeatsx(mc, Y_df, Xt_df, S_df, trials, trials_file_name, final_evaluation=False, return_model=False):
+def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evaluation=False, return_model=False):
 
     # Save trials, can analyze progress
     if trials is not None:
@@ -500,8 +500,8 @@ def run_val_nbeatsx(mc, Y_df, Xt_df, S_df, trials, trials_file_name, final_evalu
 
     #------------------------------------------------- Data -------------------------------------------------#
 
-    mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Cristian(mc=mc, Y_df=Y_df, Xt_df=Xt_df, S_df=None)
-    # mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Kin(mc=mc, Y_df=Y_df, Xt_df=Xt_df, S_df=S_df)
+    mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Cristian(mc=mc, Y_df=Y_df, X_df=X_df, S_df=None)
+    # mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Kin(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df)
 
     #---------------------------------- Instantiate model, fit and predict ----------------------------------#
 
@@ -548,6 +548,8 @@ def run_val_nbeatsx(mc, Y_df, Xt_df, S_df, trials, trials_file_name, final_evalu
     print(benchmark_df)
     print('\n')
 
+    # CONDITIONAL ON CORRECT PREDICTION
+    # Average percentage difference of MAE, SMAPE, MAPE, RMSE
     reported_loss = protect_nan_reported_loss(model)
     run_time = time.time() - start_time
 
@@ -623,8 +625,8 @@ def get_experiment_space(args):
                  'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
                  'early_stopping': hp.choice('early_stopping', [40]),
                  'eval_steps': hp.choice('eval_steps', [100]),
-                 #'n_eval_weeks': hp.choice('n_eval_weeks', [52]), # NUEVO <---------
-                 'n_eval_weeks': hp.choice('n_eval_weeks', [52*2]), # NUEVO <---------
+                 #'n_val_weeks': hp.choice('n_val_weeks', [52]), # NUEVO <---------
+                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
                  'loss': hp.choice('loss', ['MAE']),
                  'loss_hypar': hp.choice('loss_hypar', [0.5]),
                  'val_loss': hp.choice('val_loss', [args.val_loss]),
@@ -688,7 +690,7 @@ def get_experiment_space(args):
                 'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
                 'early_stopping': hp.choice('early_stopping', [40]),
                 'eval_steps': hp.choice('eval_steps', [10]),
-                'n_eval_weeks': hp.choice('n_eval_weeks', [52*2]), # NUEVO <---------
+                'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
                 'loss': hp.choice('loss', ['PINBALL']),
                 'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
                 'val_loss': hp.choice('val_loss', [args.val_loss]),
@@ -752,11 +754,11 @@ def main(args):
     #             'FR': '2015-01-04',
     #             'DE':'2016-01-04'}
     #test_date = TEST_DATE[args.dataset]
-    #Y_insample_df, Xt_insample_df, Y_outsample_df, Xt_outsample_df, _ = load_epf(directory='../data/',
-    #                                                                             market=args.dataset,
-    #                                                                             first_date_test=test_date,
-    #                                                                             days_in_test=728)
-    Y_df, Xt_df, S_df = EPF.load_groups(directory='data', groups=dataset)
+    #Y_insample_df, X_insample_df, Y_outsample_df, X_outsample_df, _ = load_epf(directory='../data/',
+    #                                                                           market=args.dataset,
+    #                                                                           first_date_test=test_date,
+    #                                                                           days_in_test=728)
+    Y_df, X_df, S_df = EPF.load_groups(directory='data', groups=dataset)
 
     #-------------------------------------- Hyperparameter Optimization --------------------------------------#
 
@@ -768,7 +770,7 @@ def main(args):
         space = get_experiment_space(args)
 
         trials = Trials()
-        fmin_objective = partial(run_val_nbeatsx, Y_df=Y_df, Xt_df=Xt_df, S_df=S_df,
+        fmin_objective = partial(run_val_nbeatsx, Y_df=Y_df, X_df=X_df, S_df=S_df,
                                  trials=trials, trials_file_name=hyperopt_file)
         fmin(fmin_objective, space=space, algo=tpe.suggest, max_evals=args.hyperopt_iters, trials=trials, verbose=True)
 
@@ -790,7 +792,7 @@ def main(args):
     idx = trials_df.loss.idxmin()
     best_mc = trials_df.loc[idx]['mc']
 
-    run_val_nbeatsx(best_mc, Y_df=Y_df, Xt_df=Xt_df, S_df=S_df,
+    run_val_nbeatsx(best_mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
                     trials=trials, trials_file_name=hyperopt_file, final_evaluation=True)
 
 def parse_args():
