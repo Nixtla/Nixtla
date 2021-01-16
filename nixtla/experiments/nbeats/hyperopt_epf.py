@@ -2,7 +2,8 @@
 
 __all__ = ['forecast_evaluation_table', 'protect_nan_reported_loss', 'get_last_n_timestamps_mask_df', 'balance_data',
            'scale_data', 'declare_mask_df_Kin', 'prepare_data_Kin', 'train_val_split', 'declare_mask_df_Cristian',
-           'prepare_data_Cristian', 'run_val_nbeatsx', 'get_experiment_space', 'parse_trials', 'main', 'parse_args']
+           'prepare_data_Cristian', 'BENCHMARK_DF', 'run_val_nbeatsx', 'get_experiment_space', 'parse_trials', 'main',
+           'parse_args']
 
 # Cell
 import time
@@ -45,21 +46,65 @@ from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 #### COMMON
 ############################################################################################
 
-def forecast_evaluation_table(y, y_hat):
-    y = y.reshape(-1)
-    y_hat = y_hat.reshape(-1)
-    y_mask = (1-np.isnan(y)) * 1
-    print("np.sum(y_mask)", np.sum(y_mask))
+BENCHMARK_DF = pd.DataFrame({'id': [1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4],
+                             'unique_id': ['NP', 'NP', 'NP', 'NP', 'PJM', 'PJM', 'PJM', 'PJM',
+                                           'BE', 'BE', 'BE', 'BE', 'FR', 'FR', 'FR', 'FR'],
+                             'metric': ['MAE', 'MAPE', 'SMAPE', 'RMSE', 'MAE', 'MAPE', 'SMAPE', 'RMSE',
+                                        'MAE', 'MAPE', 'SMAPE', 'RMSE', 'MAE', 'MAPE', 'SMAPE', 'RMSE'],
+                             'DNN' : [1.67, 5.38, 4.85, 3.33, 2.78, 28.66, 11.22, 4.64, 5.82,
+                                      26.11, 13.33, 16.13, 3.91, 14.77, 10.98, 11.74]})
 
-    _mae   = np.round(mae(y=y, y_hat=y_hat),5)
-    _mape  = np.round(mape(y=y, y_hat=y_hat),5)
-    _smape = np.round(smape(y=y, y_hat=y_hat),5)
-    _rmse  = np.round(rmse(y=y, y_hat=y_hat),5)
+def forecast_evaluation_table(model, ts_loader):
+    y_total, y_hat_total, _ = model.predict(ts_loader=ts_loader, eval_mode=True)
 
-    performance = pd.DataFrame({'metric': ['mae', 'mape', 'smape', 'rmse'],
-                                'measure': [_mae, _mape, _smape, _rmse]})
+    y_tot = y_total.reshape(-1)
+    y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
+    print("y_total nan perc", y_total_nans_perc)
+    print("y_total.shape \t\t(#n_windows, #lt) \t", y_total.shape)
+    print("y_hat_total.shape  \t(#n_windows, #lt) \t", y_hat_total.shape)
+    print("\n")
 
-    return performance
+    # Reshape for univariate and panel model compatibility
+    n_series = ts_loader.ts_dataset.n_series
+    n_fcds = len(y_total) // n_series
+    output_size = y_hat_total.shape[1]
+    y_total = y_total.reshape(n_series, n_fcds, output_size)
+    y_hat_total = y_hat_total.reshape(n_series, n_fcds, output_size)
+
+    print("y_total.shape \t\t(#n_series, #n_fcds, #lt) \t", y_total.shape)
+    print("y_hat_total.shape  \t(#n_series, #n_fcds, #lt) \t", y_hat_total.shape)
+    print("\n")
+
+    performances = []
+    for i, meta_data in enumerate(ts_loader.ts_dataset.meta_data):
+        market = meta_data['unique_id']
+
+        y = y_total[i,:,:].reshape(-1)
+        y_hat = y_hat_total[i,:,:].reshape(-1)
+
+        _mae   = np.round(mae(y=y, y_hat=y_hat),5)
+        _mape  = np.round(mape(y=y, y_hat=y_hat),5)
+        _smape = np.round(smape(y=y, y_hat=y_hat),5)
+        _rmse  = np.round(rmse(y=y, y_hat=y_hat),5)
+
+        performance_df = pd.DataFrame({'unique_id': [market]*4,
+                                       'metric': ['MAE', 'MAPE', 'SMAPE', 'RMSE'],
+                                       'NBEATSx': [_mae, _mape, _smape, _rmse]})
+
+        performances += [performance_df]
+
+    performances_df = pd.concat(performances)
+
+    #benchmark_df.sort_values(['id'], inplace=True)
+    #benchmark_df.reset_index(drop=True, inplace=True)
+    benchmark_df = BENCHMARK_DF.merge(performances_df, on=['unique_id', 'metric'], how='left')
+    benchmark_df['perc_diff'] = 100 * (benchmark_df['NBEATSx']-benchmark_df['DNN'])/benchmark_df['DNN']
+    benchmark_df['improvement'] = benchmark_df['perc_diff'] < 0
+    benchmark_df = benchmark_df.dropna()
+    average_perc_diff = benchmark_df['perc_diff'].mean()
+    print("average_perc_diff", average_perc_diff)
+
+    return benchmark_df, average_perc_diff
 
 def protect_nan_reported_loss(model):
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
@@ -498,8 +543,16 @@ def run_val_nbeatsx(mc, Y_df, Xt_df, S_df, trials, trials_file_name, final_evalu
     # Fit model
     model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, eval_steps=mc['eval_steps'])
 
+    print('Best Model Evaluation')
+    benchmark_df, average_perc_diff = forecast_evaluation_table(model=model, ts_loader=val_ts_loader)
+    print(benchmark_df)
+    print('\n')
+
     reported_loss = protect_nan_reported_loss(model)
     run_time = time.time() - start_time
+
+    if reported_loss < 100:
+        reported_loss = average_perc_diff
 
     # # Scale to original scale
     # TODO: reescalar o no reescalar a la y?
@@ -521,11 +574,6 @@ def run_val_nbeatsx(mc, Y_df, Xt_df, S_df, trials, trials_file_name, final_evalu
                 'status': STATUS_OK}
 
     if final_evaluation:
-        print('Best Model Evaluation')
-        y_true, y_hat, _ = model.predict(ts_loader=val_ts_loader, eval_mode=True)
-        print(forecast_evaluation_table(y_true, y_hat))
-        print('\n')
-
         print('Best Model Hyperpars')
         print(75*'=')
         print(pd.Series(mc))
@@ -578,7 +626,7 @@ def get_experiment_space(args):
                  #'n_eval_weeks': hp.choice('n_eval_weeks', [52]), # NUEVO <---------
                  'n_eval_weeks': hp.choice('n_eval_weeks', [52*2]), # NUEVO <---------
                  'loss': hp.choice('loss', ['MAE']),
-                 'loss_hypar': hp.choice('loss', [None]),
+                 'loss_hypar': hp.choice('loss_hypar', [0.5]),
                  'val_loss': hp.choice('val_loss', [args.val_loss]),
                  'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
                  # Data parameters
