@@ -80,7 +80,12 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     benchmark_df['improvement'] = benchmark_df['perc_diff'] < 0
     benchmark_df = benchmark_df.dropna()
     average_perc_diff = benchmark_df['perc_diff'].mean()
+
+    y_tot = y_total.reshape(-1)
+    y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
+    print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print("average_perc_diff", average_perc_diff)
+    if y_total_nans_perc <= 0.95: average_perc_diff=100
 
     return benchmark_df, average_perc_diff
 
@@ -181,6 +186,11 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
     assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset'
     Y_df = Y_df.head(len(Y_df)-offset)
     X_df = X_df.head(len(X_df)-offset)
+
+
+    ################################################################################
+    Y_df.y = Y_df.y + 5 ### <----------------------- MAPE, SMAPE hypothesis
+    ################################################################################
 
     #-------------------------------------------- Data Wrangling --------------------------------------------#
     Y_balanced_df, X_balanced_df = balance_data(Y_df, X_df)
@@ -314,9 +324,6 @@ def model_fit_predict_roll(mc, Y_df, X_df, S_df):
     y_total = np.vstack(y_hat_list)
     y_hat_total = np.vstack(y_true_list)
 
-    y_tot = y_total.reshape(-1)
-    y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
-    print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}', )
     print(f'y_total.shape (#n_windows, #lt) {y_total.shape}')
     print(f'y_hat_total.shape (#n_windows, #lt) {y_hat_total.shape}')
     print("\n")
@@ -563,7 +570,7 @@ def get_experiment_space(args):
                  'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
                  'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
                  'early_stopping': hp.choice('early_stopping', [8]),
-                 'eval_steps': hp.choice('eval_steps', [100]),
+                 'eval_steps': hp.choice('eval_steps', [50]),
                  #'n_val_weeks': hp.choice('n_val_weeks', [52]), # NUEVO <---------
                  'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
                  'loss': hp.choice('loss', ['MAE']),
@@ -628,7 +635,7 @@ def get_experiment_space(args):
                 'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
                 'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
                 'early_stopping': hp.choice('early_stopping', [8]),
-                'eval_steps': hp.choice('eval_steps', [100]),
+                'eval_steps': hp.choice('eval_steps', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
                 'loss': hp.choice('loss', ['PINBALL']),
                 'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),

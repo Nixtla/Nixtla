@@ -390,12 +390,13 @@ class Nbeats(object):
                 training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
                                                  target=outsample_y, mask=outsample_mask)
 
-                if np.isnan(float(training_loss)):
-                    break
-
-                training_loss.backward()
-                t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                optimizer.step()
+                # Protection to exploding gradients
+                # if np.isnan(float(training_loss)):
+                #    break
+                if not np.isnan(float(training_loss)):
+                    training_loss.backward()
+                    t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    optimizer.step()
 
                 lr_scheduler.step()
                 if (iteration % eval_steps == 0):
