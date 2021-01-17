@@ -146,6 +146,7 @@ class NBeats(nn.Module):
     def __init__(self, blocks: nn.ModuleList):
         super().__init__()
         self.blocks = blocks
+        self.hardshrink = nn.Hardshrink(lambd=0.01)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                 outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
@@ -160,6 +161,11 @@ class NBeats(nn.Module):
                                              outsample_x_t=outsample_x_t, x_s=x_s)
             residuals = (residuals - backcast) * insample_mask
             forecast = forecast + block_forecast
+
+        ################################################################################
+        eps = t.sign(forecast) * 0.01              ### <---------   weird anti zero bias
+        forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
+        ################################################################################
         return forecast
 
     def decomposed_prediction(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,

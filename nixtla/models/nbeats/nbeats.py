@@ -18,7 +18,7 @@ from functools import partial
 
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis
 from .nbeats_model import ExogenousBasisInterpretable, ExogenousBasisWavenet, ExogenousBasisTCN
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss, QuadraticBarrierLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 
@@ -275,6 +275,10 @@ class Nbeats(object):
             elif loss_name == 'PINBALL':
                 return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=loss_hypar) + \
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
+            elif loss_name == 'PINBALL2':
+                return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=0.5) + \
+                       self.loss_l1_conv_layers() + self.loss_l1_theta() + \
+                       QuadraticBarrierLoss(z=(-forecast), tau=loss_hypar) # To induce forecast positivity
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
