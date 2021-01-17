@@ -85,9 +85,14 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
     print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print("average_perc_diff", average_perc_diff)
-    if y_total_nans_perc <= 0.95: average_perc_diff=100
+    if y_total_nans_perc >= 0.05: average_perc_diff=100
 
-    return benchmark_df, average_perc_diff
+    improvement_loss = 400 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
+
+    print(f"400*(1-prc) {400 * (1-np.mean(benchmark_df.improvement))}")
+    print(f"improvement_loss {improvement_loss}")
+
+    return benchmark_df, improvement_loss
 
 def protect_nan_reported_loss(model):
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
@@ -141,10 +146,10 @@ def balance_data(Y_df, X_df):
     X_balanced_df = balance_df.merge(X_df, on=['unique_id', 'ds'], how='left')
 
     print('\n')
-    print('Y_df.shape \t', Y_df.shape)
-    print('X_df.shape \t', X_df.shape)
-    print('Y_balanced_df.shape \t', Y_balanced_df.shape)
-    print('X_balanced_df.shape \t', X_balanced_df.shape)
+    print(f'Y_df.shape \t{Y_df.shape}')
+    print(f'X_df.shape \t{X_df.shape}')
+    print(f'Y_balanced_df.shape \t{Y_balanced_df.shape}')
+    print(f'X_balanced_df.shape \t{X_balanced_df.shape}')
 
     return Y_balanced_df, X_balanced_df
 
@@ -187,11 +192,6 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
     Y_df = Y_df.head(len(Y_df)-offset)
     X_df = X_df.head(len(X_df)-offset)
 
-
-    ################################################################################
-    Y_df.y = Y_df.y + 5 ### <----------------------- MAPE, SMAPE hypothesis
-    ################################################################################
-
     #-------------------------------------------- Data Wrangling --------------------------------------------#
     Y_balanced_df, X_balanced_df = balance_data(Y_df, X_df)
     del Y_df, X_df
@@ -204,13 +204,13 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
     mask_df['sample_mask'] = (1-last_timestamps_df['mask'])
     del last_timestamps_df
 
-    # Checking split
-    #y_train = Y_balanced_df[mask_df.sample_mask==1].y.values
-    #y_val = Y_balanced_df[mask_df.sample_mask==0].y.values
-    #plt.plot(y_train, label='train', color='blue')
-    #plt.plot(np.array(range(len(y_val))) + len(y_train), y_val, label='val', color='purple')
-    #plt.legend()
-    #plt.show()
+    # Plotting train validation splits
+    # y_train = Y_balanced_df[mask_df.sample_mask==1].y.values
+    # y_val = Y_balanced_df[mask_df.sample_mask==0].y.values
+    # plt.plot(y_train, label='train', color='blue')
+    # plt.plot(np.array(range(len(y_val))) + len(y_train), y_val, label='val', color='purple')
+    # plt.legend()
+    # plt.show()
 
     #---------------------------------------------- Scale Data ----------------------------------------------#
 
@@ -637,8 +637,10 @@ def get_experiment_space(args):
                 'early_stopping': hp.choice('early_stopping', [8]),
                 'eval_steps': hp.choice('eval_steps', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
-                'loss': hp.choice('loss', ['PINBALL']),
-                'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
+                #'loss': hp.choice('loss', ['PINBALL']),
+                #'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
+                'loss': hp.choice('loss', ['MAE']),
+                'loss_hypar': hp.choice('loss_hypar', [0.5]),
                 'val_loss': hp.choice('val_loss', [args.val_loss]),
                 'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
                 # Data parameters
