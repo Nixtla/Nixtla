@@ -234,8 +234,7 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
                                        shuffle=True, random_seed=int(mc['random_seed']))
 
     print("train_ts_loader.ts_windows.shape", train_ts_loader.ts_windows.shape)
-    print(f"len(train_loader.windows_sampling_idx) * 24 = \
-          {len(train_ts_loader.windows_sampling_idx)} * 24 = {len(train_ts_loader.windows_sampling_idx) * 24}")
+    print(f"len(train_sampling_windows) * 24 = {len(train_ts_loader.windows_sampling_idx)} * 24 = {len(train_ts_loader.windows_sampling_idx) * 24}")
     print("\n")
 
     val_ts_loader = TimeSeriesLoader(ts_dataset=ts_dataset,
@@ -250,15 +249,14 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
                                      shuffle=False, random_seed=int(mc['random_seed']))
 
     print("val_ts_loader.ts_windows.shape", val_ts_loader.ts_windows.shape)
-    print(f"len(val_loader.windows_sampling_idx) * 24 = \
-          {len(val_ts_loader.windows_sampling_idx)} * 24 = {len(val_ts_loader.windows_sampling_idx) * 24}")
+    print(f"len(val_sampling_windows) * 24 = {len(val_ts_loader.windows_sampling_idx)} * 24 = {len(val_ts_loader.windows_sampling_idx) * 24}")
     print("\n")
 
     mc['t_cols'] = ts_dataset.t_cols
     return mc, train_ts_loader, val_ts_loader, scaler_y
 
 
-def model_fit_predict_roll(mc, Y_df, X_df, S_df):
+def model_fit_predict_roll(mc, Y_df, X_df, S_df, n_timestamps_pred, offsets):
 
     X_raw_df = X_df.copy()
     Y_raw_df = Y_df.copy()
@@ -267,14 +265,14 @@ def model_fit_predict_roll(mc, Y_df, X_df, S_df):
 
     y_true_list = []
     y_hat_list = []
-    offsets = [365*1*24, 0]
+    #offsets = [365*1*24, 0]
     n_splits = len(offsets)
     for split, offset in enumerate(offsets):
         print(10*'-', f'Split {split+1}/{n_splits}', 10*'-')
 
         #----------------------------------------------- Data -----------------------------------------------#
         mc, train_ts_loader, val_ts_loader, scaler_y = prepare_data_Kin(mc=mc, Y_df=Y_raw_df, X_df=X_raw_df,
-                                                              S_df=S_df, n_timestamps_pred=365*1*24,
+                                                              S_df=S_df, n_timestamps_pred=n_timestamps_pred,
                                                               offset=offset)
 
         #--------------------------------------- Finetune and predict ---------------------------------------#
@@ -493,7 +491,15 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
 
     #---------------------------------- Instantiate model, fit and predict ----------------------------------#
 
-    y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc, Y_df, X_df, S_df)
+    y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+                                                                    offsets=[0], n_timestamps_pred=365*2*24)
+
+    # y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+    #                                                                 offsets=[365*1*24, 0], n_timestamps_pred=365*1*24)
+
+    # y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+    #                                                                offsets=[3*182, 2*182, 182, 0],
+    #                                                                n_timestamps_pred=182)
 
     print('Best Model Evaluation')
     benchmark_df, average_perc_diff = forecast_evaluation_table(y_total=y_total, y_hat_total=y_hat_total,

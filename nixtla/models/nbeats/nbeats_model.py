@@ -146,7 +146,7 @@ class NBeats(nn.Module):
     def __init__(self, blocks: nn.ModuleList):
         super().__init__()
         self.blocks = blocks
-        self.hardshrink = nn.Hardshrink(lambd=0.0001)
+        self.hardshrink = nn.Hardshrink(lambd=0.001)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                 outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
