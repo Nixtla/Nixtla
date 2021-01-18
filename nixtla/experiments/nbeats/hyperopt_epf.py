@@ -81,15 +81,19 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     benchmark_df = benchmark_df.dropna()
     average_perc_diff = benchmark_df['perc_diff'].mean()
 
+
     y_tot = y_total.reshape(-1)
+    y_hat_tot = y_hat_total.reshape(-1)
     y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
+    y_hat_total_nans_perc = np.sum((np.isnan(y_hat_tot)))  / len(y_hat_tot)
     print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}')
+    print(f'y_hat_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print("average_perc_diff", average_perc_diff)
-    if y_total_nans_perc >= 0.05: average_perc_diff=500
+    #if y_total_nans_perc >= 0.05: average_perc_diff=500
+    #if y_hat_total_nans_perc >= 0.05: average_perc_diff=500
+    #improvement_loss = 200 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
 
-    improvement_loss = 200 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
-
-    return benchmark_df, improvement_loss
+    return benchmark_df, y_total_nans_perc, y_hat_total_nans_perc
 
 def protect_nan_reported_loss(model):
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
@@ -188,6 +192,8 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
     assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset'
     Y_df = Y_df.head(len(Y_df)-offset)
     X_df = X_df.head(len(X_df)-offset)
+
+    assert len(Y_df.unique_id.unique())==1, 'Data prepartation for more than one market not implemented yet'
 
     #-------------------------------------------- Data Wrangling --------------------------------------------#
     Y_balanced_df, X_balanced_df = balance_data(Y_df, X_df)
@@ -502,8 +508,8 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
     #                                                                n_timestamps_pred=182)
 
     print('Best Model Evaluation')
-    benchmark_df, average_perc_diff = forecast_evaluation_table(y_total=y_total, y_hat_total=y_hat_total,
-                                                                meta_data=meta_data)
+    benchmark_df, y_total_nans_perc, y_hat_total_nans_perc = forecast_evaluation_table(y_total=y_total, y_hat_total=y_hat_total,
+                                                                                       meta_data=meta_data)
     print(benchmark_df)
     print('\n')
 
@@ -512,8 +518,9 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
     reported_loss = protect_nan_reported_loss(model)
     run_time = time.time() - start_time
 
-    if reported_loss < 100:
-        reported_loss = average_perc_diff
+    if y_total_nans_perc >= 0.05: reported_loss=500
+    if y_hat_total_nans_perc >= 0.05: reported_loss=500
+    print(f'reported_loss {reported_loss}')
 
     results =  {'loss': reported_loss,
                 'loss_name': mc['val_loss'],
