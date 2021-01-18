@@ -85,12 +85,9 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     y_total_nans_perc = np.sum((np.isnan(y_tot)))  / len(y_tot)
     print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print("average_perc_diff", average_perc_diff)
-    if y_total_nans_perc >= 0.05: average_perc_diff=100
+    if y_total_nans_perc >= 0.05: average_perc_diff=500
 
-    improvement_loss = 400 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
-
-    print(f"400*(1-prc) {400 * (1-np.mean(benchmark_df.improvement))}")
-    print(f"improvement_loss {improvement_loss}")
+    improvement_loss = 200 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
 
     return benchmark_df, improvement_loss
 
@@ -643,6 +640,52 @@ def get_experiment_space(args):
                 'loss_hypar': hp.choice('loss_hypar', [0.5]),
                 'val_loss': hp.choice('val_loss', [args.val_loss]),
                 'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
+                # Data parameters
+                'normalizer_y': hp.choice('normalizer_y', [None]),
+                'normalizer_x': hp.choice('normalizer_x', ['median']),
+                'frequency': hp.choice('frequency', ['H']),
+                'seasonality': hp.choice('seasonality', [24]),
+                'include_var_dict': hp.choice('include_var_dict', [{'y': [-2, -3, -8],
+                                                                    'Exogenous1': [-1, -2, -8],
+                                                                    'Exogenous2': [-1, -2, -8],
+                                                                    'week_day': [-1]}]),
+                'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [24]),
+                'batch_size': hp.choice('batch_size', [256]),
+                'random_seed': hp.quniform('random_seed', 10, 20, 1)}
+
+    elif args.space=='nbeats_collapsed2':
+        space= {# Architecture parameters
+                'input_size_multiplier': hp.choice('input_size_multiplier', [7]),
+                'output_size': hp.choice('output_size', [24]),
+                'shared_weights': hp.choice('shared_weights', [False]),
+                'activation': hp.choice('activation', ['relu','selu', 'prelu']),
+                'initialization':  hp.choice('initialization', ['glorot_normal','lecun_normal']),
+                'stack_types': hp.choice('stack_types', [['exogenous_tcn']+1*['identity'] ]),
+                'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
+                'n_layers': hp.choice('n_layers', [ [2, 2] ]),
+                'n_hidden': hp.choice('n_hidden', [400]),
+                'n_harmonics': hp.choice('n_harmonics', [1]),
+                'n_polynomials': hp.choice('n_polynomials', [2]),
+                'exogenous_n_channels': hp.choice('exogenous_n_channels', [3, 6]),
+                'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
+                # Regularization and optimization parameters
+                'batch_normalization': hp.choice('batch_normalization', [False]),
+                'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 0.5),
+                'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
+                'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
+                'lr_decay': hp.uniform('lr_decay', 0.3, 0.5),
+                'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
+                'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
+                'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
+                'early_stopping': hp.choice('early_stopping', [16]),
+                'eval_steps': hp.choice('eval_steps', [50]),
+                'n_val_weeks': hp.choice('n_val_weeks', [52*2]), # NUEVO <---------
+                #'loss': hp.choice('loss', ['PINBALL']),
+                #'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
+                'loss': hp.choice('loss', ['MAE']),
+                'loss_hypar': hp.choice('loss_hypar', [0.5]),
+                'val_loss': hp.choice('val_loss', [args.val_loss]),
+                'l1_theta': hp.choice('l1_theta', [0]),
                 # Data parameters
                 'normalizer_y': hp.choice('normalizer_y', [None]),
                 'normalizer_x': hp.choice('normalizer_x', ['median']),
