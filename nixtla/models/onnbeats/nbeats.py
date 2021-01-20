@@ -322,7 +322,7 @@ class Nbeats(object):
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_steps, gamma=self.lr_decay)
 
         training_loss_fn = self.__loss_fn(self.loss)
-        validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
+        validation_loss_fn = self.__val_loss_fn(self.val_loss)
 
         if verbose and (n_iterations > 0):
             print('='*30+' Start fitting '+'='*30)
