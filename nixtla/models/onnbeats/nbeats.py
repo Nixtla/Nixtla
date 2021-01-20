@@ -226,8 +226,7 @@ class Nbeats(object):
             elif loss_name == 'MAE':
                 return MAELoss(y=target, y_hat=forecast, mask=mask) + self.l1_regularization()
             elif loss_name == 'BCE':
-                return F.binary_cross_entropy_with_logits(input=forecast, target=target) + \
-                       self.loss_l1_conv_layers() + self.loss_l1_theta()
+                return F.binary_cross_entropy_with_logits(input=forecast, target=target) + self.l1_regularization()
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -386,7 +385,7 @@ class Nbeats(object):
 
                     if val_ts_loader is not None:
                         loss = self.evaluate_performance(val_ts_loader, validation_loss_fn=validation_loss_fn)
-                        display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
+                        display_string += ", Outsample {}: {:.5f}".format(self.val_loss, loss)
                         self.trajectories['val_loss'].append(loss)
 
                         if self.early_stopping:
