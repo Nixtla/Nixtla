@@ -31,27 +31,17 @@ def accuracy_logits(y: np.ndarray, y_hat: np.ndarray, weights=None, thr=0.5) -> 
       actual test values
     y_hat: numpy array of len h (forecasting horizon)
       predicted values
+    weights: numpy array
+      weights for weigted average
     Return
     ------
     return accuracy
     """
-    #print("y", y)
-    #print("y_hat", y_hat)
-    #print("y_hat_logits", 1/(1 + np.exp(-y_hat)))
+    metric_protections(y, y_hat, weights)
+
     y_hat = ((1/(1 + np.exp(-y_hat))) > thr) * 1
-    #print("y.shape", y.shape)
-    #print("y_hat.shape", y_hat.shape)
-
-    #print("np.max(y)", np.max(y))
-    #print("np.max(y_hat)", np.max(y_hat))
-
-    #print("y", y)
-    #print("y_hat", y_hat)
-
-    #assert 1<0
-
     accuracy = np.average(y_hat==y, weights=weights) * 100
-    return accuracy
+    return (100-accuracy)
 
 # Cell
 class Nbeats(object):
@@ -255,6 +245,8 @@ class Nbeats(object):
                 return rmse(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'MAE':
                 return mae(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'ACCURACY':
+                return accuracy_logits(y=target, y_hat=forecast, weights=weights)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
