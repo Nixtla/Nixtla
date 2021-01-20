@@ -75,8 +75,10 @@ class NBeatsBlock(nn.Module):
 
         # Temporal exogenous
         if (self.theta_with_exogenous) and (len(outsample_x_t)>0):
-            insample_x_t_last_flatten = insample_x_t[:,:,-1].reshape(len(insample_x_t), -1)
-            insample_y = t.cat((insample_y, insample_x_t_last_flatten), 1)
+            #insample_x_t_last_flatten = insample_x_t[:,:,-1].reshape(len(insample_x_t), -1)
+            # flatten (n_batch,n_channel,time) -> (n_batch, n_channel*time)
+            outsample_x_t_last_flatten = outsample_x_t.reshape(len(outsample_x_t), -1)
+            insample_y = t.cat((insample_y, outsample_x_t_last_flatten), 1)
 
         # Compute local projection weights and projection
         theta = self.layers(insample_y)
