@@ -20,7 +20,7 @@ from functools import partial
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis
 from .nbeats_model import TrendBasis, SeasonalityBasis, ExogenousFutureBasis, ExogenousBasisInterpretable
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, RMSELoss
-from ...losses.numpy import mae, mse, mape, smape, rmse#, accuracy
+from ...losses.numpy import mae, mse, mape, smape, rmse, metric_protections
 
 def accuracy_logits(y: np.ndarray, y_hat: np.ndarray, weights=None, thr=0.5) -> np.ndarray:
     """Calculates the Accuracy.
