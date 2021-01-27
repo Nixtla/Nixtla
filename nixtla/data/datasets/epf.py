@@ -54,10 +54,10 @@ class EPF:
 
     #@staticmethod
     def load(directory: str,
-             group: str,
-             training: bool = True,
-             days_in_test: int = 728,
-             return_tensor: bool = True): # -> Union[TimeSeriesDataset, TimeSeriesDataclass]
+             group: str):
+             #is_training: bool,
+             #days_in_test: int,
+             #return_tensor: bool = True): # -> Union[TimeSeriesDataset, TimeSeriesDataclass]
         """
         Downloads and loads EPF data.
 
@@ -100,12 +100,15 @@ class EPF:
         dummies_cols = [col for col in df \
                         if (col.startswith('day') or col.startswith('hour_'))]
 
-        if training:
-            df = df.query('ds < @class_group.test_date')
-        else:
-            last_date_test = pd.to_datetime(class_group.test_date) + \
-                             timedelta(days=days_in_test)
-            df = df.query('ds >= @class_group.test_date')
+        # last_date_test = pd.to_datetime(class_group.test_date) + \
+        #                     timedelta(days=days_in_test)
+
+        # if is_training:
+        #     df = df.query('ds < @class_group.test_date')
+        # else:
+        #     last_date_test = pd.to_datetime(class_group.test_date) + \
+        #                      timedelta(days=days_in_test)
+        #     df = df.query('ds >= @class_group.test_date')
 
         Y = df.filter(items=['unique_id', 'ds', 'y'])
         X = df.filter(items=['unique_id', 'ds', 'Exogenous1', 'Exogenous2', 'week_day'] + \
@@ -120,10 +123,10 @@ class EPF:
 
     @staticmethod
     def load_groups(directory: str,
-                    groups: List[str] = ['BE', 'FR'],
-                    training: bool = True,
-                    days_in_test: int = 728,
-                    return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+                    groups: List[str]): # = ['BE', 'FR'],
+                    #is_training: bool,
+                    #days_in_test: int,
+                    #return_tensor: bool = True): # -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
         """
         Downloads and loads panel of EPF data
         according of groups.
@@ -147,9 +150,9 @@ class EPF:
         Y = []
         X = []
         for group in groups:
-            Y_df, X_df = EPF.load(directory, group,
-                                  training, days_in_test,
-                                  return_tensor=False)
+            Y_df, X_df = EPF.load(directory=directory, group=group)
+                                  #is_training=is_training, days_in_test=days_in_test,
+                                  #return_tensor=False)
             Y.append(Y_df)
             X.append(X_df)
         Y = pd.concat(Y).sort_values(['unique_id', 'ds']).reset_index(drop=True)
