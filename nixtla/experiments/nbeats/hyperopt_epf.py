@@ -331,7 +331,11 @@ def model_fit_predict_roll(mc, Y_df, X_df, S_df, n_timestamps_pred, offsets):
                        seasonality=int(mc['seasonality']),
                        random_seed=int(mc['random_seed']))
 
-        model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, eval_steps=mc['eval_steps'])
+        if mc['early_stopping'] < mc['n_iterations']:
+            model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, eval_steps=mc['eval_steps'])
+        else:
+            model.fit(train_ts_loader=train_ts_loader, eval_steps=mc['eval_steps'])
+
         y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, eval_mode=True)
         y_true_list.append(y_true)
         y_hat_list.append(y_hat)
@@ -432,16 +436,16 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
 
     #---------------------------------- Instantiate model, fit and predict ----------------------------------#
 
-    y_total, y_hat_total, mask_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
-                                                                                offsets=[0], n_timestamps_pred=728*24)
+    # y_total, y_hat_total, mask_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+    #                                                                             offsets=[0], n_timestamps_pred=728*24)
 
     # y_total, y_hat_total, mask_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
     #                                                                 offsets=[365*1*24, 0], n_timestamps_pred=365*1*24)
 
-    # y_total, y_hat_total, mask_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
-    #                                                                             offsets=[9*73*24, 8*73*24, 7*73*24, 6*73*24, 5*73*24,
-    #                                                                             4*73*24, 3*73*24, 2*73*24, 1*73*24, 0],
-    #                                                                             n_timestamps_pred=73*24)
+    y_total, y_hat_total, mask_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+                                                                                offsets=[7*91*24, 6*91*24, 5*91*24, 4*91*24,
+                                                                                         3*91*24, 2*91*24, 1*91*24, 0],
+                                                                                n_timestamps_pred=91*24)
 
     print('Best Model Evaluation')
     benchmark_df, y_total_nans_perc, y_hat_total_nans_perc, reported_loss = forecast_evaluation_table(y_total=y_total,
@@ -511,14 +515,14 @@ def get_experiment_space(args):
                  'lr_decay': hp.choice('lr_decay', [0.5]),
                  'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                  'weight_decay': hp.loguniform('weight_decay', np.log(5e-4), np.log(0.01)),
-                 'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
+                 'n_iterations': hp.choice('n_iterations', [10_000]), #[args.max_epochs]),
                  'early_stopping': hp.choice('early_stopping', [8]),
                  'eval_steps': hp.choice('eval_steps', [50]),
                  #'n_val_weeks': hp.choice('n_val_weeks', [52]),
                  'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
                  'loss': hp.choice('loss', ['MAE']),
                  'loss_hypar': hp.choice('loss_hypar', [0.5]),
-                 'val_loss': hp.choice('val_loss', [args.val_loss]),
+                 'val_loss': hp.choice('val_loss', ['MAE']), #[args.val_loss]),
                  'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
                  # Data parameters
                  'normalizer_y': hp.choice('normalizer_y', [None, 'norm', 'norm1',
@@ -553,56 +557,6 @@ def get_experiment_space(args):
                  # 'args.data_augmentation'
                  # 'n_val_weeks': hp.choice('n_val_weeks', [args.n_val_weeks]}
 
-    elif args.space=='nbeats_collapsed':
-        space= {# Architecture parameters
-                'input_size_multiplier': hp.choice('input_size_multiplier', [7]),
-                'output_size': hp.choice('output_size', [24]),
-                'shared_weights': hp.choice('shared_weights', [False]),
-                'activation': hp.choice('activation', ['relu','softplus','tanh','selu','lrelu','prelu','sigmoid']),
-                'initialization':  hp.choice('initialization', ['orthogonal','he_uniform','he_normal',
-                                                                'glorot_uniform','glorot_normal','lecun_normal']),
-                'stack_types': hp.choice('stack_types', [['exogenous_wavenet']+1*['identity'],
-                                                         ['exogenous_tcn']+1*['identity'] ]),
-                'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
-                'n_layers': hp.choice('n_layers', [ [2, 2] ]),
-                'n_hidden': hp.quniform('n_hidden', 50, 500, 1),
-                'n_harmonics': hp.choice('n_harmonics', [1]),
-                'n_polynomials': hp.choice('n_polynomials', [2]),
-                'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1),
-                'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
-                # Regularization and optimization parameters
-                'batch_normalization': hp.choice('batch_normalization', [False]),
-                'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 1),
-                'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
-                'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.1)),
-                'lr_decay': hp.uniform('lr_decay', 0.3, 1.0),
-                'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
-                'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
-                'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
-                'early_stopping': hp.choice('early_stopping', [8]),
-                'eval_steps': hp.choice('eval_steps', [50]),
-                'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
-                #'loss': hp.choice('loss', ['PINBALL']),
-                #'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
-                'loss': hp.choice('loss', ['MAE']),
-                'loss_hypar': hp.choice('loss_hypar', [0.5]),
-                'val_loss': hp.choice('val_loss', [args.val_loss]),
-                'l1_theta': hp.choice('l1_theta', [0, hp.loguniform('lambdal1', np.log(1e-5), np.log(1))]),
-                # Data parameters
-                'normalizer_y': hp.choice('normalizer_y', [None]),
-                'normalizer_x': hp.choice('normalizer_x', ['median']),
-                'window_sampling_limit': hp.choice('window_sampling_limit', [50_000]),
-                'complete_inputs': hp.choice('complete_inputs', [True]),
-                'frequency': hp.choice('frequency', ['H']),
-                'seasonality': hp.choice('seasonality', [24]),
-                'include_var_dict': hp.choice('include_var_dict', [{'y': [-2, -3, -8],
-                                                                    'Exogenous1': [-1, -2, -8],
-                                                                    'Exogenous2': [-1, -2, -8],
-                                                                    'week_day': [-1]}]),
-                'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [24]),
-                'batch_size': hp.choice('batch_size', [256]),
-                'random_seed': hp.quniform('random_seed', 10, 20, 1)}
-
     elif args.space=='nbeats_collapsed2':
         space= {# Architecture parameters
                 'input_size_multiplier': hp.choice('input_size_multiplier', [7]),
@@ -629,7 +583,7 @@ def get_experiment_space(args):
                 'lr_decay': hp.uniform('lr_decay', 0.3, 0.5),
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                 'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
-                'n_iterations': hp.choice('n_iterations', [args.max_epochs]),
+                'n_iterations': hp.choice('n_iterations', [10_000]), #[args.max_epochs]),
                 'early_stopping': hp.choice('early_stopping', [16]),
                 'eval_steps': hp.choice('eval_steps', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
@@ -637,7 +591,59 @@ def get_experiment_space(args):
                 #'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
                 'loss': hp.choice('loss', ['MAE']),
                 'loss_hypar': hp.choice('loss_hypar', [0.5]),
-                'val_loss': hp.choice('val_loss', [args.val_loss]),
+                'val_loss': hp.choice('val_loss', ['MAE']), #[args.val_loss]),
+                'l1_theta': hp.choice('l1_theta', [0]),
+                # Data parameters
+                'normalizer_y': hp.choice('normalizer_y', [None]),
+                'normalizer_x': hp.choice('normalizer_x', ['median']),
+                'window_sampling_limit': hp.choice('window_sampling_limit', [50_000]),
+                'complete_inputs': hp.choice('complete_inputs', [True]),
+                'frequency': hp.choice('frequency', ['H']),
+                'seasonality': hp.choice('seasonality', [24]),
+                'include_var_dict': hp.choice('include_var_dict', [{'y': [-2, -3, -8],
+                                                                    'Exogenous1': [-1, -2, -8],
+                                                                    'Exogenous2': [-1, -2, -8],
+                                                                    'week_day': [-1]}]),
+                'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [24]),
+                'batch_size': hp.choice('batch_size', [256]),
+                'random_seed': hp.quniform('random_seed', 10, 20, 1)}
+
+    elif args.space=='nbeats_speculation':
+        space= {# Architecture parameters
+                'input_size_multiplier': hp.choice('input_size_multiplier', [7]),
+                'output_size': hp.choice('output_size', [24]),
+                'shared_weights': hp.choice('shared_weights', [False]),
+                'activation': hp.choice('activation', ['selu']),
+                'initialization':  hp.choice('initialization', ['glorot_normal','he_normal']),
+                'stack_types': hp.choice('stack_types', [2*['identity'],
+                                                         1*['identity']+1*['exogenous_tcn'],
+                                                         1*['exogenous_tcn']+1*['identity'] ]),
+                'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
+                'n_layers': hp.choice('n_layers', [ [2, 2] ]),
+                #'n_hidden': hp.choice('n_hidden', [400]),
+                'n_hidden': hp.choice('n_hidden', [400]),
+                'n_harmonics': hp.choice('n_harmonics', [1]),
+                'n_polynomials': hp.choice('n_polynomials', [2]),
+                'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1),
+                'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
+                # Regularization and optimization parameters
+                'batch_normalization': hp.choice('batch_normalization', [False]),
+                'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 0.5),
+                'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
+                'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
+                'lr_decay': hp.uniform('lr_decay', 0.3, 0.7),
+                'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
+                'weight_decay': hp.loguniform('weight_decay', np.log(5e-6), np.log(5e-3)),
+                # 'n_iterations': hp.choice('n_iterations', [100]),
+                'n_iterations': hp.choice('n_iterations', [1_000, 2_000, 5_000, 7_000, 10_000]),
+                'early_stopping': hp.choice('early_stopping', [100_000]),
+                'eval_steps': hp.choice('eval_steps', [100]),
+                'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
+                'loss': hp.choice('loss', ['PINBALL']),
+                'loss_hypar': hp.uniform('loss_hypar', 0.48, 0.51),
+                # 'loss': hp.choice('loss', ['MAE']),
+                # 'loss_hypar': hp.choice('loss_hypar', [0.5]),
+                'val_loss': hp.choice('val_loss', ['MAE']), #[args.val_loss]),
                 'l1_theta': hp.choice('l1_theta', [0]),
                 # Data parameters
                 'normalizer_y': hp.choice('normalizer_y', [None]),
@@ -748,8 +754,8 @@ def parse_args():
     parser.add_argument('--dataset', type=str, required=True, help='NP')
     parser.add_argument('--space', type=str, required=True, help='Experiment hyperparameter space')
     parser.add_argument('--hyperopt_iters', type=int, help='hyperopt_iters')
-    parser.add_argument('--max_epochs', type=int, required=False, default=2000, help='max train epochs')
-    parser.add_argument('--val_loss', type=str, required=False, default=None, help='validation loss')
+    #parser.add_argument('--max_epochs', type=int, required=False, default=2000, help='max train epochs')
+    #parser.add_argument('--val_loss', type=str, required=False, default=None, help='validation loss')
     parser.add_argument('--experiment_id', default=None, required=False, type=str, help='string to identify experiment')
     return parser.parse_args()
 
