@@ -46,13 +46,19 @@ from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 #### COMMON
 ############################################################################################
 
-BENCHMARK_DF = pd.DataFrame({'id': [1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4],
+BENCHMARK_DF = pd.DataFrame({'id': [1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5],
                              'unique_id': ['NP', 'NP', 'NP', 'NP', 'PJM', 'PJM', 'PJM', 'PJM',
-                                           'BE', 'BE', 'BE', 'BE', 'FR', 'FR', 'FR', 'FR'],
+                                           'BE', 'BE', 'BE', 'BE', 'FR', 'FR', 'FR', 'FR',
+                                           'DE', 'DE', 'DE', 'DE'],
                              'metric': ['MAE', 'MAPE', 'SMAPE', 'RMSE', 'MAE', 'MAPE', 'SMAPE', 'RMSE',
-                                        'MAE', 'MAPE', 'SMAPE', 'RMSE', 'MAE', 'MAPE', 'SMAPE', 'RMSE'],
-                             'DNN' : [1.67, 5.38, 4.85, 3.33, 2.78, 28.66, 11.22, 4.64, 5.82,
-                                      26.11, 13.33, 16.13, 3.91, 14.77, 10.98, 11.74]})
+                                        'MAE', 'MAPE', 'SMAPE', 'RMSE', 'MAE', 'MAPE', 'SMAPE', 'RMSE',
+                                        'MAE', 'MAPE', 'SMAPE', 'RMSE',],
+                             'DNN_ens' : [1.67, 5.38, 4.85, 3.33, 2.78, 28.66, 11.22, 4.64,
+                                          5.82, 26.11, 13.33, 16.13, 3.91, 14.77, 10.98, 11.74,
+                                          3.44, 95.76, 14.19, 6.00],
+                             'DNN_best': [1.72, 5.46, 5.00, 3.34, 2.95, 29.10, 11.81, 4.82,
+                                          6.07, 24.08, 13.87, 15.88, 4.19, 15.13, 11.65, 11.41,
+                                          3.60, 83.1, 14.74, 6.13]})
 
 def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     performances = []
@@ -76,7 +82,7 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     performances_df = pd.concat(performances)
 
     benchmark_df = BENCHMARK_DF.merge(performances_df, on=['unique_id', 'metric'], how='left')
-    benchmark_df['perc_diff'] = 100 * (benchmark_df['NBEATSx']-benchmark_df['DNN'])/benchmark_df['DNN']
+    benchmark_df['perc_diff'] = 100 * (benchmark_df['NBEATSx']-benchmark_df['DNN_ens'])/benchmark_df['DNN_ens']
     benchmark_df['improvement'] = benchmark_df['perc_diff'] < 0
     benchmark_df = benchmark_df.dropna()
     average_perc_diff = benchmark_df['perc_diff'].mean()
@@ -89,11 +95,14 @@ def forecast_evaluation_table(y_total, y_hat_total, meta_data):
     print(f'y_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print(f'y_hat_total {len(y_tot)} nan_perc {y_total_nans_perc}')
     print("average_perc_diff", average_perc_diff)
-    #if y_total_nans_perc >= 0.05: average_perc_diff=500
-    #if y_hat_total_nans_perc >= 0.05: average_perc_diff=500
-    #improvement_loss = 200 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
 
-    return benchmark_df, y_total_nans_perc, y_hat_total_nans_perc
+    reported_loss = _mae
+    if y_total_nans_perc >= 0.05: reported_loss=500
+    if y_hat_total_nans_perc >= 0.05: reported_loss=500
+    #improvement_loss = 200 * (1-np.mean(benchmark_df.improvement)) + average_perc_diff
+    print(f'reported_loss {reported_loss}')
+
+    return benchmark_df, y_total_nans_perc, y_hat_total_nans_perc, reported_loss
 
 def protect_nan_reported_loss(model):
     # TODO: Pytorch numerical error hacky protection, protect from losses.numpy.py
@@ -208,12 +217,12 @@ def prepare_data_Kin(mc, Y_df, X_df, S_df, n_timestamps_pred=365*1*24, offset=0)
     del last_timestamps_df
 
     # Plotting train validation splits
-    # y_train = Y_balanced_df[mask_df.sample_mask==1].y.values
-    # y_val = Y_balanced_df[mask_df.sample_mask==0].y.values
-    # plt.plot(y_train, label='train', color='blue')
-    # plt.plot(np.array(range(len(y_val))) + len(y_train), y_val, label='val', color='purple')
-    # plt.legend()
-    # plt.show()
+    #y_train = Y_balanced_df[mask_df.sample_mask==1].y.values
+    #y_val = Y_balanced_df[mask_df.sample_mask==0].y.values
+    #plt.plot(y_train, label='train', color='blue')
+    #plt.plot(np.array(range(len(y_val))) + len(y_train), y_val, label='val', color='purple')
+    #plt.legend()
+    #plt.show()
 
     #---------------------------------------------- Scale Data ----------------------------------------------#
 
@@ -322,8 +331,8 @@ def model_fit_predict_roll(mc, Y_df, X_df, S_df, n_timestamps_pred, offsets):
         y_true_list.append(y_true)
         y_hat_list.append(y_hat)
 
-    y_total = np.vstack(y_hat_list)
-    y_hat_total = np.vstack(y_true_list)
+    y_total = np.vstack(y_true_list)
+    y_hat_total = np.vstack(y_hat_list)
 
     print(f'y_total.shape (#n_windows, #lt) {y_total.shape}')
     print(f'y_hat_total.shape (#n_windows, #lt) {y_hat_total.shape}')
@@ -497,30 +506,28 @@ def run_val_nbeatsx(mc, Y_df, X_df, S_df, trials, trials_file_name, final_evalua
 
     #---------------------------------- Instantiate model, fit and predict ----------------------------------#
 
-    y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
-                                                                    offsets=[0], n_timestamps_pred=365*2*24)
+    # y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+    #                                                                offsets=[0], n_timestamps_pred=365*2*24)
 
     # y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
     #                                                                 offsets=[365*1*24, 0], n_timestamps_pred=365*1*24)
 
-    # y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
-    #                                                                offsets=[3*182, 2*182, 182, 0],
-    #                                                                n_timestamps_pred=182)
+    y_total, y_hat_total, meta_data, model = model_fit_predict_roll(mc=mc, Y_df=Y_df, X_df=X_df, S_df=S_df,
+                                                                   offsets=[9*73*24, 8*73*24, 7*73*24, 6*73*24, 5*73*24,
+                                                                            4*73*24, 3*73*24, 2*73*24, 1*73*24, 0],
+                                                                   n_timestamps_pred=73*24)
 
     print('Best Model Evaluation')
-    benchmark_df, y_total_nans_perc, y_hat_total_nans_perc = forecast_evaluation_table(y_total=y_total, y_hat_total=y_hat_total,
-                                                                                       meta_data=meta_data)
+    benchmark_df, y_total_nans_perc, y_hat_total_nans_perc, reported_loss = forecast_evaluation_table(y_total=y_total,
+                                                                                                      y_hat_total=y_hat_total,
+                                                                                                      meta_data=meta_data)
     print(benchmark_df)
     print('\n')
 
     # CONDITIONAL ON CORRECT PREDICTION
     # Average percentage difference of MAE, SMAPE, MAPE, RMSE
-    reported_loss = protect_nan_reported_loss(model)
+    #reported_loss = protect_nan_reported_loss(model)
     run_time = time.time() - start_time
-
-    if y_total_nans_perc >= 0.05: reported_loss=500
-    if y_hat_total_nans_perc >= 0.05: reported_loss=500
-    print(f'reported_loss {reported_loss}')
 
     results =  {'loss': reported_loss,
                 'loss_name': mc['val_loss'],
@@ -671,15 +678,18 @@ def get_experiment_space(args):
                 'input_size_multiplier': hp.choice('input_size_multiplier', [7]),
                 'output_size': hp.choice('output_size', [24]),
                 'shared_weights': hp.choice('shared_weights', [False]),
-                'activation': hp.choice('activation', ['relu','selu', 'prelu']),
-                'initialization':  hp.choice('initialization', ['glorot_normal','lecun_normal']),
-                'stack_types': hp.choice('stack_types', [['exogenous_tcn']+1*['identity'] ]),
+                'activation': hp.choice('activation', ['selu']),
+                'initialization':  hp.choice('initialization', ['glorot_normal','he_normal']),
+                'stack_types': hp.choice('stack_types', [2*['identity'],
+                                                         1*['identity']+1*['exogenous_tcn'],
+                                                         1*['exogenous_tcn']+1*['identity'] ]),
                 'n_blocks': hp.choice('n_blocks', [ [1, 1] ]),
                 'n_layers': hp.choice('n_layers', [ [2, 2] ]),
+                #'n_hidden': hp.choice('n_hidden', [400]),
                 'n_hidden': hp.choice('n_hidden', [400]),
                 'n_harmonics': hp.choice('n_harmonics', [1]),
                 'n_polynomials': hp.choice('n_polynomials', [2]),
-                'exogenous_n_channels': hp.choice('exogenous_n_channels', [3, 6]),
+                'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1),
                 'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
                 # Regularization and optimization parameters
                 'batch_normalization': hp.choice('batch_normalization', [False]),
