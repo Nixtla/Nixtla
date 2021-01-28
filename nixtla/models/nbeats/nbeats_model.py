@@ -93,13 +93,22 @@ class NBeatsBlock(nn.Module):
 
         hidden_layers = []
         for i in range(n_layers):
+
+            # Batch norm before activation
+            # if self.batch_normalization:
+            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
+            #     hidden_layers.append(nn.BatchNorm1d(num_features=theta_n_hidden[i+1]))
+            #     hidden_layers.append(self.activations[activation])
+            # else:
+            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
+            #     hidden_layers.append(self.activations[activation])
+
+            # Batch norm after activation
+            hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
+            hidden_layers.append(self.activations[activation])
+
             if self.batch_normalization:
-                hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
                 hidden_layers.append(nn.BatchNorm1d(num_features=theta_n_hidden[i+1]))
-                hidden_layers.append(self.activations[activation])
-            else:
-                hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-                hidden_layers.append(self.activations[activation])
 
             if self.dropout_prob>0:
                 hidden_layers.append(nn.Dropout(p=self.dropout_prob))
