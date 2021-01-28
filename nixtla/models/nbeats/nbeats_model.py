@@ -93,11 +93,13 @@ class NBeatsBlock(nn.Module):
 
         hidden_layers = []
         for i in range(n_layers):
-            hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-            hidden_layers.append(self.activations[activation])
-
             if self.batch_normalization:
-                hidden_layers.append(nn.BatchNorm1d(theta_n_hidden[i+1]))
+                hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
+                hidden_layers.append(nn.BatchNorm1d(num_features=theta_n_hidden[i+1]))
+                hidden_layers.append(self.activations[activation])
+            else:
+                hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
+                hidden_layers.append(self.activations[activation])
 
             if self.dropout_prob>0:
                 hidden_layers.append(nn.Dropout(p=self.dropout_prob))
@@ -146,7 +148,7 @@ class NBeats(nn.Module):
     def __init__(self, blocks: nn.ModuleList):
         super().__init__()
         self.blocks = blocks
-        self.hardshrink = nn.Hardshrink(lambd=0.001)
+        #self.hardshrink = nn.Hardshrink(lambd=0.001)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                 outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
@@ -163,8 +165,8 @@ class NBeats(nn.Module):
             forecast = forecast + block_forecast
 
         ################################################################################
-        eps = t.sign(forecast) * 0.001              ### <---------   weird anti zero bias
-        forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
+        #eps = t.sign(forecast) * 0.001              ### <---------   weird anti zero bias
+        #forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
         ################################################################################
         return forecast
 
