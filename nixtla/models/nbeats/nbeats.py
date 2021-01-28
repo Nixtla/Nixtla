@@ -399,8 +399,10 @@ class Nbeats(object):
                 #    break
                 if not np.isnan(float(training_loss)):
                     training_loss.backward()
-                    t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    t.nn.utils.clip_grad_norm_(self.model.parameters(), 100.0)
                     optimizer.step()
+                else:
+                    early_stopping_counter = self.early_stopping
 
                 lr_scheduler.step()
                 if (iteration % eval_steps == 0):
