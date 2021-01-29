@@ -24,9 +24,9 @@ class TimeSeriesLoader(object):
                  output_size: int,
                  idx_to_sample_freq: int,
                  batch_size: int,
-                 is_train_loader: bool,
+                 complete_inputs: bool,
+                 complete_sample: bool,
                  shuffle: bool,
-                 random_seed: int,
                  n_series_per_batch: int=None):
         """
         """
@@ -36,23 +36,22 @@ class TimeSeriesLoader(object):
         self.input_size = input_size
         self.output_size = output_size
         self.batch_size = batch_size
+        self.complete_inputs = complete_inputs
+        self.complete_sample = complete_sample
         self.idx_to_sample_freq = idx_to_sample_freq
         self.offset = offset
         self.ts_dataset = ts_dataset
         self.t_cols = self.ts_dataset.t_cols
-        self.is_train_loader = is_train_loader # Boolean variable for train and validation mask
         if n_series_per_batch is not None:
             self.n_series_per_batch = n_series_per_batch
         else:
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
         self.shuffle = shuffle
-        self.random_seed = random_seed
-        np.random.seed(self.random_seed)
 
         assert offset==0, 'sample_mask and offset interaction not implemented'
-        assert window_sampling_limit==self.ts_dataset.max_len, \
-            'sample_mask and window_samplig_limit interaction not implemented'
+        # assert window_sampling_limit==self.ts_dataset.max_len, \
+        #     'sample_mask and window_samplig_limit interaction not implemented'
 
         # Dataloader protections
         assert self.batch_size % self.n_series_per_batch == 0, \
@@ -63,11 +62,19 @@ class TimeSeriesLoader(object):
             f'Offset {offset} must be smaller than max_len {self.ts_dataset.max_len}'
 
     def _get_sampleable_windows_idxs(self, ts_windows_flatten):
-        # Only sample during available windows with at least one active output mask and input mask
-        #n_windows, n_channels, max_len
-        #available_condition = t.sum(self.ts_windows[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
-        sample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
-        sampling_idx = t.nonzero(sample_condition)
+        if not self.complete_sample:
+            #print("\n")
+            #print("INTENTO RARO DE LIMPIEZA8")
+            sample_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
+            available_condition = t.sum(ts_windows_flatten[:, self.t_cols.index('available_mask'), :self.input_size], axis=1)
+            if self.complete_inputs:
+                completely_available_condition = (available_condition == (self.input_size)) * 1
+                sampling_idx = t.nonzero(completely_available_condition * sample_condition > 0)
+            else:
+                sampling_idx = t.nonzero(available_condition * sample_condition > 0)
+        else:
+            sample_condition = t.sum(self.ts_windows[:, self.t_cols.index('sample_mask'), -self.output_size:], axis=1)
+            sampling_idx = t.nonzero(sample_condition)
 
         sampling_idx = list(sampling_idx.flatten().numpy())
         assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
@@ -84,18 +91,6 @@ class TimeSeriesLoader(object):
                                                                        window_sampling_limit=self.window_sampling_limit,
                                                                        ts_idxs=ts_idxs)
         tensor = t.Tensor(tensor)
-
-        # Outsample mask checks existance of values in ts, train_mask mask is used to filter out validation
-        # is_train_loader inverts the train_mask in case the dataloader is in validation mode
-        if self.is_train_loader:
-            tensor[:, self.t_cols.index('sample_mask'), :] = \
-                (tensor[:, self.t_cols.index('available_mask'), :] * tensor[:, self.t_cols.index('sample_mask'), :])
-        else:
-            tensor[:, self.t_cols.index('sample_mask'), :] = (1-tensor[:, self.t_cols.index('sample_mask'), :])
-
-            # Since Xt from future is returned in tensor, protection from leakage is needed
-            #tensor[:, self.t_cols.index('y'), -self.output_size:] = 0 # overkill to ensure no validation leakage
-            #tensor[:, self.t_cols.index('sample_mask'), -self.output_size:] = 0
 
         padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
         tensor = padder(tensor)
@@ -172,18 +167,30 @@ class TimeSeriesLoader(object):
 
     def _full_series_batch(self, index):
         """ ESRNN, RNN models """
-
-        ts_tensor, _, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+        #TODO: think masks, do they make sense for ESRNN and RNN??
+        #TODO: window_sampling_limit no es dinamico por el offset no usado!!
+        #TODO: padding preventivo
+        ts_tensor, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
                                                                  window_sampling_limit=self.window_sampling_limit,
                                                                  ts_idxs=index)
-        # Trim batch to shorter time series to avoid zero padding
+        ts_tensor = t.Tensor(ts_tensor)
+        # Trim batch to shorter time series to avoid zero padding, remove non sampleable ts
+        # shorter time series is driven by the last ts_idx which is available
+        # non-sampleable ts is driver by the first ts_idx which stops beeing sampleable
+        available_mask_tensor = ts_tensor[:, self.t_cols.index('available_mask'), :]
+        min_time_stamp = int(t.nonzero(t.min(available_mask_tensor, axis=0).values).min())
+        sample_mask_tensor = ts_tensor[:, self.t_cols.index('sample_mask'), :]
+        max_time_stamp = int(t.nonzero(t.min(sample_mask_tensor, axis=0).values).max())
+        # Fix rapido de padeo
+        available_ts = max_time_stamp - min_time_stamp
+        if available_ts < self.input_size + self.output_size:
+            min_time_stamp = max_time_stamp - self.input_size - self.output_size
+
         insample_y = ts_tensor[:, self.t_cols.index('y'), :]
-        batch_len_series = np.array(self.ts_dataset.len_series)[index]
-        min_batch_len = np.min(batch_len_series)
-        insample_y = insample_y[:, -min_batch_len:]
+        insample_y = insample_y[:, min_time_stamp:max_time_stamp+1]
 
         insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
-        insample_x = insample_x[:, -min_batch_len:]
+        insample_x = insample_x[:, min_time_stamp:max_time_stamp+1]
 
         s_matrix = self.ts_dataset.s_matrix[index]
 

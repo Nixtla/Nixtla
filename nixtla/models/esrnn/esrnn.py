@@ -335,7 +335,6 @@ class ESRNN(object):
     def predict(self, ts_loader, X_test=None):
         assert self._fitted, "Model not fitted yet"
         self.esrnn.eval()
-        ts_loader.eval()
         frequency = ts_loader.get_frequency()
 
         # Build forecasts

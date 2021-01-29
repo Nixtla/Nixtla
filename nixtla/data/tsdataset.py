@@ -24,6 +24,7 @@ class TimeSeriesDataset(Dataset):
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
                  mask_df: pd.DataFrame=None,
+                 ts_in_test: int = 0,
                  f_cols: list=None):
         """
         """
@@ -44,9 +45,7 @@ class TimeSeriesDataset(Dataset):
             assert np.sum(np.isnan(mask_df.available_mask.values))==0
             assert np.sum(np.isnan(mask_df.sample_mask.values))==0
         else:
-            mask_df = Y_df[['unique_id', 'ds']]
-            mask_df['available_mask'] = 1
-            mask_df['sample_mask'] = 1
+            mask_df = self.get_default_mask_df(Y_df=Y_df, ts_in_test=ts_in_test)
 
         print("Train Validation splits")
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
@@ -84,6 +83,30 @@ class TimeSeriesDataset(Dataset):
         # numpy  s_matrix of shape (n_series, n_s)
         # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
         self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
+
+    def get_default_mask_df(self, Y_df, ts_in_test):
+        # Creates outsample_mask
+        # train 1 validation 0
+        last_df = Y_df.copy()[['unique_id', 'ds']]
+        last_df.sort_values(by=['unique_id', 'ds'], inplace=True, ascending=False)
+        last_df.reset_index(drop=True, inplace=True)
+
+        last_df = last_df.groupby('unique_id').head(ts_in_test)
+        last_df['sample_mask'] = 0
+
+        last_df = last_df[['unique_id', 'ds', 'sample_mask']]
+
+        mask_df = Y_df.merge(last_df, on=['unique_id', 'ds'], how='left')
+        mask_df['sample_mask'] = mask_df['sample_mask'].fillna(1)
+
+        mask_df = mask_df[['unique_id', 'ds', 'sample_mask']]
+        mask_df.sort_values(by=['unique_id', 'ds'], inplace=True)
+        mask_df['available_mask'] = 1
+
+        assert len(mask_df)==len(Y_df), \
+            f'The mask_df length {len(mask_df)} is not equal to Y_df length {len(Y_df)}'
+
+        return mask_df
 
     def _df_to_lists(self, Y_df, S_df, X_df, mask_df):
         """ TODO: Comment on unbalanced panels
