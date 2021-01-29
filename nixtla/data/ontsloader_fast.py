@@ -47,6 +47,7 @@ class TimeSeriesLoader(object):
         # Only sample during training windows with at least one active output mask and input mask
         outsample_condition = t.sum(self.ts_windows[:, self.t_cols.index('outsample_mask'), -self.output_size:], axis=1)
         insample_condition = t.sum(self.ts_windows[:, self.t_cols.index('insample_mask'), :self.input_size], axis=1)
+        #initial_condition = (self.ts_windows[:, self.t_cols.index('outsample_mask'), self.output_size] == 1) * 1
         sampling_idx = t.nonzero(outsample_condition * insample_condition > 0) #element-wise product
         sampling_idx = list(sampling_idx.flatten().numpy())
         return sampling_idx
