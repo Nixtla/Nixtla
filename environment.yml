@@ -5,7 +5,6 @@ channels:
   - defaults
 dependencies:
   - python=3.7
-  - cpuonly
   - pandas
   - pip
   - pytorch
@@ -14,3 +13,7 @@ dependencies:
   - xlrd
   - pip:
     - nbdev
+    - tabulate
+    - python-dotenv
+    - fsspec
+    - s3fs

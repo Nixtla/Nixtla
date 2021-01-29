@@ -13,8 +13,47 @@ entries:
       title: Dataloaders
       url: dataloaders.html
     - output: web,pdf
-      title: Datasets
-      url: datasets.html
+      title: Title
+      url: nbeats_model.html
+    - output: web,pdf
+      title: EPF dataset
+      url: datasets_epf.html
+    - output: web,pdf
+      title: M3 dataset
+      url: datasets_m3.html
+    - output: web,pdf
+      title: Tourism dataset
+      url: datasets_tourism.html
+    - output: web,pdf
+      title: Utils for datasets
+      url: datasets_utils.html
+    - output: web,pdf
+      title: ESRNN model
+      url: esrnn_model.html
+    - output: web,pdf
+      title: ESRNN utils CONFIG
+      url: esrnn_utils_config.html
+    - output: web,pdf
+      title: ESRNN utils data
+      url: esrnn_utils_data.html
+    - output: web,pdf
+      title: ESRNN utils drnn
+      url: esrnn_utils_drnn.html
+    - output: web,pdf
+      title: ESRNN utils esrnn
+      url: esrnn_utils_esrnn.html
+    - output: web,pdf
+      title: ESRNN utils losses
+      url: esrnn_utils_losses.html
+    - output: web,pdf
+      title: NBEATS CV
+      url: experiments_nbeats_cv.html
+    - output: web,pdf
+      title: SOTA params
+      url: experiments_nbeats_sota_params.html
+    - output: web,pdf
+      title: Metrics
+      url: model_metrics.html
     output: web
     title: nixtla
   output: web
