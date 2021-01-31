@@ -269,11 +269,6 @@ class ESRNN(object):
         start = time.time()
         self.trajectories = {'epoch':[],'train_loss':[], 'val_loss':[]}
 
-        # for epoch in range(max_epochs):
-        #     self.esrnn.train()
-        #     start = time.time()
-
-        #     losses = []
         # Training Loop
         for epoch in range(max_epochs):
             losses = []
@@ -332,7 +327,7 @@ class ESRNN(object):
                             add_nl_layer=self.add_nl_layer, device=self.device).to(self.device)
 
 
-    def predict(self, ts_loader, X_test=None):
+    def predict(self, ts_loader, X_test=None, eval_mode=True):
         assert self._fitted, "Model not fitted yet"
         self.esrnn.eval()
         frequency = ts_loader.get_frequency()
@@ -342,15 +337,23 @@ class ESRNN(object):
         last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
 
         with t.no_grad():
+            outsample_ys = []
             forecasts = []
             for batch in iter(ts_loader):
                 insample_y  = self.to_tensor(x=batch['insample_y'])
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                forecast = self.esrnn.predict(insample_y=insample_y, s_matrix=s_matrix, idxs=idxs)
-                forecasts += [forecast.cpu().data.numpy()]
+                outsample_y, forecast = self.esrnn.predict(insample_y=insample_y, s_matrix=s_matrix, idxs=idxs)
+                outsample_ys.append(outsample_y)
+                forecasts.append(forecast.cpu().data.numpy())
+
+        outsample_ys = np.vstack(outsample_ys)
         forecasts = np.vstack(forecasts)
+        outsample_masks = np.ones(outsample_ys.shape)
+
+        if eval_mode:
+            return outsample_ys, forecasts, outsample_masks
 
         # Predictions for panel
         Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])

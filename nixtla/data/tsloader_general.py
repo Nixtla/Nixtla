@@ -181,10 +181,9 @@ class TimeSeriesLoader(object):
         min_time_stamp = int(t.nonzero(t.min(available_mask_tensor, axis=0).values).min())
         sample_mask_tensor = ts_tensor[:, self.t_cols.index('sample_mask'), :]
         max_time_stamp = int(t.nonzero(t.min(sample_mask_tensor, axis=0).values).max())
-        # Fix rapido de padeo
+
         available_ts = max_time_stamp - min_time_stamp
-        if available_ts < self.input_size + self.output_size:
-            min_time_stamp = max_time_stamp - self.input_size - self.output_size
+        assert available_ts >= self.input_size + self.output_size, 'Time series too short for given input and output size'
 
         insample_y = ts_tensor[:, self.t_cols.index('y'), :]
         insample_y = insample_y[:, min_time_stamp:max_time_stamp+1]
