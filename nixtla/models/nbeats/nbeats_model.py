@@ -160,24 +160,33 @@ class NBeats(nn.Module):
         #self.hardshrink = nn.Hardshrink(lambd=0.001)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
+                outsample_x_t: t.Tensor, x_s: t.Tensor, return_decomposition = False):
 
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
 
         forecast = insample_y[:, -1:] # Level with Naive1
+        block_forecasts = []
         for i, block in enumerate(self.blocks):
             backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
                                              outsample_x_t=outsample_x_t, x_s=x_s)
             residuals = (residuals - backcast) * insample_mask
             forecast = forecast + block_forecast
+            block_forecasts.append(block_forecast)
 
         ################################################################################
         #eps = t.sign(forecast) * 0.001              ### <---------   weird anti zero bias
         #forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
         ################################################################################
-        return forecast
+        # (n_batch, n_blocks, n_time)
+        block_forecasts = t.stack(block_forecasts)
+        block_forecasts = block_forecasts.permute(1,0,2)
+
+        if return_decomposition:
+            return forecast, block_forecasts
+        else:
+            return forecast
 
     def decomposed_prediction(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                               outsample_x_t: t.Tensor):
