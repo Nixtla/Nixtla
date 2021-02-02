@@ -186,10 +186,10 @@ class TimeSeriesLoader(object):
         assert available_ts >= self.input_size + self.output_size, 'Time series too short for given input and output size'
 
         insample_y = ts_tensor[:, self.t_cols.index('y'), :]
-        insample_y = insample_y[:, min_time_stamp:max_time_stamp+1]
+        insample_y = insample_y[:, min_time_stamp:max_time_stamp+1] #+1 because is not inclusive
 
         insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
-        insample_x = insample_x[:, min_time_stamp:max_time_stamp+1]
+        insample_x = insample_x[:, min_time_stamp:max_time_stamp+1] #+1 because is not inclusive
 
         s_matrix = self.ts_dataset.s_matrix[index]
 
