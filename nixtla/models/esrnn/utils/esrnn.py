@@ -43,6 +43,8 @@ def filter_input_vars(x_t, t_cols, include_var_dict):
     return x_t_filter
 
 # Cell
+#TODO: rnn con canales
+#TODO: notacion de todo, windows_y_insample, step_size vs freq
 class _ES(nn.Module):
     def __init__(self, n_series, input_size, output_size, include_var_dict, t_cols,
                  n_t, n_s, seasonality, noise_std, device):
