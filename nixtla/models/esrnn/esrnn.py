@@ -23,6 +23,7 @@ from .utils.losses import SmylLoss, PinballLoss
 # Cell
 #TODO: eval_mode=False
 #TODO: cambiar por similar a Nbeats
+#TODO: hacer que todo el modelo opere con mascaras: loss, forward, loader. deshackear sample mask, filtro de forward
 class ESRNN(object):
     """ Exponential Smoothing Recurrent Neural Network
 
