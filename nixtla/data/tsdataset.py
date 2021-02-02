@@ -24,12 +24,14 @@ class TimeSeriesDataset(Dataset):
                  X_df: pd.DataFrame=None,
                  S_df: pd.DataFrame=None,
                  mask_df: pd.DataFrame=None,
-                 ts_in_test: int = 0,
-                 f_cols: list=None):
+                 ts_in_test: int=0,
+                 f_cols: list=None,
+                 verbose: bool=False):
         """
         """
         assert type(Y_df) == pd.core.frame.DataFrame
         assert all([(col in Y_df) for col in ['unique_id', 'ds', 'y']])
+        self.verbose = verbose
 
         if X_df is not None:
             assert type(X_df) == pd.core.frame.DataFrame
@@ -40,14 +42,14 @@ class TimeSeriesDataset(Dataset):
             assert len(Y_df)==len(mask_df), f'The dimensions of Y_df and mask_df are not the same'
             assert all([(col in mask_df) for col in ['unique_id', 'ds', 'sample_mask']])
             if 'available_mask' not in mask_df.columns:
-                print('Available mask not provided, defaulted with 1s.')
+                self.verbose: print('Available mask not provided, defaulted with 1s.')
                 mask_df['available_mask'] = 1
             assert np.sum(np.isnan(mask_df.available_mask.values))==0
             assert np.sum(np.isnan(mask_df.sample_mask.values))==0
         else:
             mask_df = self.get_default_mask_df(Y_df=Y_df, ts_in_test=ts_in_test)
 
-        print("Train Validation splits")
+        if self.verbose: print("Train Validation splits")
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
         self.n_tstamps = len(mask_df)
         self.n_avl = mask_df.available_mask.sum()
@@ -57,12 +59,13 @@ class TimeSeriesDataset(Dataset):
         avl_prc = np.round((100*self.n_avl)/self.n_tstamps,2)
         trn_prc = np.round((100*self.n_trn)/self.n_tstamps,2)
         prd_prc = np.round((100*self.n_prd)/self.n_tstamps,2)
-        print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
-        print(f'Total data \t\t\t{self.n_tstamps} time stamps')
-        print(f'Available percentage={avl_prc}, \t{self.n_avl} time stamps')
-        print(f'Train percentage={trn_prc}, \t{self.n_trn} time stamps')
-        print(f'Outsample percentage={prd_prc}, \t{self.n_prd} time stamps')
-        print('\n')
+        if self.verbose:
+            print(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
+            print(f'Total data \t\t\t{self.n_tstamps} time stamps')
+            print(f'Available percentage={avl_prc}, \t{self.n_avl} time stamps')
+            print(f'Train percentage={trn_prc}, \t{self.n_trn} time stamps')
+            print(f'Outsample percentage={prd_prc}, \t{self.n_prd} time stamps')
+            print('\n')
 
         ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
