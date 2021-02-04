@@ -82,6 +82,94 @@ class Nbeats(object):
                  seasonality,
                  device=None):
         super(Nbeats, self).__init__()
+        """
+        N-BEATS model.
+
+        Parameters
+        ----------
+        input_size_multiplier: int
+            Multiplier to get insample size.
+            Insample size = input_size_multiplier * output_size
+        output_size: int
+            Forecast horizon.
+        shared_weights: bool
+            If True, repeats first block.
+        activation: str
+            Activation function.
+            An item from ['relu', 'softplus', 'tanh', 'selu', 'lrelu', 'prelu', 'sigmoid'].
+        initialization: str
+            Initialization function.
+            An item from ['orthogonal', 'he_uniform', 'glorot_uniform', 'glorot_normal', 'lecun_normal'].
+        stack_types: List[str]
+            List of stack types.
+            Subset from ['seasonality', 'trend', 'identity', 'exogenous', 'exogenous_tcn', 'exogenous_wavenet'].
+        n_blocks: List[int]
+            Number of blocks for each stack type.
+            Note that len(n_blocks) = len(stack_types).
+        n_layers: List[int]
+            Number of layers for each stack type.
+            Note that len(n_layers) = len(stack_types).
+        n_hidden: List[List[int]]
+            Structure of hidden layers for each stack type.
+            Each internal list should contain the number of units of each hidden layer.
+            Note that len(n_hidden) = len(stack_types).
+        n_harmonics: List[int]
+            Number of harmonic terms for each stack type.
+            Note that len(n_harmonics) = len(stack_types).
+        n_polynomials: List[int]
+            Number of polynomial terms for each stack type.
+            Note that len(n_polynomials) = len(stack_types).
+        exogenous_n_channels:
+            Exogenous channels for non-interpretable exogenous basis.
+        include_var_dict: Dict[str, List[int]]
+            Exogenous terms to add.
+        t_cols: List
+            Ordered list of ['y'] + X_cols + ['available_mask', 'sample_mask'].
+            Can be taken from the dataset.
+        batch_normalization: bool
+            Whether perform batch normalization.
+        dropout_prob_theta: float
+            Float between (0, 1).
+            Dropout for Nbeats basis.
+        dropout_prob_exogenous: float
+            Float between (0, 1).
+            Dropout for exogenous basis.
+        x_s_n_hidden: int
+            Number of encoded static features to calculate.
+        learning_rate: float
+            Learning rate between (0, 1).
+        lr_decay: float
+            Decreasing multiplier for the learning rate.
+        n_lr_decay_steps: int
+            Period for each lerning rate decay.
+        weight_decay: float
+            L2 penalty for optimizer.
+        l1_theta: float
+            L1 regularization for the loss function.
+        n_iterations: int
+            Number of training steps.
+        early_stopping: int
+            Early stopping interations.
+        loss: str
+            Loss to optimize.
+            An item from ['MAPE', 'MASE', 'SMAPE', 'MSE', 'MAE', 'PINBALL', 'PINBALL2'].
+        loss_hypar:
+            Hyperparameter for chosen loss.
+        val_loss:
+            Validation loss.
+            An item from ['MAPE', 'MASE', 'SMAPE', 'RMSE', 'MAE', 'PINBALL'].
+        frequency: str
+            Time series frequency.
+        random_seed: int
+            random_seed for pseudo random pytorch initializer and
+            numpy random generator.
+        seasonality: int
+            Time series seasonality.
+            Usually 7 for daily data, 12 for monthly data and 4 for weekly data.
+        device: Optional[str]
+            If None checks 'cuda' availability.
+            An item from ['cuda', 'cpu'].
+        """
 
         if activation == 'selu': initialization = 'lecun_normal'
 

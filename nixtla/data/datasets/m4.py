@@ -85,8 +85,9 @@ class M4(TimeSeriesDataclass):
 
     @staticmethod
     def load(directory: str,
-             group: str,
-             return_tensor: bool = True):# -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+             group: str) -> Tuple[pd.DataFrame,
+                                  Optional[pd.DataFrame],
+                                  Optional[pd.DataFrame]]:
         """
         Downloads and loads M4 data.
 
@@ -98,9 +99,6 @@ class M4(TimeSeriesDataclass):
             Group name.
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly',
                             'Weekly', 'Daily', 'Hourly'.
-        return_tensor: bool
-            Wheter return TimeSeriesDataset (tensors, True) or
-            TimeSeriesDataclass (dataframes)
 
         Notes
         -----
@@ -108,9 +106,10 @@ class M4(TimeSeriesDataclass):
         """
         if group == 'Other':
             #Special case.
-            included_dfs = [M4.load(directory, gr, False).Y \
+            included_dfs = [M4.load(directory, gr) \
                             for gr in M4Info['Other'].included_groups]
-            df = pd.concat(included_dfs)
+            df, *_ = zip(*included_dfs)
+            df = pd.concat(df)
         else:
             path = Path(directory) / 'm4' / 'datasets'
 
@@ -138,26 +137,7 @@ class M4(TimeSeriesDataclass):
             df = pd.concat([df_train, df_test])
             df = df.sort_values(['unique_id', 'ds']).reset_index(drop=True)
 
-#         print(df)
-
-#         freq = pd.tseries.frequencies.to_offset(class_group.freq)
-
-#         if group == 'Other':
-#             df['year'] = 1970
-
-#         df['ds'] = df.groupby('unique_id')['year'] \
-#                      .transform(lambda df: pd.date_range(f'{_return_year(df)}-01-01',
-#                                                          periods=df.shape[0],
-#                                                          freq=freq))
-
-#         df = df.filter(items=['unique_id', 'ds', 'y'])
-
-        # if return_tensor:
-        #     #S['category'] = S['category'].astype('category').cat.codes
-        #     return TimeSeriesDataset(Y_df=df, S_df=None, X_df=None)
-        # else:
-        #     return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
-        return df
+        return df, None, None
 
     @staticmethod
     def download(directory: Path) -> None:

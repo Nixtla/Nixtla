@@ -54,8 +54,9 @@ class Tourism(TimeSeriesDataclass):
 
     @staticmethod
     def load(directory: str,
-             group: str,
-             return_tensor: bool = True): #-> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+             group: str) -> Tuple[pd.DataFrame,
+                                  Optional[pd.DataFrame],
+                                  Optional[pd.DataFrame]]:
         """
         Downloads and loads Tourism data.
 
@@ -66,9 +67,6 @@ class Tourism(TimeSeriesDataclass):
         group: str
             Group name.
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly'.
-        return_tensor: bool
-            Wheter return TimeSeriesDataset (tensors, True) or
-            TimeSeriesDataclass (dataframes)
 
         Notes
         -----
@@ -112,11 +110,7 @@ class Tourism(TimeSeriesDataclass):
         df = df.reset_index().filter(items=['unique_id', 'ds', 'y'])
         df = df.sort_values(['unique_id', 'ds'])
 
-        #if return_tensor:
-        #    return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None, output_size=class_group.horizon)
-        #else:
-        #    return TimeSeriesDataclass(Y=df, S=None, X=None, group=group)
-        return df, None
+        return df, None, None
 
     @staticmethod
     def download(directory: str) -> None:
