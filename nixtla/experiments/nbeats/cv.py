@@ -10,7 +10,7 @@ from typing import Callable, Dict, Iterable, Union
 import pandas as pd
 from tqdm import tqdm
 
-from ...models.nbeats import Nbeats
+from ...models.nbeats.nbeats import Nbeats
 
 # Cell
 class CrossValidationNbeats:

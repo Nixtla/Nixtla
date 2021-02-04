@@ -3,14 +3,15 @@
 __all__ = ['init_weights', 'TCN']
 
 # Cell
+import copy
 import os
 import time
-import numpy as np
-import pandas as pd
 import random
 from collections import defaultdict
-import copy
 
+
+import numpy as np
+import pandas as pd
 import torch as t
 from torch import optim
 from pathlib import Path
