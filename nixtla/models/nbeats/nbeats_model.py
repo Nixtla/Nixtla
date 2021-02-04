@@ -93,17 +93,6 @@ class NBeatsBlock(nn.Module):
 
         hidden_layers = []
         for i in range(n_layers):
-
-            # Batch norm before activation
-            # if self.batch_normalization:
-            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(nn.BatchNorm1d(num_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(self.activations[activation])
-            # else:
-            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(self.activations[activation])
-
-            # Batch norm after activation
             hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
             hidden_layers.append(self.activations[activation])
 
@@ -138,12 +127,6 @@ class NBeatsBlock(nn.Module):
             x_s = self.static_encoder(x_s)
             insample_y = t.cat((insample_y, x_s), 1)
 
-        # Temporal exogenous, only forecasted exogenous are used
-        # TODO: for epf not wavenet, include wavenet encoder in the future
-        # if (self.theta_with_exogenous) and (len(outsample_x_t)>0):
-        #     outsample_x_t_flatten = outsample_x_t.reshape(len(outsample_x_t), -1)
-        #     insample_y = t.cat((insample_y, outsample_x_t_flatten), 1)
-
         # Compute local projection weights and projection
         theta = self.layers(insample_y)
         backcast, forecast = self.basis(theta, insample_x_t, outsample_x_t)
@@ -175,10 +158,6 @@ class NBeats(nn.Module):
             forecast = forecast + block_forecast
             block_forecasts.append(block_forecast)
 
-        ################################################################################
-        #eps = t.sign(forecast) * 0.001              ### <---------   weird anti zero bias
-        #forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
-        ################################################################################
         # (n_batch, n_blocks, n_time)
         block_forecasts = t.stack(block_forecasts)
         block_forecasts = block_forecasts.permute(1,0,2)
