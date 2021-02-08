@@ -5,17 +5,15 @@ __all__ = ['ESRNN']
 # Cell
 import os
 import time
+from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 import torch as t
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
-
-from pathlib import Path
-from copy import deepcopy
 
 from .utils.esrnn import _ESRNN
 from .utils.losses import SmylLoss, PinballLoss
