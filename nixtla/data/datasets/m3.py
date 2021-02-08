@@ -70,8 +70,9 @@ class M3(TimeSeriesDataclass):
 
     @staticmethod
     def load(directory: str,
-             group: str,
-             return_tensor: bool = True) -> Union[TimeSeriesDataset, TimeSeriesDataclass]:
+             group: str) -> Tuple[pd.DataFrame,
+                                  Optional[pd.DataFrame],
+                                  Optional[pd.DataFrame]]:
         """
         Downloads and loads M3 data.
 
@@ -82,9 +83,6 @@ class M3(TimeSeriesDataclass):
         group: str
             Group name.
             Allowed groups: 'Yearly', 'Quarterly', 'Monthly', 'Other'.
-        return_tensor: bool
-            Wheter return TimeSeriesDataset (tensors, True) or
-            TimeSeriesDataclass (dataframes)
 
         Notes
         -----
@@ -126,11 +124,7 @@ class M3(TimeSeriesDataclass):
 
         df = df.filter(items=['unique_id', 'ds', 'y'])
 
-        if return_tensor:
-            S['category'] = S['category'].astype('category').cat.codes
-            return TimeSeriesDataset(y_df=df, X_s_df=None, X_t_df=None)
-        else:
-            return TimeSeriesDataclass(Y=df, S=S, X=None, idx_categorical_static=[0], group=group)
+        return df, None, None
 
     @staticmethod
     def download(directory: Path) -> None:

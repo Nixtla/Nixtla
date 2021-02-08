@@ -3,15 +3,16 @@
 __all__ = ['TimeSeriesLoader']
 
 # Cell
+import copy
+import random
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
-import random
 import torch as t
-import copy
 from fastcore.foundation import patch
-from .tsdataset import TimeSeriesDataset
 
-from collections import defaultdict
+from .tsdataset import TimeSeriesDataset
 
 # Cell
 # TODO: think compatibility with pytorch dataloaders, for gpu parallelization
