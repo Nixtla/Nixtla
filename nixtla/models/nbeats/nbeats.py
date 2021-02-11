@@ -545,11 +545,12 @@ class Nbeats(object):
             print('='*30+'  End fitting  '+'='*30)
             print('\n')
 
-    def predict(self, ts_loader, X_test=None, eval_mode=False):
+    def predict(self, ts_loader, X_test=None, eval_mode=False, return_decomposition=False):
         self.model.eval()
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
         forecasts = []
+        block_forecasts = []
         outsample_ys = []
         outsample_masks = []
         with t.no_grad():
@@ -560,18 +561,25 @@ class Nbeats(object):
                 outsample_x    = self.to_tensor(batch['outsample_x'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
-                                      insample_mask=insample_mask, outsample_x_t=outsample_x, x_s=s_matrix)
+                forecast, block_forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
+                                                      insample_mask=insample_mask, outsample_x_t=outsample_x,
+                                                      x_s=s_matrix, return_decomposition=True) # always return, then use or not
                 forecasts.append(forecast.cpu().data.numpy())
+                block_forecasts.append(block_forecast.cpu().data.numpy())
                 outsample_ys.append(batch['outsample_y'])
                 outsample_masks.append(batch['outsample_mask'])
+
         forecasts = np.vstack(forecasts)
+        block_forecasts = np.vstack(block_forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
         self.model.train()
         if eval_mode:
-            return outsample_ys, forecasts, outsample_masks
+            if return_decomposition:
+                return outsample_ys, forecasts, block_forecasts, outsample_masks
+            else:
+                return outsample_ys, forecasts, outsample_masks
 
         # Pandas wrangling
         frequency = ts_loader.get_frequency()
@@ -596,12 +604,9 @@ class Nbeats(object):
     def evaluate_performance(self, ts_loader, validation_loss_fn):
         self.model.eval()
 
-        target, forecast, _ = self.predict(ts_loader=ts_loader, eval_mode=True)
+        target, forecast, outsample_mask = self.predict(ts_loader=ts_loader, eval_mode=True)
 
-        target = target.reshape(-1)
-        forecast = forecast.reshape(-1)
-
-        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=None)
+        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
 
         self.model.train()
         return complete_loss

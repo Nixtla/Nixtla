@@ -5,23 +5,23 @@ __all__ = ['ESRNN']
 # Cell
 import os
 import time
+from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 import torch as t
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
-from pathlib import Path
-from copy import deepcopy
-
 from .utils.esrnn import _ESRNN
 from .utils.losses import SmylLoss, PinballLoss
-from .utils.data import Iterator
 
 # Cell
+#TODO: eval_mode=False
+#TODO: cambiar por similar a Nbeats
+#TODO: hacer que todo el modelo opere con mascaras: loss, forward, loader. deshackear sample mask, filtro de forward
 class ESRNN(object):
     """ Exponential Smoothing Recurrent Neural Network
 
@@ -35,8 +35,6 @@ class ESRNN(object):
     ----------
     max_epochs: int
         maximum number of complete passes to train data during fit
-    freq_of_test: int
-        period for the diagnostic evaluation of the model.
     learning_rate: float
         size of the stochastic gradient descent steps
     lr_scheduler_step_size: int
@@ -105,32 +103,36 @@ class ESRNN(object):
     <https://github.com/M4Competition/M4-methods/tree/master/118%20-%20slaweks17>`__
     """
     def __init__(self,
-                 input_size=4,
-                 output_size=8,
-                 max_epochs=15,
-                 freq_of_test=-1,
-                 learning_rate=1e-3,
-                 lr_scheduler_step_size=9,
-                 lr_decay=0.9,
-                 per_series_lr_multip=1.0,
-                 gradient_eps=1e-8,
-                 gradient_clipping_threshold=20,
-                 rnn_weight_decay=0,
-                 noise_std=0.001,
-                 level_variability_penalty=80,
-                 testing_percentile=50,
-                 training_percentile=50,
-                 cell_type='LSTM',
-                 state_hsize=40,
-                 dilations=[[1, 2], [4, 8]],
-                 add_nl_layer=False,
-                 seasonality=[4],
-                 random_seed=1,
-                 device='cpu', root_dir='./'):
+                 input_size,
+                 output_size,
+                 include_var_dict,
+                 t_cols,
+                 max_epochs,
+                 learning_rate,
+                 lr_scheduler_step_size,
+                 lr_decay,
+                 per_series_lr_multip,
+                 gradient_eps,
+                 gradient_clipping_threshold,
+                 rnn_weight_decay,
+                 noise_std,
+                 level_variability_penalty,
+                 testing_percentile,
+                 training_percentile,
+                 cell_type,
+                 state_hsize,
+                 dilations,
+                 add_nl_layer,
+                 seasonality,
+                 random_seed,
+                 device=None,
+                 root_dir='./'):
         super(ESRNN, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
+        self.include_var_dict = include_var_dict
+        self.t_cols = t_cols
 
         self.cell_type = cell_type
         self.state_hsize = state_hsize
@@ -145,7 +147,6 @@ class ESRNN(object):
         self.per_series_lr_multip = per_series_lr_multip
         self.gradient_eps = gradient_eps
         self.gradient_clipping_threshold = gradient_clipping_threshold
-        self.freq_of_test = freq_of_test
 
         self.rnn_weight_decay = rnn_weight_decay
         self.noise_std = noise_std
@@ -154,7 +155,11 @@ class ESRNN(object):
         self.training_percentile = training_percentile
 
         self.random_seed = random_seed
+
+        if device is None:
+            device = 'cuda' if t.cuda.is_available() else 'cpu'
         self.device = device
+
         self.root_dir = root_dir
         self._fitted = False
 
@@ -180,32 +185,7 @@ class ESRNN(object):
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
 
-    # def evaluate_performance(self, ts_loader, validation_loss_fn):
-    #     """
-    #     Auxiliary function, evaluate ESRNN model for training
-    #     procedure supervision.
-
-    #     Parameters
-    #     ----------
-    #     dataloader: pytorch dataloader
-    #     criterion: pytorch test criterion
-
-    #     Returns
-    #     -------
-    #     model_loss: float
-    #         loss for train supervision purpose.
-    #     """
-    #     #TODO: FALTA
-    #     with t.no_grad():
-    #         model_loss = 0.0
-    #         for batch in iter(ts_loader):
-    #             windows_y, windows_y_hat, _ = self.esrnn(batch)
-    #             loss = validation_loss_fn(windows_y, windows_y_hat)
-    #             model_loss += loss.data.cpu().numpy()
-    #         model_loss /= dataloader.n_batches
-    #     return model_loss
-
-    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_epochs=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=False, eval_epochs=1):
         """
         Fit ESRNN model.
 
@@ -221,13 +201,26 @@ class ESRNN(object):
         np.random.seed(self.random_seed)
 
         # Exogenous variables
-        self.n_x, self.n_s = train_ts_loader.get_n_variables()
+        # n_s
+        _, self.n_x_s = train_ts_loader.get_n_variables()
+
+        # n_t (hardcoded for EPF)
+        self.n_x_t =  self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
+        # Correction because week_day only adds 1 no output_size
+        if len(self.include_var_dict['week_day'])>0:
+            self.n_x_t = self.n_x_t - self.output_size + 1
+
         self.frequency = train_ts_loader.get_frequency()
-        print("Infered frequency: {}".format(self.frequency))
+        if verbose: print("Infered frequency: {}".format(self.frequency))
 
         # Initialize model
         self.n_series = train_ts_loader.get_n_series()
-        self.instantiate_esrnn()
+        self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size, output_size=self.output_size,
+                            include_var_dict=self.include_var_dict, t_cols=self.t_cols,
+                            n_t=self.n_x_t, n_s=self.n_x_s, seasonality=self.seasonality,
+                            noise_std=self.noise_std, cell_type=self.cell_type,
+                            dilations=self.dilations, state_hsize=self.state_hsize,
+                            add_nl_layer=self.add_nl_layer, device=self.device).to(self.device)
 
         # Train model
         self._fitted = True
@@ -269,11 +262,6 @@ class ESRNN(object):
         start = time.time()
         self.trajectories = {'epoch':[],'train_loss':[], 'val_loss':[]}
 
-        # for epoch in range(max_epochs):
-        #     self.esrnn.train()
-        #     start = time.time()
-
-        #     losses = []
         # Training Loop
         for epoch in range(max_epochs):
             losses = []
@@ -283,26 +271,28 @@ class ESRNN(object):
                 self.rnn_optimizer.zero_grad()
 
                 insample_y  = self.to_tensor(x=batch['insample_y'])
+                insample_x  = self.to_tensor(x=batch['insample_x'])
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                windows_y, windows_y_hat, levels = self.esrnn(insample_y=insample_y, s_matrix=s_matrix, idxs=idxs)
+                outsample_y, forecast, levels = self.esrnn(insample_y=insample_y, insample_x=insample_x, s_matrix=s_matrix,
+                                                           step_size=train_ts_loader.idx_to_sample_freq, idxs=idxs)
 
                 # Pinball loss on normalized values
-                training_loss = train_loss(windows_y, windows_y_hat, levels)
+                training_loss = train_loss(windows_y=outsample_y, windows_y_hat=forecast, levels=levels)
                 training_loss.backward()
                 losses.append(training_loss.cpu().data.numpy())
 
-                t.nn.utils.clip_grad_norm_(self.esrnn.rnn.parameters(),
-                                            self.gradient_clipping_threshold)
-                t.nn.utils.clip_grad_norm_(self.esrnn.es.parameters(),
-                                            self.gradient_clipping_threshold)
+                t.nn.utils.clip_grad_norm_(parameters=self.esrnn.rnn.parameters(),
+                                           max_norm=self.gradient_clipping_threshold)
+                t.nn.utils.clip_grad_norm_(parameters=self.esrnn.es.parameters(),
+                                           max_norm=self.gradient_clipping_threshold)
                 self.rnn_optimizer.step()
                 self.es_optimizer.step()
 
-                # Decay learning rate
-                self.es_scheduler.step()
-                self.rnn_scheduler.step()
+            # Decay learning rate
+            self.es_scheduler.step()
+            self.rnn_scheduler.step()
 
             # Evaluation
             if (epoch % eval_epochs == 0):
@@ -318,21 +308,11 @@ class ESRNN(object):
                     display_string += ", Outsample loss: {:.5f}".format(loss)
                     self.trajectories['val_loss'].append(loss)
 
-                print(display_string)
+                if verbose: print(display_string)
 
                 self.esrnn.train()
-                train_ts_loader.train()
 
-    def instantiate_esrnn(self):
-        """Auxiliary function used at beginning of train to instantiate ESRNN"""
-        self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size, output_size=self.output_size,
-                            n_s=self.n_s, seasonality=self.seasonality,
-                            noise_std=self.noise_std, cell_type=self.cell_type,
-                            dilations=self.dilations, state_hsize=self.state_hsize,
-                            add_nl_layer=self.add_nl_layer, device=self.device).to(self.device)
-
-
-    def predict(self, ts_loader, X_test=None):
+    def predict(self, ts_loader, X_test=None, eval_mode=True):
         assert self._fitted, "Model not fitted yet"
         self.esrnn.eval()
         frequency = ts_loader.get_frequency()
@@ -342,15 +322,28 @@ class ESRNN(object):
         last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
 
         with t.no_grad():
+            outsample_ys = []
             forecasts = []
             for batch in iter(ts_loader):
                 insample_y  = self.to_tensor(x=batch['insample_y'])
+                insample_x  = self.to_tensor(x=batch['insample_x'])
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                forecast = self.esrnn.predict(insample_y=insample_y, s_matrix=s_matrix, idxs=idxs)
-                forecasts += [forecast.cpu().data.numpy()]
+                outsample_y, forecast = self.esrnn.predict(insample_y=insample_y, insample_x=insample_x,
+                                                           s_matrix=s_matrix,
+                                                           step_size=ts_loader.idx_to_sample_freq, idxs=idxs)
+                outsample_ys.append(outsample_y.cpu().data.numpy())
+                forecasts.append(forecast.cpu().data.numpy())
+
+        outsample_ys = np.vstack(outsample_ys)
         forecasts = np.vstack(forecasts)
+        outsample_masks = np.ones(outsample_ys.shape)
+
+        if eval_mode:
+            return outsample_ys, forecasts, outsample_masks
+        else:
+            assert 1<0, 'mode_eval=False not implemented yet'
 
         # Predictions for panel
         Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])

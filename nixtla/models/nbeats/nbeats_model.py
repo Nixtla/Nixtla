@@ -93,17 +93,6 @@ class NBeatsBlock(nn.Module):
 
         hidden_layers = []
         for i in range(n_layers):
-
-            # Batch norm before activation
-            # if self.batch_normalization:
-            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(nn.BatchNorm1d(num_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(self.activations[activation])
-            # else:
-            #     hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
-            #     hidden_layers.append(self.activations[activation])
-
-            # Batch norm after activation
             hidden_layers.append(nn.Linear(in_features=theta_n_hidden[i], out_features=theta_n_hidden[i+1]))
             hidden_layers.append(self.activations[activation])
 
@@ -138,12 +127,6 @@ class NBeatsBlock(nn.Module):
             x_s = self.static_encoder(x_s)
             insample_y = t.cat((insample_y, x_s), 1)
 
-        # Temporal exogenous, only forecasted exogenous are used
-        # TODO: for epf not wavenet, include wavenet encoder in the future
-        # if (self.theta_with_exogenous) and (len(outsample_x_t)>0):
-        #     outsample_x_t_flatten = outsample_x_t.reshape(len(outsample_x_t), -1)
-        #     insample_y = t.cat((insample_y, outsample_x_t_flatten), 1)
-
         # Compute local projection weights and projection
         theta = self.layers(insample_y)
         backcast, forecast = self.basis(theta, insample_x_t, outsample_x_t)
@@ -160,24 +143,29 @@ class NBeats(nn.Module):
         #self.hardshrink = nn.Hardshrink(lambd=0.001)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                outsample_x_t: t.Tensor, x_s: t.Tensor) -> t.Tensor:
+                outsample_x_t: t.Tensor, x_s: t.Tensor, return_decomposition = False):
 
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
 
         forecast = insample_y[:, -1:] # Level with Naive1
+        block_forecasts = []
         for i, block in enumerate(self.blocks):
             backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
                                              outsample_x_t=outsample_x_t, x_s=x_s)
             residuals = (residuals - backcast) * insample_mask
             forecast = forecast + block_forecast
+            block_forecasts.append(block_forecast)
 
-        ################################################################################
-        #eps = t.sign(forecast) * 0.001              ### <---------   weird anti zero bias
-        #forecast = self.hardshrink(forecast)+eps   ### <--------- MAPE, SMAPE hypothesis
-        ################################################################################
-        return forecast
+        # (n_batch, n_blocks, n_time)
+        block_forecasts = t.stack(block_forecasts)
+        block_forecasts = block_forecasts.permute(1,0,2)
+
+        if return_decomposition:
+            return forecast, block_forecasts
+        else:
+            return forecast
 
     def decomposed_prediction(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                               outsample_x_t: t.Tensor):

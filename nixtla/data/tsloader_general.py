@@ -27,7 +27,8 @@ class TimeSeriesLoader(object):
                  complete_inputs: bool,
                  complete_sample: bool,
                  shuffle: bool,
-                 n_series_per_batch: int=None):
+                 n_series_per_batch: int=None,
+                 verbose: bool=False):
         """
         """
         # Dataloader attributes
@@ -48,6 +49,7 @@ class TimeSeriesLoader(object):
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
         self.shuffle = shuffle
+        self.verbose = verbose
 
         assert offset==0, 'sample_mask and offset interaction not implemented'
         # assert window_sampling_limit==self.ts_dataset.max_len, \
@@ -171,26 +173,26 @@ class TimeSeriesLoader(object):
         #TODO: window_sampling_limit no es dinamico por el offset no usado!!
         #TODO: padding preventivo
         ts_tensor, _ = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
-                                                                 window_sampling_limit=self.window_sampling_limit,
-                                                                 ts_idxs=index)
+                                                              window_sampling_limit=self.window_sampling_limit,
+                                                              ts_idxs=index)
         ts_tensor = t.Tensor(ts_tensor)
-        # Trim batch to shorter time series to avoid zero padding, remove non sampleable ts
+        # Trim batch to shorter time series TO AVOID ZERO PADDING, remove non sampleable ts
         # shorter time series is driven by the last ts_idx which is available
         # non-sampleable ts is driver by the first ts_idx which stops beeing sampleable
         available_mask_tensor = ts_tensor[:, self.t_cols.index('available_mask'), :]
         min_time_stamp = int(t.nonzero(t.min(available_mask_tensor, axis=0).values).min())
         sample_mask_tensor = ts_tensor[:, self.t_cols.index('sample_mask'), :]
         max_time_stamp = int(t.nonzero(t.min(sample_mask_tensor, axis=0).values).max())
-        # Fix rapido de padeo
+
         available_ts = max_time_stamp - min_time_stamp
-        if available_ts < self.input_size + self.output_size:
-            min_time_stamp = max_time_stamp - self.input_size - self.output_size
+        assert available_ts >= self.input_size + self.output_size, \
+               f'Time series too short for given input size {self.input_size} and output size {self.output_size}.'
 
         insample_y = ts_tensor[:, self.t_cols.index('y'), :]
-        insample_y = insample_y[:, min_time_stamp:max_time_stamp+1]
+        insample_y = insample_y[:, min_time_stamp:max_time_stamp+1] #+1 because is not inclusive
 
         insample_x = ts_tensor[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
-        insample_x = insample_x[:, min_time_stamp:max_time_stamp+1]
+        insample_x = insample_x[:, min_time_stamp:max_time_stamp+1] #+1 because is not inclusive
 
         s_matrix = self.ts_dataset.s_matrix[index]
 

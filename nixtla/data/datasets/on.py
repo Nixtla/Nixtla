@@ -119,4 +119,13 @@ def load_on_data(root_dir, test_date, last_date):
     X_insample_df = X_t_df[X_t_df['ds'] < test_date].reset_index(drop=True)
     X_outsample_df = X_t_df[X_t_df['ds'] >= test_date].reset_index(drop=True)
 
+    # Filter_variables
+    variables = ['ds','unique_id','ejecutado', 'total_demand', 'PD_0', 'DECIMAL_HOUR',
+                 'temperature_0', 'temperature_1', 'temperature_2', 'temperature_3', 'temperature_4',
+                 'pressure_0', 'pressure_1', 'pressure_2', 'pressure_3', 'pressure_4',
+                 'humidity_0', 'humidity_1', 'humidity_2', 'humidity_3', 'humidity_4',
+                 'rain_0', 'rain_1', 'rain_2', 'rain_3', 'rain_4']
+
+    X_insample_df = X_insample_df[variables]
+    X_outsample_df = X_outsample_df[variables]
     return Y_insample_df, X_insample_df, Y_outsample_df, X_outsample_df, f_cols

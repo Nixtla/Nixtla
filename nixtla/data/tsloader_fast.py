@@ -30,7 +30,8 @@ class TimeSeriesLoader(object):
                  batch_size: int,
                  complete_inputs: bool,
                  complete_sample: bool,
-                 shuffle:bool):
+                 shuffle: bool,
+                 verbose: bool=False):
         """
         """
         # Dataloader attributes
@@ -46,6 +47,7 @@ class TimeSeriesLoader(object):
         self.ts_dataset = ts_dataset
         self.t_cols = self.ts_dataset.t_cols
         self.shuffle = shuffle # Boolean to shuffle data, useful for validation
+        self.verbose = verbose
 
         assert offset==0, 'sample_mask and offset interaction not implemented'
         # assert window_sampling_limit==self.ts_dataset.max_len, \
