@@ -148,6 +148,24 @@ class _ES(nn.Module):
 
         return windows_y_insample, windows_y_outsample, levels, seasonalities
 
+class _ESI(_ES):
+    def __init__(self, n_series, input_size, output_size, include_var_dict, t_cols, n_t, n_s, seasonality, noise_std, device):
+        super(_ESI, self).__init__(n_series, input_size, output_size, include_var_dict,
+                                   t_cols, n_t, n_s, seasonality, noise_std, device)
+        self.W = torch.nn.Parameter(torch.randn(1))
+        self.W.requires_grad = False
+
+    def compute_levels_seasons(self, y, idxs):
+        levels = torch.ones(y.shape)
+        seasonalities = None
+        return levels, None
+
+    def normalize(self, y, level, seasonalities, start, end):
+        return y
+
+    def predict(self, trends, levels, seasonalities, step_size):
+        return trends
+
 class _ESM(_ES):
     def __init__(self, n_series, input_size, output_size, include_var_dict, t_cols, n_t, n_s, seasonality, noise_std, device):
         super(_ESM, self).__init__(n_series, input_size, output_size, include_var_dict,
@@ -319,14 +337,22 @@ class _RNN(nn.Module):
         return input_data
 
 class _ESRNN(nn.Module):
-    def __init__(self, n_series, input_size, output_size, include_var_dict, t_cols, n_t, n_s, seasonality,
-                 noise_std, cell_type, dilations, state_hsize, add_nl_layer, device):
+    def __init__(self, n_series, input_size, output_size, include_var_dict, t_cols, n_t, n_s,
+                 es_component, seasonality, noise_std, cell_type,
+                 dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
+        assert es_component in ['multiplicative','identity'], f'es_component {es_component} not valid.'
 
-        self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
-                       include_var_dict=include_var_dict, t_cols=t_cols,
-                       n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
-                       device=device).to(device)
+        if es_component == 'multiplicative':
+            self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
+                        include_var_dict=include_var_dict, t_cols=t_cols,
+                        n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                        device=device).to(device)
+        elif es_component == 'identity':
+            self.es = _ESI(n_series=n_series, input_size=input_size, output_size=output_size,
+                           include_var_dict=include_var_dict, t_cols=t_cols,
+                           n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                           device=device).to(device)
         self.rnn = _RNN(input_size=input_size, output_size=output_size, n_t=n_t, n_s=n_s,
                         cell_type=cell_type, dilations=dilations, state_hsize=state_hsize,
                         add_nl_layer=add_nl_layer).to(device)

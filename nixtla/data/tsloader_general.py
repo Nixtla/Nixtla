@@ -130,7 +130,7 @@ class TimeSeriesLoader(object):
     def __get_item__(self, index):
         if (self.model == 'nbeats') or (self.model == 'tcn'):
             return self._windows_batch(index)
-        elif self.model == 'esrnn':
+        elif self.model in ['esrnn','rnn']:
             return self._full_series_batch(index)
         else:
             assert 1<0, 'error'

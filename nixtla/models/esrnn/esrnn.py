@@ -17,6 +17,8 @@ from torch.optim.lr_scheduler import StepLR
 
 from .utils.esrnn import _ESRNN
 from .utils.losses import SmylLoss, PinballLoss
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
+from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 # Cell
 #TODO: eval_mode=False
@@ -119,11 +121,13 @@ class ESRNN(object):
                  level_variability_penalty,
                  testing_percentile,
                  training_percentile,
+                 es_component,
                  cell_type,
                  state_hsize,
                  dilations,
                  add_nl_layer,
                  seasonality,
+                 loss,
                  random_seed,
                  device=None,
                  root_dir='./'):
@@ -134,6 +138,7 @@ class ESRNN(object):
         self.include_var_dict = include_var_dict
         self.t_cols = t_cols
 
+        self.es_component = es_component
         self.cell_type = cell_type
         self.state_hsize = state_hsize
         self.dilations = dilations
@@ -153,6 +158,7 @@ class ESRNN(object):
         self.level_variability_penalty = level_variability_penalty
         self.testing_percentile = testing_percentile
         self.training_percentile = training_percentile
+        self.loss = loss
 
         self.random_seed = random_seed
 
@@ -168,19 +174,25 @@ class ESRNN(object):
         return tensor
 
     def __loss_fn(self, loss_name: str):
-        def loss(x, freq, forecast, target, mask):
+        #TODO: replace with kwargs
+        def loss(x, forecast, target, mask, levels):
             if loss_name == 'SMYL':
-                return
-            if loss_name == 'MAPE':
+                train_tau = self.training_percentile / 100
+                smyl_loss = SmylLoss(tau=train_tau, level_variability_penalty=self.level_variability_penalty)
+                return smyl_loss(windows_y=target, windows_y_hat=forecast, levels=levels)
+            elif loss_name == 'MAPE':
                 return MAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MASE':
-                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=freq, mask=mask)
+                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=loss_hypar, mask=mask)
             elif loss_name == 'SMAPE':
                 return SMAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MSE':
                 return MSELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MAE':
                 return MAELoss(y=target, y_hat=forecast, mask=mask)
+            elif loss_name == 'PINBALL':
+                train_tau = self.training_percentile / 100
+                return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=train_tau)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -195,6 +207,7 @@ class ESRNN(object):
         -------
         self : returns an instance of self.
         """
+        assert val_ts_loader is None, 'val_ts_loader must be None, outsample evaluation not implemented'
 
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
@@ -205,19 +218,23 @@ class ESRNN(object):
         _, self.n_x_s = train_ts_loader.get_n_variables()
 
         # n_t (hardcoded for EPF)
-        self.n_x_t =  self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
-        # Correction because week_day only adds 1 no output_size
-        if len(self.include_var_dict['week_day'])>0:
-            self.n_x_t = self.n_x_t - self.output_size + 1
+        if self.include_var_dict:
+            self.n_x_t =  self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
+            # Correction because week_day only adds 1 no output_size
+            if len(self.include_var_dict['week_day'])>0:
+                self.n_x_t = self.n_x_t - self.output_size + 1
+        else:
+            self.n_x_t = 0
 
         self.frequency = train_ts_loader.get_frequency()
         if verbose: print("Infered frequency: {}".format(self.frequency))
 
         # Initialize model
         self.n_series = train_ts_loader.get_n_series()
-        self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size, output_size=self.output_size,
-                            include_var_dict=self.include_var_dict, t_cols=self.t_cols,
-                            n_t=self.n_x_t, n_s=self.n_x_s, seasonality=self.seasonality,
+        self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size,
+                            output_size=self.output_size, include_var_dict=self.include_var_dict,
+                            t_cols=self.t_cols, n_t=self.n_x_t, n_s=self.n_x_s,
+                            es_component=self.es_component, seasonality=self.seasonality,
                             noise_std=self.noise_std, cell_type=self.cell_type,
                             dilations=self.dilations, state_hsize=self.state_hsize,
                             add_nl_layer=self.add_nl_layer, device=self.device).to(self.device)
@@ -247,20 +264,14 @@ class ESRNN(object):
                                     gamma=self.lr_decay)
 
         # Loss Functions
-        #TODO: cambiar por similar a Nbeats
-        train_tau = self.training_percentile / 100
-        train_loss = SmylLoss(tau=train_tau,
-                              level_variability_penalty=self.level_variability_penalty)
-
-        eval_tau = self.testing_percentile / 100
-        eval_loss = PinballLoss(tau=eval_tau)
+        training_loss_fn = self.__loss_fn(self.loss)
 
         # Overwrite n_iterations and train datasets
         if max_epochs is None:
             max_epochs = self.max_epochs
 
         start = time.time()
-        self.trajectories = {'epoch':[],'train_loss':[], 'val_loss':[]}
+        self.trajectories = {'epoch':[], 'train_loss':[], 'val_loss':[]}
 
         # Training Loop
         for epoch in range(max_epochs):
@@ -275,11 +286,15 @@ class ESRNN(object):
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                outsample_y, forecast, levels = self.esrnn(insample_y=insample_y, insample_x=insample_x, s_matrix=s_matrix,
-                                                           step_size=train_ts_loader.idx_to_sample_freq, idxs=idxs)
+                outsample_y, forecast, levels = self.esrnn(insample_y=insample_y,
+                                                           insample_x=insample_x,
+                                                           s_matrix=s_matrix,
+                                                           step_size=train_ts_loader.idx_to_sample_freq,
+                                                           idxs=idxs)
 
                 # Pinball loss on normalized values
-                training_loss = train_loss(windows_y=outsample_y, windows_y_hat=forecast, levels=levels)
+                training_loss = training_loss_fn(forecast=forecast, target=outsample_y,
+                                                 x=insample_y, mask=t.ones(forecast.shape), levels=levels)
                 training_loss.backward()
                 losses.append(training_loss.cpu().data.numpy())
 
@@ -304,7 +319,7 @@ class ESRNN(object):
 
                 if val_ts_loader is not None:
                     loss = self.evaluate_performance(ts_loader=val_ts_loader,
-                                                        validation_loss_fn=eval_loss)
+                                                     validation_loss_fn=eval_loss)
                     display_string += ", Outsample loss: {:.5f}".format(loss)
                     self.trajectories['val_loss'].append(loss)
 
