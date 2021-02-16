@@ -107,8 +107,6 @@ class ESRNN(object):
     def __init__(self,
                  input_size,
                  output_size,
-                 include_var_dict,
-                 t_cols,
                  max_epochs,
                  learning_rate,
                  lr_scheduler_step_size,
@@ -135,8 +133,6 @@ class ESRNN(object):
 
         self.input_size = input_size
         self.output_size = output_size
-        self.include_var_dict = include_var_dict
-        self.t_cols = t_cols
 
         self.es_component = es_component
         self.cell_type = cell_type
@@ -214,17 +210,7 @@ class ESRNN(object):
         np.random.seed(self.random_seed)
 
         # Exogenous variables
-        # n_s
-        _, self.n_x_s = train_ts_loader.get_n_variables()
-
-        # n_t (hardcoded for EPF)
-        if self.include_var_dict:
-            self.n_x_t =  self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
-            # Correction because week_day only adds 1 no output_size
-            if len(self.include_var_dict['week_day'])>0:
-                self.n_x_t = self.n_x_t - self.output_size + 1
-        else:
-            self.n_x_t = 0
+        self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
 
         self.frequency = train_ts_loader.get_frequency()
         if verbose: print("Infered frequency: {}".format(self.frequency))
@@ -232,8 +218,7 @@ class ESRNN(object):
         # Initialize model
         self.n_series = train_ts_loader.get_n_series()
         self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size,
-                            output_size=self.output_size, include_var_dict=self.include_var_dict,
-                            t_cols=self.t_cols, n_t=self.n_x_t, n_s=self.n_x_s,
+                            output_size=self.output_size, n_t=self.n_x_t, n_s=self.n_x_s,
                             es_component=self.es_component, seasonality=self.seasonality,
                             noise_std=self.noise_std, cell_type=self.cell_type,
                             dilations=self.dilations, state_hsize=self.state_hsize,

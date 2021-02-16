@@ -61,8 +61,6 @@ class Nbeats(object):
                  n_harmonics,
                  n_polynomials,
                  exogenous_n_channels,
-                 include_var_dict,
-                 t_cols,
                  batch_normalization,
                  dropout_prob_theta,
                  dropout_prob_exogenous,
@@ -121,11 +119,6 @@ class Nbeats(object):
             Note that len(n_polynomials) = len(stack_types).
         exogenous_n_channels:
             Exogenous channels for non-interpretable exogenous basis.
-        include_var_dict: Dict[str, List[int]]
-            Exogenous terms to add.
-        t_cols: List
-            Ordered list of ['y'] + X_cols + ['available_mask', 'sample_mask'].
-            Can be taken from the dataset.
         batch_normalization: bool
             Whether perform batch normalization.
         dropout_prob_theta: float
@@ -209,8 +202,6 @@ class Nbeats(object):
         # Data parameters
         self.frequency = frequency
         self.seasonality = seasonality
-        self.include_var_dict = include_var_dict
-        self.t_cols = t_cols
         #self.scaler = scaler
 
         if device is None:
@@ -220,15 +211,6 @@ class Nbeats(object):
         self._is_instantiated = False
 
     def create_stack(self):
-        if self.include_var_dict is not None:
-            x_t_n_inputs = self.output_size * int(sum([len(x) for x in self.include_var_dict.values()]))
-
-            # Correction because week_day only adds 1 no output_size
-            if len(self.include_var_dict['week_day'])>0:
-                x_t_n_inputs = x_t_n_inputs - self.output_size + 1
-        else:
-            x_t_n_inputs = self.input_size
-
         #------------------------ Model Definition ------------------------#
         block_list = []
         self.blocks_regularizer = []
@@ -250,7 +232,9 @@ class Nbeats(object):
                     nbeats_block = block_list[-1]
                 else:
                     if self.stack_types[i] == 'seasonality':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim=4 * int(
@@ -260,13 +244,13 @@ class Nbeats(object):
                                                                           forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'trend':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim=2 * (self.n_polynomials + 1),
@@ -275,13 +259,13 @@ class Nbeats(object):
                                                                             forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'identity':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim=self.input_size + self.output_size,
@@ -289,47 +273,45 @@ class Nbeats(object):
                                                                        forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim=2*self.n_x_t,
                                                    basis=ExogenousBasisInterpretable(),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous_tcn':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden = self.x_s_n_hidden,
                                                    theta_n_dim = 2*(self.exogenous_n_channels),
                                                    basis= ExogenousBasisTCN(self.exogenous_n_channels, self.n_x_t),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'exogenous_wavenet':
-                        nbeats_block = NBeatsBlock(x_t_n_inputs = x_t_n_inputs,
+                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                                                   output_size=self.output_size,
+                                                   x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim=2*(self.exogenous_n_channels),
                                                    basis=ExogenousBasisWavenet(self.exogenous_n_channels, self.n_x_t),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
-                                                   include_var_dict=self.include_var_dict,
-                                                   t_cols=self.t_cols,
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
