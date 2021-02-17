@@ -53,11 +53,11 @@ class TCN(object):
                  lr_decay,
                  n_lr_decay_steps,
                  weight_decay,
-                 l1_inputs,
                  dropout_prob,
-                 max_epochs,
+                 n_iterations,
                  early_stopping,
                  loss,
+                 val_loss,
                  frequency,
                  random_seed,
                  seasonality,
@@ -76,10 +76,10 @@ class TCN(object):
         self.lr_decay = lr_decay
         self.n_lr_decay_steps = n_lr_decay_steps
         self.weight_decay = weight_decay
-        self.max_epochs = max_epochs
+        self.n_iterations = n_iterations
         self.early_stopping = early_stopping
         self.loss = loss
-        self.l1_inputs = l1_inputs
+        self.val_loss = val_loss
         self.dropout_prob = dropout_prob
 
         # Other
@@ -96,19 +96,15 @@ class TCN(object):
     def __loss_fn(self, loss_name: str):
         def loss(x, freq, forecast, target, mask):
             if loss_name == 'MAPE':
-                return MAPELoss(y=target, y_hat=forecast, mask=mask) + \
-                       self.loss_l1_inputs()
+                return MAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MASE':
-                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=freq, mask=mask) + \
-                       self.loss_l1_inputs()
+                return MASELoss(y=target, y_hat=forecast, y_insample=x, seasonality=freq, mask=mask)
             elif loss_name == 'SMAPE':
-                return SMAPELoss(y=target, y_hat=forecast, mask=mask) + self.loss_l1_inputs()
+                return SMAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MSE':
-                return MSELoss(y=target, y_hat=forecast, mask=mask) + \
-                       self.loss_l1_inputs()
+                return MSELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MAE':
-                return MAELoss(y=target, y_hat=forecast, mask=mask) + \
-                       self.loss_l1_inputs()
+                return MAELoss(y=target, y_hat=forecast, mask=mask)
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -130,13 +126,6 @@ class TCN(object):
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
 
-    def loss_l1_inputs(self):
-        loss_l1 = 0
-        # for i, indicator in enumerate(self.blocks_regularizer):
-        #     if indicator:
-        #         loss_l1 += self.l1_inputs * t.sum(t.abs(self.model.blocks[i].basis.weight))
-        return loss_l1
-
     def to_tensor(self, x: np.ndarray) -> t.Tensor:
         tensor = t.as_tensor(x, dtype=t.float32).to(self.device)
         return tensor
@@ -152,11 +141,12 @@ class TCN(object):
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
                 outsample_y    = self.to_tensor(batch['outsample_y'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x,
-                                              s_matrix=s_matrix)
+                forecast = self.model(insample_y=insample_y, insample_x=insample_x,
+                                      outsample_x=outsample_x, s_matrix=s_matrix)
 
                 batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
                                                 forecast=outsample_y.cpu().data.numpy(),
@@ -166,7 +156,7 @@ class TCN(object):
         self.model.train()
         return loss
 
-    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_epochs=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_freq=1):
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
@@ -174,11 +164,10 @@ class TCN(object):
 
         # Attributes of ts_dataset
         self.n_x_t, self.n_s = train_ts_loader.get_n_variables()
-        self.n_x_t += 1 # add y
 
         # Instantiate model
         if not self._is_instantiated:
-            self.model = TCNModule(output_size=self.output_size, num_inputs = self.n_x_t,
+            self.model = TCNModule(output_size=self.output_size, num_inputs = self.n_x_t+1,
                                    num_channels=self.n_channels, num_static = self.n_s,
                                    kernel_size=self.kernel_size, dropout=self.dropout_prob)
             init_function = partial(init_weights, initialization=self.initialization)
@@ -187,27 +176,24 @@ class TCN(object):
             self._is_instantiated = True
 
         # Overwrite n_iterations and train datasets
-        if max_epochs is None:
-            max_epochs = self.max_epochs
+        if n_iterations is None:
+            n_iterations = self.n_iterations
 
-        lr_decay_steps = max_epochs // self.n_lr_decay_steps
+        lr_decay_steps = n_iterations // self.n_lr_decay_steps
         if lr_decay_steps == 0:
             lr_decay_steps = 1
 
         optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_steps, gamma=self.lr_decay)
         training_loss_fn = self.__loss_fn(self.loss)
-        validation_loss_fn = self.__val_loss_fn(self.loss) #Uses numpy losses
+        validation_loss_fn = self.__val_loss_fn(self.val_loss) #Uses numpy losses
 
-        if verbose and (max_epochs > 0):
-            print('='*30+' Start fitting '+'='*30)
-            print(f'Number of exogenous variables: {self.n_x_t}')
-            #print(f'Number of static variables: {self.n_x_s} , with dim_hidden: {self.x_s_n_hidden}')
-            print(f'Number of epochs: {max_epochs}')
+        print('\n')
+        print('='*30+' Start fitting '+'='*30)
 
         #self.loss_dict = {} # Restart self.loss_dict
         start = time.time()
-        self.trajectories = {'epoch':[],'train_loss':[], 'val_loss':[]}
+        self.trajectories = {'iteration':[],'train_loss':[], 'val_loss':[]}
         self.final_insample_loss = None
         self.final_outsample_loss = None
 
@@ -216,132 +202,127 @@ class TCN(object):
         best_val_loss = np.inf
         best_state_dict = copy.deepcopy(self.model.state_dict())
         break_flag = False
+        iteration = 0
         epoch = 0
-        while (epoch < max_epochs) and (not break_flag):
+        while (iteration < n_iterations) and (not break_flag):
             epoch +=1
             for batch in iter(train_ts_loader):
-                if (epoch > max_epochs) or (break_flag):
+                iteration += 1
+                if (iteration > n_iterations) or (break_flag):
                     continue
 
                 self.model.train()
-                train_ts_loader.train()
                 # Parse batch
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
                 outsample_y    = self.to_tensor(batch['outsample_y'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
                 outsample_mask = self.to_tensor(batch['outsample_mask'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
                 optimizer.zero_grad()
-                forecast, outsample_y = self.model(insample_y=insample_y, insample_x=insample_x,
-                                                   s_matrix=s_matrix, outsample_y=outsample_y)
+                forecast = self.model(insample_y=insample_y, insample_x=insample_x, outsample_x=outsample_x,
+                                      s_matrix=s_matrix)
 
                 training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
                                                 target=outsample_y, mask=outsample_mask)
 
-                if np.isnan(float(training_loss)):
+                if not np.isnan(float(training_loss)):
+                    training_loss.backward()
+                    t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                    optimizer.step()
+                else:
+                    early_stopping_counter = self.early_stopping
+
+                lr_scheduler.step()
+                if (iteration % eval_freq == 0):
+                    display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
+                                                                                            time.time()-start,
+                                                                                            self.loss,
+                                                                                            training_loss.cpu().data.numpy())
+                    self.trajectories['iteration'].append(iteration)
+                    self.trajectories['train_loss'].append(np.float(training_loss.cpu().data.numpy()))
+
+                    if val_ts_loader is not None:
+                        loss = self.evaluate_performance(ts_loader=val_ts_loader,
+                                                         validation_loss_fn=validation_loss_fn)
+                        display_string += ", Outsample {}: {:.5f}".format(self.val_loss, loss)
+                        self.trajectories['val_loss'].append(loss)
+
+                        if self.early_stopping:
+                            if loss < best_val_loss:
+                                # Save current model if improves outsample loss
+                                best_state_dict = copy.deepcopy(self.model.state_dict())
+                                best_insample_loss = training_loss.cpu().data.numpy()
+                                early_stopping_counter = 0
+                                best_val_loss = loss
+                            else:
+                                early_stopping_counter += 1
+                            if early_stopping_counter >= self.early_stopping:
+                                break_flag = True
+
+                    print(display_string)
+
+                    self.model.train()
+
+                if break_flag:
+                    print('\n')
+                    print(19*'-',' Stopped training by early stopping', 19*'-')
+                    self.model.load_state_dict(best_state_dict)
                     break
 
-                training_loss.backward()
-                t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                optimizer.step()
-
-            lr_scheduler.step()
-            if (epoch % eval_epochs == 0):
-                display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(epoch,
-                                                                                time.time()-start,
-                                                                                self.loss,
-                                                                                training_loss.cpu().data.numpy())
-                self.trajectories['epoch'].append(epoch)
-                self.trajectories['train_loss'].append(training_loss.cpu().data.numpy())
-
-                if val_ts_loader is not None:
-                    loss = self.evaluate_performance(ts_loader=val_ts_loader,
-                                                    validation_loss_fn=validation_loss_fn)
-                    display_string += ", Outsample {}: {:.5f}".format(self.loss, loss)
-                    self.trajectories['val_loss'].append(loss)
-
-                    if self.early_stopping:
-                        if loss < best_val_loss:
-                            # Save current model if improves outsample loss
-                            best_state_dict = copy.deepcopy(self.model.state_dict())
-                            best_insample_loss = training_loss.cpu().data.numpy()
-                            early_stopping_counter = 0
-                            best_val_loss = loss
-                        else:
-                            early_stopping_counter += 1
-                        if early_stopping_counter >= self.early_stopping:
-                            break_flag = True
-
-                print(display_string)
-
-                self.model.train()
-                train_ts_loader.train()
-
-            if break_flag:
-                print(10*'-',' Stopped training by early stopping', 10*'-')
-                self.model.load_state_dict(best_state_dict)
-                break
-
         #End of fitting
-        if max_epochs >0:
-            self.final_insample_loss = training_loss.cpu().data.numpy() if not break_flag else best_insample_loss #This is batch!
-            string = 'epoch: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(epoch,
+        if n_iterations >0:
+            # This is batch loss!
+            self.final_insample_loss = np.float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
+            string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                             time.time()-start,
                                                                             self.loss,
                                                                             self.final_insample_loss)
             if val_ts_loader is not None:
                 self.final_outsample_loss = self.evaluate_performance(ts_loader=val_ts_loader,
                                                                       validation_loss_fn=validation_loss_fn)
-                string += ", Outsample {}: {:.5f}".format(self.loss, self.final_outsample_loss)
+                string += ", Outsample {}: {:.5f}".format(self.val_loss, self.final_outsample_loss)
             print(string)
-            print('='*30+'End fitting '+'='*30)
+            print('='*30+'  End fitting  '+'='*30)
+            print('\n')
 
     def predict(self, ts_loader, X_test=None, eval_mode=False):
-
-        ts_loader.eval()
-        frequency = ts_loader.get_frequency()
-
-        # Build forecasts
-        unique_ids = ts_loader.get_meta_data_col('unique_id')
-        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
-
         self.model.eval()
+        assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
+
+        forecasts = []
+        outsample_ys = []
+        outsample_masks = []
         with t.no_grad():
-            forecasts = []
-            outsample_ys = []
-            outsample_masks = []
             for batch in iter(ts_loader):
                 insample_y     = self.to_tensor(batch['insample_y'])
                 insample_x     = self.to_tensor(batch['insample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
+                outsample_x    = self.to_tensor(batch['outsample_x'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model.predict(insample_y=insample_y, insample_x=insample_x,
-                                              s_matrix=s_matrix)
-                forecasts += [forecast.cpu().data.numpy()]
-                outsample_ys += [outsample_y.cpu().data.numpy()]
-                outsample_masks += [outsample_mask.cpu().data.numpy()]
+                forecast = self.model(insample_y=insample_y, insample_x=insample_x,
+                                      outsample_x=outsample_x, s_matrix=s_matrix)
+                forecasts.append(forecast.cpu().data.numpy())
+                outsample_ys.append(batch['outsample_y'])
+                outsample_masks.append(batch['outsample_mask'])
+
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
+        # Reshape
+        n_series = ts_loader.ts_dataset.n_series
+        n_fcds = len(outsample_ys) // n_series
+        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
+        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
+        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
+
+        self.model.train()
         if eval_mode:
-            return forecasts, outsample_ys, outsample_masks
-
-        # Predictions for panel
-        Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
-        for i, unique_id in enumerate(unique_ids):
-            Y_hat_id = pd.DataFrame([unique_id]*self.output_size, columns=["unique_id"])
-            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=frequency)
-            Y_hat_id["ds"] = ds[1:]
-            Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
-
-        Y_hat_panel['y_hat'] = forecasts.flatten()
-
-        if X_test is not None:
-            Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
+            return outsample_ys, forecasts, outsample_masks
+        else:
+            assert 1<0, 'mode_eval=False not implemented yet'
 
         return Y_hat_panel
 
