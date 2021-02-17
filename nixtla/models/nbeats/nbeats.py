@@ -391,7 +391,7 @@ class Nbeats(object):
         tensor = t.as_tensor(x, dtype=t.float32).to(self.device)
         return tensor
 
-    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_freq=1):
         # TODO: Indexes hardcoded, information duplicated in train and val datasets
         assert (self.input_size)==train_ts_loader.input_size, \
             f'model input_size {self.input_size} data input_size {train_ts_loader.input_size}'
@@ -475,7 +475,7 @@ class Nbeats(object):
                     early_stopping_counter = self.early_stopping
 
                 lr_scheduler.step()
-                if (iteration % eval_steps == 0):
+                if (iteration % eval_freq == 0):
                     display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                                             time.time()-start,
                                                                                             self.loss,
@@ -555,6 +555,13 @@ class Nbeats(object):
         block_forecasts = np.vstack(block_forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
+
+        n_series = ts_loader.ts_dataset.n_series
+        n_fcds = len(outsample_ys) // n_series
+        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
+        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
+        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
+        #TODO: reshape block_forecasts
 
         self.model.train()
         if eval_mode:

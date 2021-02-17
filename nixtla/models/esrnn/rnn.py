@@ -22,8 +22,6 @@ class RNN(ESRNN):
     def __init__(self,
                  input_size,
                  output_size,
-                 include_var_dict,
-                 t_cols,
                  max_epochs,
                  learning_rate,
                  lr_scheduler_step_size,
@@ -50,8 +48,6 @@ class RNN(ESRNN):
         per_series_lr_multip = 1
         super(RNN, self).__init__(input_size,
                                   output_size,
-                                  include_var_dict,
-                                  t_cols,
                                   max_epochs,
                                   learning_rate,
                                   lr_scheduler_step_size,

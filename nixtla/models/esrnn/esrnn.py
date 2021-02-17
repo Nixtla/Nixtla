@@ -193,7 +193,7 @@ class ESRNN(object):
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
 
-    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=False, eval_epochs=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=False, eval_freq=1):
         """
         Fit ESRNN model.
 
@@ -295,7 +295,7 @@ class ESRNN(object):
             self.rnn_scheduler.step()
 
             # Evaluation
-            if (epoch % eval_epochs == 0):
+            if (epoch % eval_freq == 0):
                 display_string = 'Epoch: {}, Time: {:03.3f}, Insample loss: {:.5f}'.format(epoch,
                                                                                 time.time()-start,
                                                                                 np.mean(losses))
@@ -312,7 +312,7 @@ class ESRNN(object):
 
                 self.esrnn.train()
 
-    def predict(self, ts_loader, X_test=None, eval_mode=True):
+    def predict(self, ts_loader, n_fcds, X_test=None, eval_mode=True):
         assert self._fitted, "Model not fitted yet"
         self.esrnn.eval()
         frequency = ts_loader.get_frequency()
@@ -333,6 +333,9 @@ class ESRNN(object):
                 outsample_y, forecast = self.esrnn.predict(insample_y=insample_y, insample_x=insample_x,
                                                            s_matrix=s_matrix,
                                                            step_size=ts_loader.idx_to_sample_freq, idxs=idxs)
+                # Correction needed, TODO: move to loader/dataset
+                outsample_y = outsample_y[:, -n_fcds:, :]
+                forecast = forecast[:, -n_fcds:, :]
                 outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
 

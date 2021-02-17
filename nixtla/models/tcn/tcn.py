@@ -156,7 +156,7 @@ class TCN(object):
         self.model.train()
         return loss
 
-    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_steps=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_freq=1):
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
@@ -235,7 +235,7 @@ class TCN(object):
                     early_stopping_counter = self.early_stopping
 
                 lr_scheduler.step()
-                if (iteration % eval_steps == 0):
+                if (iteration % eval_freq == 0):
                     display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                                             time.time()-start,
                                                                                             self.loss,
@@ -310,6 +310,13 @@ class TCN(object):
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
+
+        # Reshape
+        n_series = ts_loader.ts_dataset.n_series
+        n_fcds = len(outsample_ys) // n_series
+        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
+        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
+        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
 
         self.model.train()
         if eval_mode:
