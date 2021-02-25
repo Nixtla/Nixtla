@@ -9,13 +9,17 @@ from .drnn import DRNN
 import numpy as np
 
 # Cell
+#TODO: rnn con canales
+#TODO: notacion de todo, windows_y_insample, step_size vs freq
 class _ES(nn.Module):
-    def __init__(self, n_series, input_size, output_size, n_s, seasonality, noise_std, device):
+    def __init__(self, n_series, input_size, output_size,
+                 n_t, n_s, seasonality, noise_std, device):
         super(_ES, self).__init__()
 
         self.n_series = n_series
         self.input_size = input_size
         self.output_size = output_size
+        self.n_t = n_t
         self.n_s = n_s
         self.seasonality = seasonality
         assert len(self.seasonality) in [0, 1, 2]
@@ -30,7 +34,6 @@ class _ES(nn.Module):
         noise = torch.autograd.Variable(input_data.data.new(size).normal_(0, std))
         return input_data + noise
 
-    #@jit.script_method
     def compute_levels_seasons(self, y, idxs):
         pass
 
@@ -40,80 +43,102 @@ class _ES(nn.Module):
     def predict(self, trend, levels, seasonalities):
         pass
 
-    def forward(self, insample_y, s_matrix, idxs):
+    def forward(self, y, x, s_matrix, step_size, idxs):
         # parse attributes
         input_size = self.input_size
         output_size = self.output_size
+        n_t = self.n_t
         n_s = self.n_s
+        context_size = input_size + (input_size+output_size)*n_t + n_s
         noise_std = self.noise_std
         seasonality = self.seasonality
         batch_size = len(idxs)
 
-        n_series, n_time = insample_y.shape
-        if self.training:
-            windows_end = n_time-input_size-output_size+1
-            windows_range = range(windows_end)
-        else:
-            windows_start = n_time-input_size-output_size+1
-            windows_end = n_time-input_size+1
+        n_series, n_time = y.shape
 
-            windows_range = range(windows_start, windows_end)
+        # Explicacion: windows_end es el idx delultimo inicio de windows. Como se necesitan windows completas con input
+        # + output, se pierden (input_size+output_size-1) windows del len total de la serie.
+        windows_end = n_time - input_size - output_size + 1
+        windows_range = range(0, windows_end, step_size)
         n_windows = len(windows_range)
+
         assert n_windows>0
 
         # Initialize windows, levels and seasonalities
-        levels, seasonalities = self.compute_levels_seasons(y=insample_y, idxs=idxs)
-        windows_y_hat = torch.zeros((n_windows, batch_size, input_size + n_s),
-                                     device=self.device)
-        windows_y = torch.zeros((n_windows, batch_size, output_size),
-                                device=self.device)
+        levels, seasonalities = self.compute_levels_seasons(y=y, idxs=idxs)
+        windows_y_insample = torch.zeros((n_windows, batch_size, context_size),
+                                          device=self.device)
+        windows_y_outsample = torch.zeros((n_windows, batch_size, output_size),
+                                           device=self.device)
 
         for i, window in enumerate(windows_range):
             # Windows yhat
-            y_hat_start = window
-            y_hat_end = input_size + window
+            y_insample_start = window
+            y_insample_end = input_size + window
 
             # Y_hat deseasonalization and normalization
-            window_y_hat = self.normalize(y=insample_y[:, y_hat_start:y_hat_end],
-                                          level=levels[:, [y_hat_end-1]],
-                                          seasonalities=seasonalities,
-                                          start=y_hat_start, end=y_hat_end)
+            window_y_insample = self.normalize(y=y[:, y_insample_start:y_insample_end],
+                                               level=levels[:, [y_insample_end-1]],
+                                               seasonalities=seasonalities,
+                                               start=y_insample_start, end=y_insample_end) #TODO: improve this inputs
 
             if self.training:
-                window_y_hat = self.gaussian_noise(window_y_hat, std=noise_std)
+                window_y_insample = self.gaussian_noise(window_y_insample, std=noise_std)
+
+            if n_t > 0:
+                window_x_t = x[:, :, y_insample_start:(y_insample_end+output_size)]
+                window_x_t = window_x_t.reshape(batch_size, -1)
+                window_y_insample = torch.cat((window_y_insample, window_x_t), 1)
 
             # Concatenate S_matrix
             if n_s > 0:
-                window_y_hat = torch.cat((window_y_hat, s_matrix), 1)
+                window_y_insample = torch.cat((window_y_insample, s_matrix), 1)
 
-            windows_y_hat[i, :, :] += window_y_hat
+            windows_y_insample[i, :, :] += window_y_insample
 
-            # Windows y (for loss during train)
+            # Windows_y_outsample
+            y_outsample_start = y_insample_end
+            y_outsample_end = y_outsample_start + output_size
+            window_y_outsample = y[:, y_outsample_start:y_outsample_end]
+            # If training, normalize outsample for loss on normalized data
             if self.training:
-                y_start = y_hat_end
-                y_end = y_start+output_size
                 # Y deseasonalization and normalization
-                window_y = self.normalize(y=insample_y[:, y_start:y_end],
-                                          level=levels[:, [y_start]],
-                                          seasonalities=seasonalities,
-                                          start=y_start, end=y_end)
-                windows_y[i, :, :] += window_y
+                window_y_outsample = self.normalize(y=window_y_outsample,
+                                                    level=levels[:, [y_outsample_start]],
+                                                    seasonalities=seasonalities,
+                                                    start=y_outsample_start, end=y_outsample_end) #TODO: improve this inputs
+            windows_y_outsample[i, :, :] += window_y_outsample
 
-        return windows_y_hat, windows_y, levels, seasonalities
+        return windows_y_insample, windows_y_outsample, levels, seasonalities
+
+class _ESI(_ES):
+    def __init__(self, n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device):
+        super(_ESI, self).__init__(n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device)
+        self.W = torch.nn.Parameter(torch.randn(1))
+        self.W.requires_grad = False
+
+    def compute_levels_seasons(self, y, idxs):
+        levels = torch.ones(y.shape)
+        seasonalities = None
+        return levels, None
+
+    def normalize(self, y, level, seasonalities, start, end):
+        return y
+
+    def predict(self, trends, levels, seasonalities, step_size):
+        return trends
 
 class _ESM(_ES):
-    def __init__(self, n_series, input_size, output_size, n_s, seasonality, noise_std, device):
-        super(_ESM, self).__init__(n_series, input_size, output_size, n_s, seasonality, noise_std, device)
+    def __init__(self, n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device):
+        super(_ESM, self).__init__(n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device)
         # Level and Seasonality Smoothing parameters
         # 1 level, S seasonalities, S init_seas
         embeds_size = 1 + len(self.seasonality) + sum(self.seasonality)
         init_embeds = torch.ones((self.n_series, embeds_size)) * 0.5
         self.embeds = nn.Embedding(self.n_series, embeds_size)
         self.embeds.weight.data.copy_(init_embeds)
-        #self.register_buffer('seasonality', torch.LongTensor(self.seasonality))
         self.seasonality = torch.LongTensor(self.seasonality)
 
-    #@jit.script_method
     def compute_levels_seasons(self, y, idxs):
         """
         Computes levels and seasons
@@ -125,8 +150,6 @@ class _ESM(_ES):
 
         # Initialize seasonalities
         seas_prod = torch.ones(len(y[:,0])).to(y.device)
-        #seasonalities1 = torch.jit.annotate(List[Tensor], [])
-        #seasonalities2 = torch.jit.annotate(List[Tensor], [])
         seasonalities1 = []
         seasonalities2 = []
         seas_sms1 = torch.ones(1).to(y.device)
@@ -153,7 +176,6 @@ class _ESM(_ES):
             seas_prod = seas_prod * init_seas2[0]
 
         # Initialize levels
-        #levels = torch.jit.annotate(List[Tensor], [])
         levels = []
         levels += [y[:,0]/seas_prod]
 
@@ -161,7 +183,6 @@ class _ESM(_ES):
         ys = y.unbind(1)
         n_time = len(ys)
         for t in range(1, n_time):
-
             seas_prod_t = torch.ones(len(y[:,t])).to(y.device)
             if len(self.seasonality)>0:
                 seas_prod_t = seas_prod_t * seasonalities1[t]
@@ -185,7 +206,6 @@ class _ESM(_ES):
 
         levels = torch.stack(levels).transpose(1,0)
 
-        #seasonalities = torch.jit.annotate(List[Tensor], [])
         seasonalities = []
 
         if len(self.seasonality)>0:
@@ -204,36 +224,36 @@ class _ESM(_ES):
         y_n = torch.log(y_n)
         return y_n
 
-    def predict(self, trend, levels, seasonalities):
-        output_size = self.output_size
-        seasonality = self.seasonality
-        n_time = levels.shape[1]
+    def predict(self, trends, levels, seasonalities, step_size):
+
+        # First trend uses last value of first y_insample of length self.input_size.
+        # Last self.output_size levels are not used (leakeage!!!)
+        levels = levels[:, (self.input_size-1):-self.output_size]
+        levels = levels[:, ::step_size]
+        levels = levels.unsqueeze(2)
+
+        # Seasonalities are unfolded, because each element of trends must be multiplied
+        # by the corresponding seasonality.
+        for i in range(len(seasonalities)):
+            seasonalities[i] = seasonalities[i][:, self.input_size : -self.seasonality[i]]
+            seasonalities[i] = seasonalities[i].unfold(dimension=-1, size=self.output_size, step=step_size)
 
         # Denormalize
-        trend = torch.exp(trend)
-
-        # Completion of seasonalities if prediction horizon is larger than seasonality
-        # Naive2 like prediction, to avoid recursive forecasting
-        for s in range(len(seasonality)):
-            if output_size > seasonality[s]:
-                repetitions = int(np.ceil(output_size/seasonality[s]))-1
-                last_season = seasonalities[s][:, -seasonality[s]:]
-                extra_seasonality = last_season.repeat((1, repetitions))
-                seasonalities[s] = torch.cat((seasonalities[s], extra_seasonality), 1)
-
+        trends = torch.exp(trends)
         # Deseasonalization and normalization (inverse)
-        y_hat = trend * levels[:,[n_time-1]]
-        for s in range(len(seasonality)):
-            y_hat *= seasonalities[s][:, n_time:(n_time+output_size)]
+        y_hat = trends * levels
+        for s in range(len(self.seasonality)):
+            y_hat *= seasonalities[s]
 
         return y_hat
 
 class _RNN(nn.Module):
-    def __init__(self, input_size, output_size, n_s, cell_type, dilations, state_hsize, add_nl_layer):
+    def __init__(self, input_size, output_size, n_t, n_s, cell_type, dilations, state_hsize, add_nl_layer):
         super(_RNN, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
+        self.n_t = n_t
         self.n_s = n_s
 
         self.cell_type = cell_type
@@ -245,7 +265,7 @@ class _RNN(nn.Module):
         layers = []
         for grp_num in range(len(self.dilations)):
             if grp_num == 0:
-                input_size = self.input_size + self.n_s
+                input_size = self.input_size + (self.input_size + self.output_size)*self.n_t + self.n_s
             else:
                 input_size = self.state_hsize
             layer = DRNN(input_size,
@@ -277,36 +297,51 @@ class _RNN(nn.Module):
         input_data = self.adapterW(input_data)
         return input_data
 
-
 class _ESRNN(nn.Module):
-    def __init__(self, n_series, input_size, output_size, n_s, seasonality,
-                 noise_std, cell_type, dilations, state_hsize, add_nl_layer, device):
+    def __init__(self, n_series, input_size, output_size, n_t, n_s,
+                 es_component, seasonality, noise_std, cell_type,
+                 dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
+        assert es_component in ['multiplicative','identity'], f'es_component {es_component} not valid.'
 
-        self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
-                       n_s=n_s, seasonality=seasonality, noise_std=noise_std,
-                       device=device).to(device)
-        self.rnn = _RNN(input_size=input_size, output_size=output_size, n_s=n_s,
+        if es_component == 'multiplicative':
+            self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
+                           n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                           device=device).to(device)
+        elif es_component == 'identity':
+            self.es = _ESI(n_series=n_series, input_size=input_size, output_size=output_size,
+                           n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                           device=device).to(device)
+        self.rnn = _RNN(input_size=input_size, output_size=output_size, n_t=n_t, n_s=n_s,
                         cell_type=cell_type, dilations=dilations, state_hsize=state_hsize,
                         add_nl_layer=add_nl_layer).to(device)
 
-    def forward(self, insample_y, s_matrix, idxs):
+    def forward(self, insample_y, insample_x, s_matrix, step_size, idxs):
         # ES Forward
-        windows_y_hat, windows_y, levels, seasonalities = self.es(insample_y=insample_y,
-                                                                  s_matrix=s_matrix, idxs=idxs)
+        windows_y_insample, windows_y_outsample, levels, seasonalities = self.es(y=insample_y,
+                                                                                 x=insample_x,
+                                                                                 s_matrix=s_matrix,
+                                                                                 step_size=step_size,
+                                                                                 idxs=idxs)
         # RNN Forward
-        windows_y_hat = self.rnn(windows_y_hat)
+        windows_y_hat = self.rnn(windows_y_insample)
 
-        return windows_y, windows_y_hat, levels
+        return windows_y_outsample, windows_y_hat, levels
 
-    def predict(self, insample_y, s_matrix, idxs):
+    def predict(self, insample_y, insample_x, s_matrix, step_size, idxs):
         # ES Forward
-        windows_y_hat, _, levels, seasonalities = self.es(insample_y=insample_y,
-                                                          s_matrix=s_matrix, idxs=idxs)
-
+        windows_y_insample, windows_y_outsample, levels, seasonalities = self.es(y=insample_y,
+                                                                                 x=insample_x,
+                                                                                 s_matrix=s_matrix,
+                                                                                 step_size=step_size,
+                                                                                 idxs=idxs)
         # RNN Forward
-        windows_y_hat = self.rnn(windows_y_hat)
-        trend = windows_y_hat[-1,:,:] # Last observation prediction
+        trends = self.rnn(windows_y_insample)
 
-        y_hat = self.es.predict(trend, levels, seasonalities)
-        return y_hat
+        # (n_windows, batch_size, input_size) -> (batch_size, n_windows, input_size)
+        trends = trends.permute(1,0,2)
+        windows_y_outsample = windows_y_outsample.permute(1,0,2)
+
+        y_hat = self.es.predict(trends, levels, seasonalities, step_size)
+
+        return windows_y_outsample, y_hat
