@@ -5,6 +5,8 @@ __all__ = ['Newey_West', 'GW_CPA_test', 'GW_test_p_values', 'plot_GW_test_p_valu
 # Cell
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+
 from scipy.stats.distributions import chi2
 
 # Cell
@@ -149,8 +151,9 @@ def plot_GW_test_p_values(y, y_hat, model_names,
                                 alpha=0.05, unconditional=True)
 
     fig, ax = plt.subplots()
+
     #im = ax.imshow(p_values, cmap=plt.get_cmap('GnBu'), alpha=0.4)
-    im = ax.imshow(p_values, cmap=plt.get_cmap('Blues'), alpha=0.4)
+    im = ax.imshow(p_values, cmap=plt.get_cmap('Blues_r'), alpha=0.8)
     #im = ax.imshow(p_values, cmap=plt.get_cmap('RdYlGn'), alpha=0.3)
 
     # Ticks and labels
@@ -163,7 +166,7 @@ def plot_GW_test_p_values(y, y_hat, model_names,
 
     for i in range(len(model_names)):
         text = ax.text(i, i, 'x',
-                       ha="center", va="center", color="b")
+                       ha="center", va="center", color="w")
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=90,
