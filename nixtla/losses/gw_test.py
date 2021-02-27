@@ -3,11 +3,18 @@
 __all__ = ['Newey_West', 'GW_CPA_test', 'GW_test_p_values', 'plot_GW_test_p_values']
 
 # Cell
+import os
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-
 from scipy.stats.distributions import chi2
+
+# Cell
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from matplotlib import rcParams
+plt.rcParams['font.family'] = 'serif'
+
+from matplotlib.colors import ListedColormap
 
 # Cell
 def Newey_West(Z, n_lags):
@@ -139,21 +146,33 @@ def GW_test_p_values(y, y_hat, tau, alpha=0.05, unconditional=True):
                                 verbose=False)
                 p_values[i,j] = p_val
 
-    #hm = sns.heatmap(p_values, linewidth=0.05)
-    #hm.plot()
-
-    return p_values#, hm
+    return p_values
 
 
 def plot_GW_test_p_values(y, y_hat, model_names,
-                          tau, alpha=0.05, unconditional=True, title='GW Test'):
+                          tau, alpha=0.05, unconditional=True,
+                          verbose=True, title='GW Test'):
+
     p_values = GW_test_p_values(y=y, y_hat=y_hat, tau=tau,
                                 alpha=0.05, unconditional=True)
 
-    fig, ax = plt.subplots()
+    if verbose:
+        print(p_values)
 
-    #im = ax.imshow(p_values, cmap=plt.get_cmap('GnBu'), alpha=0.4)
-    im = ax.imshow(p_values, cmap=plt.get_cmap('Blues_r'), alpha=0.8)
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    # # Defining color map
+    # red = np.concatenate([np.linspace(0, 1, 50), np.linspace(1, 0.5, 50)[1:], [0]])
+    # green = np.concatenate([np.linspace(0.5, 1, 50), np.zeros(50)])
+    # blue = np.zeros(100)
+    # rgb_color_map = np.concatenate([red.reshape(-1, 1), green.reshape(-1, 1),
+    #                                 blue.reshape(-1, 1)], axis=1)
+    # rgb_color_map = mpl.colors.ListedColormap(rgb_color_map)
+
+    # Generating figure
+    # im = plt.imshow(p_values, cmap=plt.get_cmap('Blues_r'), vmin=0, vmax=0.1)
+    im = ax.imshow(p_values, cmap=plt.get_cmap('GnBu_r'), vmin=0, vmax=0.1)
+    #im = ax.imshow(p_values, cmap=plt.get_cmap('Blues_r'), alpha=0.8)
     #im = ax.imshow(p_values, cmap=plt.get_cmap('RdYlGn'), alpha=0.3)
 
     # Ticks and labels
@@ -161,8 +180,8 @@ def plot_GW_test_p_values(y, y_hat, model_names,
     ax.set_xticks(np.arange(len(p_values)))
     ax.set_yticks(np.arange(len(p_values)))
 
-    ax.set_xticklabels(model_names)
-    ax.set_yticklabels(model_names)
+    ax.set_xticklabels(model_names, fontsize=16)
+    ax.set_yticklabels(model_names, fontsize=16)
 
     for i in range(len(model_names)):
         text = ax.text(i, i, 'x',
@@ -172,8 +191,12 @@ def plot_GW_test_p_values(y, y_hat, model_names,
     plt.setp(ax.get_xticklabels(), rotation=90,
              ha="right", rotation_mode="anchor")
 
-    fig.colorbar(im)
+    # Colorbar
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im, cax=cax)
 
-    ax.set_title(title)
+    ax.set_title(title, fontsize=17, fontweight='bold')
     fig.tight_layout()
+    plt.savefig(f'./results/{title}.pdf', bbox_inches = 'tight')
     plt.show()
