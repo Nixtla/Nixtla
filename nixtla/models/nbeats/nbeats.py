@@ -459,7 +459,8 @@ class Nbeats(object):
                 optimizer.zero_grad()
                 forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
                                         insample_x_t=insample_x, outsample_x_t=outsample_x,
-                                        insample_mask=insample_mask)
+                                        insample_mask=insample_mask,
+                                        return_decomposition=False)
 
                 training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
                                                  target=outsample_y, mask=outsample_mask)

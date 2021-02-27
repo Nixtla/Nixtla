@@ -80,10 +80,6 @@ class NBeatsBlock(nn.Module):
             insample_y = t.cat(( insample_y, insample_x_t.reshape(batch_size, -1) ), 1)
             insample_y = t.cat(( insample_y, outsample_x_t.reshape(batch_size, -1) ), 1)
 
-        # print(insample_y)
-        # print(insample_y.shape)
-        # assert 1<0, 'PARAR'
-
         # Static exogenous
         if (self.x_s_n_inputs > 0) and (self.x_s_n_hidden > 0):
             x_s = self.static_encoder(x_s)
@@ -102,17 +98,55 @@ class NBeats(nn.Module):
     def __init__(self, blocks: nn.ModuleList):
         super().__init__()
         self.blocks = blocks
-        #self.hardshrink = nn.Hardshrink(lambd=0.001)
 
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                outsample_x_t: t.Tensor, x_s: t.Tensor, return_decomposition = False):
+                outsample_x_t: t.Tensor, x_s: t.Tensor, return_decomposition=False):
+
+        if return_decomposition:
+            forecast, block_forecasts = self.forecast_decomposition(insample_y=insample_y,
+                                                                    insample_x_t=insample_x_t,
+                                                                    insample_mask=insample_mask,
+                                                                    outsample_x_t=outsample_x_t,
+                                                                    x_s=x_s)
+            return forecast, block_forecasts
+
+        else:
+            forecast = self.forecast(insample_y=insample_y,
+                                     insample_x_t=insample_x_t,
+                                     insample_mask=insample_mask,
+                                     outsample_x_t=outsample_x_t,
+                                     x_s=x_s)
+            return forecast
+
+    def forecast(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
+                 outsample_x_t: t.Tensor, x_s: t.Tensor):
 
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
 
         forecast = insample_y[:, -1:] # Level with Naive1
-        block_forecasts = []
+        for i, block in enumerate(self.blocks):
+            backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
+                                             outsample_x_t=outsample_x_t, x_s=x_s)
+            residuals = (residuals - backcast) * insample_mask
+            forecast = forecast + block_forecast
+
+        return forecast
+
+    def forecast_decomposition(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
+                               outsample_x_t: t.Tensor, x_s: t.Tensor):
+
+        residuals = insample_y.flip(dims=(-1,))
+        insample_x_t = insample_x_t.flip(dims=(-1,))
+        insample_mask = insample_mask.flip(dims=(-1,))
+
+        n_batch, n_channels, n_t = outsample_x_t.size(0), outsample_x_t.size(1), outsample_x_t.size(2)
+
+        level = insample_y[:, -1:] # Level with Naive1
+        block_forecasts = [ level.repeat(1, n_t) ]
+
+        forecast = level
         for i, block in enumerate(self.blocks):
             backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
                                              outsample_x_t=outsample_x_t, x_s=x_s)
@@ -120,30 +154,11 @@ class NBeats(nn.Module):
             forecast = forecast + block_forecast
             block_forecasts.append(block_forecast)
 
-        # (n_batch, n_blocks, n_time)
+        # (n_batch, n_blocks, n_t)
         block_forecasts = t.stack(block_forecasts)
         block_forecasts = block_forecasts.permute(1,0,2)
 
-        if return_decomposition:
-            return forecast, block_forecasts
-        else:
-            return forecast
-
-    def decomposed_prediction(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                              outsample_x_t: t.Tensor):
-
-        residuals = insample_y.flip(dims=(-1,))
-        insample_x_t = insample_x_t.flip(dims=(-1,))
-        insample_mask = insample_mask.flip(dims=(-1,))
-
-        forecast = insample_y[:, -1:] # Level with Naive1
-        forecast_components = []
-        for i, block in enumerate(self.blocks):
-            backcast, block_forecast = block(residuals, insample_x_t, outsample_x_t)
-            residuals = (residuals - backcast) * insample_mask
-            forecast = forecast + block_forecast
-            forecast_components.append(block_forecast)
-        return forecast, forecast_components
+        return forecast, block_forecasts
 
 class IdentityBasis(nn.Module):
     def __init__(self, backcast_size: int, forecast_size: int):

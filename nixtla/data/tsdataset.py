@@ -156,7 +156,7 @@ class TimeSeriesDataset(Dataset):
             s_data.append(s_data_i)
 
             # Metadata
-            last_ds_i  = Y_df[top_row:bottom_row]['ds'].max()
+            last_ds_i  = Y_df[top_row:bottom_row]['ds']
             meta_data_i = {'unique_id': u_id,
                            'last_ds': last_ds_i}
             meta_data.append(meta_data_i)
