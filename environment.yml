@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
   - python=3.7
+  - mkl=2018
   - hyperopt
   - matplotlib
   - pandas
