@@ -4,8 +4,8 @@ __all__ = ['init_weights', 'Nbeats']
 
 # Cell
 import os
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 import time
 import numpy as np
 import pandas as pd
@@ -530,7 +530,7 @@ class Nbeats(object):
             print('='*30+'  End fitting  '+'='*30)
             print('\n')
 
-    def predict(self, ts_loader, X_test=None, eval_mode=False, return_decomposition=False):
+    def predict(self, ts_loader, return_decomposition=False):
         self.model.eval()
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
@@ -546,9 +546,11 @@ class Nbeats(object):
                 outsample_x    = self.to_tensor(batch['outsample_x'])
                 s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast, block_forecast = self.model(insample_y=insample_y, insample_x_t=insample_x,
-                                                      insample_mask=insample_mask, outsample_x_t=outsample_x,
-                                                      x_s=s_matrix, return_decomposition=True) # always return, then use or not
+                forecast, block_forecast = self.model(insample_y=insample_y,
+                                                      insample_x_t=insample_x,
+                                                      insample_mask=insample_mask,
+                                                      outsample_x_t=outsample_x,
+                                                      x_s=s_matrix, return_decomposition=True)
                 forecasts.append(forecast.cpu().data.numpy())
                 block_forecasts.append(block_forecast.cpu().data.numpy())
                 outsample_ys.append(batch['outsample_y'])
@@ -560,43 +562,60 @@ class Nbeats(object):
         outsample_masks = np.vstack(outsample_masks)
 
         n_series = ts_loader.ts_dataset.n_series
+        _, n_components, _ = block_forecast.size() #(n_windows, n_components, output_size)
         n_fcds = len(outsample_ys) // n_series
         outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
         forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
         outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
-        #TODO: reshape block_forecasts
+        block_forecasts = block_forecasts.reshape(n_series, n_fcds, n_components, self.output_size)
 
         self.model.train()
-        if eval_mode:
-            if return_decomposition:
-                return outsample_ys, forecasts, block_forecasts, outsample_masks
-            else:
-                return outsample_ys, forecasts, outsample_masks
+        if return_decomposition:
+            return outsample_ys, forecasts, block_forecasts, outsample_masks
+        else:
+            return outsample_ys, forecasts, outsample_masks
+
+    def forecast(self, Y_df, X_df, f_cols):
+        # Last output_size mask for predictions
+        mask_df = Y_df.copy()
+        mask_df = mask_df[['unique_id', 'ds']]
+        sample_mask = np.zeros(len(mask_df))
+        sample_mask[-self.output_size:] = 1
+        mask_df['sample_mask'] = sample_mask
+        mask_df['available_mask'] = np.ones(len(mask_df))
+
+        # Model inputs
+        test_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, mask_df=mask_df, f_cols=f_cols)
+
+        test_ts_loader = TimeSeriesLoader(model='nbeats',
+                                          ts_dataset=test_ts_dataset,
+                                          window_sampling_limit=len(X_df),
+                                          offset=0,
+                                          input_size=self.input_size,
+                                          output_size=self.output_size,
+                                          idx_to_sample_freq=1,
+                                          batch_size=1,
+                                          complete_inputs=True,
+                                          complete_sample=True,
+                                          n_series_per_batch=1,
+                                          shuffle=False)
+
+        # Model prediction
+        _, forecasts, _ = self.predict(ts_loader=test_ts_loader, return_decomposition=False)
 
         # Pandas wrangling
-        frequency = ts_loader.get_frequency()
-        unique_ids = ts_loader.get_meta_data_col('unique_id')
-        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
-
-        # Predictions for panel
-        Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
-        for i, unique_id in enumerate(unique_ids):
-            Y_hat_id = pd.DataFrame([unique_id]*self.output_size, columns=["unique_id"])
-            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=frequency)
-            Y_hat_id["ds"] = ds[1:]
-            Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
-
-        Y_hat_panel['y_hat'] = forecasts.flatten()
-
-        if X_test is not None:
-            Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
-
-        return Y_hat_panel
+        Y_hat_df = Y_df.copy()
+        Y_hat_df = Y_hat_df[['unique_id', 'ds']]
+        Y_hat_df = Y_hat_df.tail(self.output_size) #Keep last output_size rows
+        Y_hat_df['y_hat'] = forecasts.flatten()
+        Y_hat_df = Y_hat_df.reset_index(drop=True)
+        return Y_hat_df
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
         self.model.eval()
 
-        target, forecast, outsample_mask = self.predict(ts_loader=ts_loader, eval_mode=True)
+        target, forecast, outsample_mask = self.predict(ts_loader=ts_loader,
+                                                        return_decomposition=False)
 
         complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
 
