@@ -3,6 +3,10 @@
 __all__ = ['SOURCE_URL', 'NP', 'PJM', 'BE', 'FR', 'DE', 'EPFInfo', 'EPF']
 
 # Cell
+import os
+if not os.path.exists('./results/'):
+    os.makedirs('./results/')
+
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
