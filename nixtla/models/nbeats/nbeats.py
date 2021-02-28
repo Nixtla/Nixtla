@@ -4,6 +4,8 @@ __all__ = ['init_weights', 'Nbeats']
 
 # Cell
 import os
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 import time
 import numpy as np
 import pandas as pd
@@ -482,7 +484,7 @@ class Nbeats(object):
                                                                                             self.loss,
                                                                                             training_loss.cpu().data.numpy())
                     self.trajectories['iteration'].append(iteration)
-                    self.trajectories['train_loss'].append(np.float(training_loss.cpu().data.numpy()))
+                    self.trajectories['train_loss'].append(float(training_loss.cpu().data.numpy()))
 
                     if val_ts_loader is not None:
                         loss = self.evaluate_performance(ts_loader=val_ts_loader,
@@ -515,7 +517,7 @@ class Nbeats(object):
         #End of fitting
         if n_iterations >0:
             # This is batch loss!
-            self.final_insample_loss = np.float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
+            self.final_insample_loss = float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
             string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                             time.time()-start,
                                                                             self.loss,
