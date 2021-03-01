@@ -232,6 +232,6 @@ def rmae(y: np.ndarray,
     scalar: rMAE
     """
     numerator = mae(y=y, y_hat=y_hat1, weights=weights)
-    denominarator = mae(y=y, y_hat=y_hat2, weights=weights)
-    rmae = numerator/denominarator
+    denominator = mae(y=y, y_hat=y_hat2, weights=weights)
+    rmae = numerator/denominator
     return rmae
