@@ -20,6 +20,7 @@ from .utils.losses import SmylLoss, PinballLoss
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
+
 # Cell
 #TODO: eval_mode=False
 #TODO: cambiar por similar a Nbeats
