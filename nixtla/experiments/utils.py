@@ -335,7 +335,7 @@ def model_fit_predict(mc, Y_df, X_df, S_df, timestamps_in_outsample, expected_fc
     if mc['model'] in ['nbeats', 'tcn']:
         model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, verbose=True,
                     eval_freq=mc['eval_freq'])
-        y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, eval_mode=True)
+        y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, return_decomposition=False)
 
     elif mc['model'] in ['esrnn', 'rnn']:
         model.fit(train_ts_loader=train_ts_loader, verbose=True, eval_freq=mc['eval_freq'])
