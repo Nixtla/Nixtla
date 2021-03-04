@@ -92,7 +92,7 @@ plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
 
-![Data](https://github.com/Nixtla/nixtla/nbs/results/NP.pdf)
+![Data](nixtla/nbs/results/NP.pdf)
 
 
 Here we declare model and data hyperparameters.
@@ -234,6 +234,9 @@ plt.ylabel('Price [EUR/MWh]', fontsize=15)
 plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
+
+![Predictions](nixtla/nbs/results/NP_predictions.pdf)
+
 
 ## Authors
 This repository was developed with joint efforts from AutonLab researchers at Carnegie Mellon University and Abraxas data scientists.
