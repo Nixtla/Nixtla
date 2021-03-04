@@ -1,159 +1,108 @@
-# Nixtla
+# **Nixtla** - Machine learning for time series forecasting
+> [nikstla] (noun, nahuatl) Period of time.
 
 
+[![Build](https://github.com/kdgutier/esrnn_torch/workflows/Python%20package/badge.svg?branch=master)](https://github.com/kdgutier/esrnn_torch/tree/master)
+[![PyPI version fury.io](https://badge.fury.io/py/ESRNN.svg)](https://pypi.python.org/pypi/ESRNN/)
+[![Downloads](https://pepy.tech/badge/esrnn)](https://pepy.tech/project/esrnn)
+[![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/kdgutier/esrnn_torch/blob/master/LICENSE)
 
-[nikstla] (noun, nahuatl) Period of time
-> Machine learning for time series forecasting.
+**Nixtla** is a **forecasting library** for **state of the art** statistical and **machine learning models**, currently hosting the [ESRNN](https://www.sciencedirect.com/science/article/pii/S0169207019301153), and the [NBEATSX](https://arxiv.org/abs/1905.10437) models.
 
-## Install
+Nixtla aims to store tools and models with the capacity to provide **highly accurate forecasts** with **comparable** performance to that of [Amazon Web Services](https://aws.amazon.com/es/forecast/), [Azure](https://docs.microsoft.com/en-us/azure/machine-learning/), or [DataRobot](https://www.datarobot.com/platform/automated-time-series/).
 
-`pip install nixtla`
+* [Documentation (stable version)]()
+* [Documentation (latest)]()
+* [JMLR MLOSS Paper]()
+* [ArXiv Paper]()
 
-## How to use
+## Installation
 
-Import a dataset and NBEATS model
+### Stable version
 
-```
-from IPython.display import Markdown
-from nixtla.data.datasets import EPF
-from nixtla.data.ts_loader import TimeSeriesLoader
-from nixtla.models import Nbeats
+This code is a work in progress, any contributions or issues are welcome on
+GitHub at: https://github.com/Nixtla/nixtla
 
-pjm = EPF.load(directory='data', group='PJM')
-```
+You can install the *released version* of `Nixtla` from the [Python package index](https://pypi.org) with:
 
-    Processing dataframes ...
-    Creating ts tensor ...
-
-
-Loader parameters
-
-```
-window_sampling_limit = 365
-input_size_multiplier = 3
-output_size = 24 * 4
-offset = 30 * output_size
+```python
+pip install nixtla
 ```
 
-```
-ts_loader = TimeSeriesLoader(ts_dataset=pjm,
-                             offset=offset,
-                             window_sampling_limit=window_sampling_limit,
-                             input_size=input_size_multiplier * output_size,
-                             output_size=output_size,
-                             idx_to_sample_freq=1,
-                             batch_size=512,
-                             model='nbeats')
-```
+(installing inside a python virtualenvironment or a conda environment is warmly recommended).
 
-    Creating windows matrix ...
+### Development version
 
-
+You may want to test the current development version; follow the steps below in that case (clone the git repository and install the Python requirements):
+```bash
+git clone https://github.com/Nixtla/nixtla.git
+cd nixtla
+python setup.py bdist_wheel
+cd ../
+pip install nixtla/dist/nixtla-XX.whl
 ```
-model = Nbeats(input_size_multiplier=input_size_multiplier,
-               output_size=output_size,
-               shared_weights=False,
-               stack_types=['identity'],
-               n_blocks=[1],
-               n_layers=[4],
-               n_hidden=[256],
-               exogenous_in_mlp=False,
-               learning_rate=0.001,
-               lr_decay=1.0,
-               n_lr_decay_steps=3,
-               n_iterations=10,
-               early_stopping=None,
-               loss='MAPE',
-               random_seed=1)
+where XX is the latest version downloaded.
+
+#### Development version in development mode
+
+If you want to make some modifications to the code and see the effects in real time (without reinstalling), follow the steps below:
+
+```bash
+git clone https://github.com/Nixtla/nixtla.git
+cd nixtla
+pip install -e .
 ```
 
-```
-model.fit(ts_loader, eval_steps=2)
-```
+## Currently available models
 
-    ============================== Start fitting ==============================
-    Number of exogenous variables: 9
-    Number of static variables: 0 , with dim_hidden: 1
-    Number of iterations: 10
-    Number of blocks: 1
-    Step: 0, Time: 0.028, Insample MAPE: 0.39416
-    Step: 2, Time: 0.098, Insample MAPE: 0.37484
-    Step: 4, Time: 0.168, Insample MAPE: 0.37288
-    Step: 6, Time: 0.238, Insample MAPE: 0.34576
-    Step: 8, Time: 0.308, Insample MAPE: 0.29966
+* [Exponential Smoothing Recurrent Neural Network (ESRNN)](https://www.sciencedirect.com/science/article/pii/S0169207019301153), a hybrid model that combines the expressivity of non linear models to capture the trends while it normalizes using a Holt-Winters inspired model for the levels and seasonals.  This model is the winner of the M4 forecasting competition.
 
+<!--- ![ESRNN](/indx_imgs/ESRNN.png) -->
 
-```
-y_hat = model.predict(ts_loader)
+* [Neural Basis Expansion Analysis with Exogenous Variables (NBEATSX)](https://arxiv.org/abs/1905.10437) is a model from Element-AI (Yoshua Bengio’s lab) that has proven to achieve state of the art performance on benchmark large scale forecasting datasets like Tourism, M3, and M4. The model is fast to train an has an interpretable configuration.
+
+<!--- ![NBEATSX](/indx_imgs/NBEATSX.png) -->
+
+## Usage
+
+KIN
+
+```python
+# Code
 ```
 
-```
-Markdown(y_hat.head().to_markdown(index=False))
-```
+## Authors
+This repository was developed with joint efforts from AutonLab researchers at Carnegie Mellon University and Abraxas data scientists.
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/kdgutier/esrnn_torch/blob/master/LICENSE) file for details.
+
+## How to cite
+
+If you use `Nixtla` in a scientific publication, we encourage you to add
+the following references to the related papers:
 
 
-
-
-| unique_id   | ds                  |   y_hat |
-|:------------|:--------------------|--------:|
-| PJM         | 2016-12-27 23:00:00 | 21.1163 |
-| PJM         | 2016-12-28 23:00:00 | 18.7953 |
-| PJM         | 2016-12-29 23:00:00 | 20.5183 |
-| PJM         | 2016-12-30 23:00:00 | 19.2623 |
-| PJM         | 2016-12-31 23:00:00 | 16.1545 |
-
-
-
-# ESRNN
-
-```
-from nixtla.models import ESRNN
-
-pjm = EPF.load_groups(directory='data', groups=['NP', 'PJM'], return_tensor=False)
-pjm_test = EPF.load_groups(directory='data', groups=['NP', 'PJM'], training=False, return_tensor=False)
+```bibtex
+@article{nixtla_arxiv,
+  author  = {XXXX},
+  title   = {{Nixtla: Machine learning for time series forecasting}},
+  journal = {arXiv preprint arXiv:XXX.XXX},
+  year    = {2021}
+}
 ```
 
+<!---
+
+## Citing
+
+```bibtex
+@article{,
+    author = {},
+    title = {{}},
+    journal = {},
+    year = {}
+}
 ```
-esrnn_model = ESRNN(max_epochs=2, input_size=48, 
-                    batch_size=2,
-                    output_size=728, seasonality=[24])
-```
-
-```
-X = pjm.Y[['unique_id', 'ds']]
-X['x'] = 1
-```
-
-```
-esrnn_model.fit(X, pjm.Y)
-```
-
-    Infered frequency: H
-    =============== Training ESRNN  ===============
-    
-    ========= Epoch 0 finished =========
-    Training time: 5.12275
-    Training loss (50 prc): 0.27288
-    ========= Epoch 1 finished =========
-    Training time: 5.25982
-    Training loss (50 prc): 0.27159
-    Train finished! 
-    
-
-
-```
-Markdown(esrnn_model.predict(pjm_test.Y).head().to_markdown(index=False))
-```
-
-
-
-
-| unique_id   | ds                  |     y |   y_hat |
-|:------------|:--------------------|------:|--------:|
-| NP          | 2016-12-27 00:00:00 | 24.08 | 28.6131 |
-| NP          | 2016-12-27 01:00:00 | 22.52 | 23.1586 |
-| NP          | 2016-12-27 02:00:00 | 20.13 | 19.901  |
-| NP          | 2016-12-27 03:00:00 | 19.86 | 24.0669 |
-| NP          | 2016-12-27 04:00:00 | 20.09 | 25.3265 |
-
-
+-->
