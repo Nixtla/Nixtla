@@ -1,4 +1,4 @@
-# Nixtla - Machine learning for time series forecasting
+# **Nixtla** - Machine learning for time series forecasting
 > [nikstla] (noun, nahuatl) Period of time.
 
 
@@ -13,12 +13,12 @@
 ### Stable version
 
 This code is a work in progress, any contributions or issues are welcome on
-GitHub at: https://github.com/Nixtla/Nixtla
+GitHub at: https://github.com/Nixtla/nixtla
 
-You can install the *released version* of `Nixtla` from the [Python package index](https://pypi.org) with:
+You can install the *released version* of `nixtla` from the [Python package index](https://pypi.org) with:
 
 ```python
-pip install Nixtla
+pip install nixtla
 ```
 
 (installing inside a python virtualenvironment or a conda environment is warmly recommended).
@@ -27,11 +27,11 @@ pip install Nixtla
 
 You may want to test the current development version; follow the steps below in that case (clone the git repository and install the Python requirements):
 ```bash
-git clone https://github.com/Nixtla/Nixtla.git
-cd Nixtla
+git clone https://github.com/Nixtla/nixtla.git
+cd nixtla
 python setup.py bdist_wheel
 cd ../
-pip install Nixtla/dist/Nixtla-XX.whl
+pip install nixtla/dist/nixtla-XX.whl
 ```
 where XX is the latest version downloaded.
 
@@ -40,8 +40,8 @@ where XX is the latest version downloaded.
 If you want to make some modifications to the code and see the effects in real time (without reinstalling), follow the steps below:
 
 ```bash
-git clone https://github.com/Nixtla/Nixtla.git
-cd Nixtla
+git clone https://github.com/Nixtla/nixtla.git
+cd nixtla
 pip install -e .
 ```
 
