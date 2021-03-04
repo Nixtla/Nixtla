@@ -226,14 +226,15 @@ end   = (window_pred_idx+1)*mc['output_size']
 x_plot = x_outsample[start:end]
 
 fig = plt.figure(figsize=(10, 4))
-plt.plot(x_plot, y_true[0, window_pred_idx, :])
-plt.plot(x_plot, y_hat[0, window_pred_idx, :])
+plt.plot(x_plot, y_true[0, window_pred_idx, :], label='true')
+plt.plot(x_plot, y_hat[0, window_pred_idx, :], label='forecast')
 plt.ylabel('Price [EUR/MWh]', fontsize=15)
+plt.legend(fontsize=15)
 plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
 
-<img src="https://github.com/Nixtla/nixtla/blob/98471b1cf43ed294f83ec0796b8d28ac71db2ac8/nbs/results/NP_predictions.png" width="800" height="480">
+<img src="https://github.com/Nixtla/nixtla/blob/98471b1cf43ed294f83ec0796b8d28ac71db2ac8/nbs/results/NP_predictions.png" width="800" height="300">
 
 
 ## Authors
