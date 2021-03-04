@@ -1,4 +1,4 @@
-<img src="https://github.com/Nixtla/nixtla/blob/a36f9988575a3e23ed14c8c8fe2b343cdbe5019c/nixtla_logo.png" width="200" height="160"> 
+<img src="https://github.com/Nixtla/nixtla/blob/a36f9988575a3e23ed14c8c8fe2b343cdbe5019c/nixtla_logo.png" width="200" height="160">
 
 # **Nixtla** - Machine learning for time series forecasting
 > [nikstla] (noun, nahuatl) Period of time.
@@ -92,7 +92,11 @@ plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
 
-![Data](nixtla/nbs/results/NP.pdf)
+<object data="http://https://pdfhost.io/v/l77MljGvT_NP_predictionspdf.pdf" type="application/pdf" width="700px" height="700px">
+    <embed src="http://https://pdfhost.io/v/l77MljGvT_NP_predictionspdf.pdf">
+        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="http://https://pdfhost.io/v/l77MljGvT_NP_predictionspdf.pdf">Download PDF</a>.</p>
+    </embed>
+</object>
 
 
 Here we declare model and data hyperparameters.
