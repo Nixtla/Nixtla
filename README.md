@@ -26,7 +26,7 @@ pip install Nixtla
 ### Development version
 
 You may want to test the current development version; follow the steps below in that case (clone the git repository and install the Python requirements):
-```
+```bash
 git clone https://github.com/Nixtla/Nixtla.git
 cd Nixtla
 python setup.py bdist_wheel
@@ -39,7 +39,7 @@ where XX is the latest version downloaded.
 
 If you want to make some modifications to the code and see the effects in real time (without reinstalling), follow the steps below:
 
-```
+```bash
 git clone https://github.com/Nixtla/Nixtla.git
 cd Nixtla
 pip install -e .
