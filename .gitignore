@@ -140,3 +140,6 @@ checklink/cookies.txt
 .gitconfig
 
 nbs/data
+*.csv
+data/
+*.pdf
