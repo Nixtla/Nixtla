@@ -1,4 +1,6 @@
-<img src="https://github.com/Nixtla/nixtla/blob/a36f9988575a3e23ed14c8c8fe2b343cdbe5019c/nixtla_logo.png" width="200" height="160"> # **Nixtla** - Machine learning for time series forecasting
+<img src="https://github.com/Nixtla/nixtla/blob/a36f9988575a3e23ed14c8c8fe2b343cdbe5019c/nixtla_logo.png" width="200" height="160"> 
+
+# **Nixtla** - Machine learning for time series forecasting
 > [nikstla] (noun, nahuatl) Period of time.
 
 
