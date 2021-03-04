@@ -68,10 +68,171 @@ pip install -e .
 
 ## Usage
 
-KIN
+Here we show a usage example, where we load data, instantiate loaders and model, train and make predictions.
+
+
+Here load daily electricity prices from the Nord Pool dataset.
+```python
+import pandas as pd
+from nixtla.data.datasets.epf import EPF, EPFInfo
+from nixtla.data.tsloader_general import TimeSeriesLoader
+from nixtla.experiments.utils import create_datasets
+
+import pylab as plt
+from pylab import rcParams
+plt.style.use('seaborn-whitegrid')
+plt.rcParams['font.family'] = 'serif'
+
+Y_df, X_df, S_df = EPF.load_groups(directory='../data', groups=['NP'])
+
+fig = plt.figure(figsize=(15, 6))
+plt.plot(Y_df.ds, Y_df.y.values, color='#628793', linewidth=0.4)
+plt.ylabel('Price [EUR/MWh]', fontsize=15)
+plt.xlabel('Date', fontsize=15)
+plt.show()
+```
+
+![Data](https://github.com/Nixtla/nixtla/nbs/results/NP.pdf)
+
+
+Here we declare model and data hyperparameters.
+```python
+# Architecture parameters
+mc = {}
+mc['model'] = 'nbeatsx'
+mc['input_size_multiplier'] = 1
+mc['output_size'] = 24*7
+mc['stack_types'] = ['trend', 'seasonality', 'exogenous_wavenet']
+mc['activation'] = 'selu'
+mc['n_blocks'] = [1, 1, 1]
+mc['n_layers'] = [2, 2, 2]
+mc['n_hidden'] = 256
+mc['exogenous_n_channels'] = 20
+mc['x_s_n_hidden'] = 0
+mc['shared_weights'] = False
+mc['n_harmonics'] = 2
+mc['n_polynomials'] = 10
+
+# Optimization and regularization parameters
+mc['initialization'] = 'lecun_normal'
+mc['learning_rate'] = 0.001
+mc['batch_size'] = 512
+mc['lr_decay'] = 0.5
+mc['n_lr_decay_steps'] = 3
+mc['n_iterations'] = 3000
+mc['early_stopping'] = 10
+mc['eval_freq'] = 200
+mc['batch_normalization'] = False
+mc['dropout_prob_theta'] = 0
+mc['dropout_prob_exogenous'] = 0
+mc['l1_theta'] = 0
+mc['weight_decay'] = 0.00005
+mc['loss'] = 'MAE'
+mc['loss_hypar'] = 0.5
+mc['val_loss'] = mc['loss']
+mc['random_seed'] = 1
+
+# Data Parameters
+mc['idx_to_sample_freq'] = 1
+mc['n_val_weeks'] = 52
+mc['window_sampling_limit'] = 500_000
+mc['normalizer_y'] = None
+mc['normalizer_x'] = 'median'
+mc['complete_inputs'] = False
+mc['frequency'] = 'H'
+mc['seasonality'] = 24
+
+print(65*'=')
+print(pd.Series(mc))
+print(65*'=')
+
+mc['n_hidden'] = len(mc['stack_types']) * [ [int(mc['n_hidden']), int(mc['n_hidden'])] ]
+```
+
+Here we instantiate the model and dataloaders.
 
 ```python
-# Code
+train_ts_dataset, outsample_ts_dataset, scaler_y = create_datasets(mc, Y_df, X_df, S_df, 728*24, False, 0)
+
+train_ts_loader = TimeSeriesLoader(ts_dataset=train_ts_dataset,
+                                    model='nbeats',
+                                    offset=0,
+                                    window_sampling_limit=int(mc['window_sampling_limit']),
+                                    input_size=int(mc['input_size_multiplier']*mc['output_size']),
+                                    output_size=int(mc['output_size']),
+                                    idx_to_sample_freq=int(mc['idx_to_sample_freq']),
+                                    batch_size=int(mc['batch_size']),
+                                    complete_inputs=mc['complete_inputs'],
+                                    complete_sample=False,
+                                    shuffle=True)
+
+val_ts_loader = TimeSeriesLoader(#ts_dataset=outsample_ts_dataset,
+                                 ts_dataset=train_ts_dataset,
+                                 model='nbeats',
+                                 offset=0,
+                                 window_sampling_limit=int(mc['window_sampling_limit']),
+                                 input_size=int(mc['input_size_multiplier']*mc['output_size']),
+                                 output_size=int(mc['output_size']),
+                                 idx_to_sample_freq=24*7,
+                                 batch_size=int(mc['batch_size']),
+                                 complete_inputs=False,
+                                 complete_sample=False,
+                                 shuffle=False)
+
+model = Nbeats(input_size_multiplier=mc['input_size_multiplier'],
+                output_size=int(mc['output_size']),
+                shared_weights=mc['shared_weights'],
+                initialization=mc['initialization'],
+                activation=mc['activation'],
+                stack_types=mc['stack_types'],
+                n_blocks=mc['n_blocks'],
+                n_layers=mc['n_layers'],
+                n_hidden=mc['n_hidden'],
+                n_harmonics=int(mc['n_harmonics']),
+                n_polynomials=int(mc['n_polynomials']),
+                x_s_n_hidden=int(mc['x_s_n_hidden']),
+                exogenous_n_channels=int(mc['exogenous_n_channels']),
+                batch_normalization = mc['batch_normalization'],
+                dropout_prob_theta=mc['dropout_prob_theta'],
+                dropout_prob_exogenous=mc['dropout_prob_exogenous'],
+                learning_rate=float(mc['learning_rate']),
+                lr_decay=float(mc['lr_decay']),
+                n_lr_decay_steps=float(mc['n_lr_decay_steps']),
+                weight_decay=mc['weight_decay'],
+                l1_theta=mc['l1_theta'],
+                n_iterations=int(mc['n_iterations']),
+                early_stopping=int(mc['early_stopping']),
+                loss=mc['loss'],
+                loss_hypar=float(mc['loss_hypar']),
+                val_loss=mc['val_loss'],
+                frequency=mc['frequency'],
+                seasonality=int(mc['seasonality']),
+                random_seed=int(mc['random_seed']))
+```
+
+```python
+model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, eval_freq=mc['eval_freq'])
+```
+
+
+```python
+y_true, y_hat, _ = model.predict(ts_loader=val_ts_loader, return_decomposition=False)
+
+# Date stamps
+window_pred_idx = 20 #25
+meta_data = val_ts_loader.ts_dataset.meta_data
+input_size = mc['input_size_multiplier'] * mc['output_size']
+x_outsample = meta_data[0]['last_ds'].values[input_size:]
+start = window_pred_idx*mc['output_size']
+end   = (window_pred_idx+1)*mc['output_size']
+x_plot = x_outsample[start:end]
+
+fig = plt.figure(figsize=(10, 4))
+plt.plot(x_plot, y_true[0, window_pred_idx, :])
+plt.plot(x_plot, y_hat[0, window_pred_idx, :])
+plt.ylabel('Price [EUR/MWh]', fontsize=15)
+plt.xlabel('Date', fontsize=15)
+plt.show()
 ```
 
 ## Authors
