@@ -8,6 +8,10 @@
 [![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/kdgutier/esrnn_torch/blob/master/LICENSE)
 
+**Nixtla** is a **forecasting library** for **state of the art** statistical and **machine learning models**, currently hosting the [ESRNN](https://www.sciencedirect.com/science/article/pii/S0169207019301153), and the [NBEATSX](https://arxiv.org/abs/1905.10437) models.
+
+Nixtla aims to store tools and models with the capacity to provide **highly accurate forecasts** with **comparable** performance to that of [Amazon Web Services](https://aws.amazon.com/es/forecast/), [Azure](https://docs.microsoft.com/en-us/azure/machine-learning/), or [DataRobot](https://www.datarobot.com/platform/automated-time-series/).
+
 ## Installation
 
 ### Stable version
