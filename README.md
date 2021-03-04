@@ -12,6 +12,11 @@
 
 Nixtla aims to store tools and models with the capacity to provide **highly accurate forecasts** with **comparable** performance to that of [Amazon Web Services](https://aws.amazon.com/es/forecast/), [Azure](https://docs.microsoft.com/en-us/azure/machine-learning/), or [DataRobot](https://www.datarobot.com/platform/automated-time-series/).
 
+* [Documentation (stable version)]()
+* [Documentation (latest)]()
+* [JMLR MLOSS Paper]()
+* [ArXiv Paper]()
+
 ## Installation
 
 ### Stable version
@@ -19,7 +24,7 @@ Nixtla aims to store tools and models with the capacity to provide **highly accu
 This code is a work in progress, any contributions or issues are welcome on
 GitHub at: https://github.com/Nixtla/nixtla
 
-You can install the *released version* of `nixtla` from the [Python package index](https://pypi.org) with:
+You can install the *released version* of `Nixtla` from the [Python package index](https://pypi.org) with:
 
 ```python
 pip install nixtla
@@ -74,6 +79,19 @@ This repository was developed with joint efforts from AutonLab researchers at Ca
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/kdgutier/esrnn_torch/blob/master/LICENSE) file for details.
 
 ## How to cite
+
+If you use `Nixtla` in a scientific publication, we encourage you to add
+the following references to the related papers:
+
+
+```bibtex
+@article{nixtla_arxiv,
+  author  = {XXXX},
+  title   = {{Nixtla: Machine learning for time series forecasting}},
+  journal = {arXiv preprint arXiv:XXX.XXX},
+  year    = {2021}
+}
+```
 
 <!---
 
