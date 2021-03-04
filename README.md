@@ -214,6 +214,27 @@ model = Nbeats(input_size_multiplier=mc['input_size_multiplier'],
 model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, eval_freq=mc['eval_freq'])
 ```
 
+```console
+============================== Start fitting ==============================
+Step: 200, Time: 7.547, Insample MAE: 2.11817, Outsample MAE: 2.25684
+Step: 400, Time: 14.982, Insample MAE: 1.84523, Outsample MAE: 1.75203
+Step: 600, Time: 22.440, Insample MAE: 1.67932, Outsample MAE: 1.66029
+Step: 800, Time: 29.860, Insample MAE: 1.47912, Outsample MAE: 1.42292
+Step: 1000, Time: 37.278, Insample MAE: 1.45722, Outsample MAE: 1.74965
+Step: 1200, Time: 44.689, Insample MAE: 1.19602, Outsample MAE: 1.22304
+Step: 1400, Time: 52.085, Insample MAE: 1.21330, Outsample MAE: 1.20777
+Step: 1600, Time: 60.129, Insample MAE: 1.10346, Outsample MAE: 1.15862
+Step: 1800, Time: 67.546, Insample MAE: 1.09450, Outsample MAE: 1.20524
+Step: 2000, Time: 75.770, Insample MAE: 1.07535, Outsample MAE: 1.06926
+Step: 2200, Time: 83.181, Insample MAE: 0.90624, Outsample MAE: 0.96026
+Step: 2400, Time: 90.587, Insample MAE: 0.93478, Outsample MAE: 0.92737
+Step: 2600, Time: 98.127, Insample MAE: 0.94154, Outsample MAE: 0.96486
+Step: 2800, Time: 105.546, Insample MAE: 0.84443, Outsample MAE: 0.91007
+Step: 3000, Time: 112.948, Insample MAE: 0.83784, Outsample MAE: 0.89441
+Step: 3000, Time: 112.960, Insample MAE: 0.83784, Outsample MAE: 0.89441
+==============================  End fitting  ==============================
+```
+
 
 ```python
 y_true, y_hat, _ = model.predict(ts_loader=val_ts_loader, return_decomposition=False)
