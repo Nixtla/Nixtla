@@ -226,9 +226,10 @@ end   = (window_pred_idx+1)*mc['output_size']
 x_plot = x_outsample[start:end]
 
 fig = plt.figure(figsize=(10, 4))
-plt.plot(x_plot, y_true[0, window_pred_idx, :])
-plt.plot(x_plot, y_hat[0, window_pred_idx, :])
+plt.plot(x_plot, y_true[0, window_pred_idx, :], label='true')
+plt.plot(x_plot, y_hat[0, window_pred_idx, :], label='forecast')
 plt.ylabel('Price [EUR/MWh]', fontsize=15)
+plt.legend(fontsize=15)
 plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
