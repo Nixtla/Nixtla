@@ -234,7 +234,7 @@ plt.xlabel('Date', fontsize=15)
 plt.show()
 ```
 
-<img src="https://github.com/Nixtla/nixtla/blob/98471b1cf43ed294f83ec0796b8d28ac71db2ac8/nbs/results/NP_predictions.png" width="800" height="300">
+<img src="https://github.com/Nixtla/nixtla/blob/4a27f1cc8374f0a3e8514949693cd87a643096ac/nbs/results/NP_predictions.png" width="800" height="300">
 
 
 ## Authors
