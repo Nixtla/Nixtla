@@ -150,7 +150,12 @@ mc['n_hidden'] = len(mc['stack_types']) * [ [int(mc['n_hidden']), int(mc['n_hidd
 Here we instantiate the model and dataloaders.
 
 ```python
-train_ts_dataset, outsample_ts_dataset, scaler_y = create_datasets(mc, Y_df, X_df, S_df, 728*24, False, 0)
+from nixtla.experiments.utils import create_datasets
+from nixtla.models.nbeats.nbeats import Nbeats
+
+train_ts_dataset, outsample_ts_dataset, scaler_y = create_datasets(mc=mc, Y_df=Y_df, X_df=X_df, 
+                                                                   S_df=S_df, timestamps_in_outsample=728*24, 
+                                                                   shuffle_outsample=False, offset=0)
 
 train_ts_loader = TimeSeriesLoader(ts_dataset=train_ts_dataset,
                                     model='nbeats',
