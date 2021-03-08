@@ -146,6 +146,7 @@ def create_datasets(mc, Y_df, X_df, S_df, timestamps_in_outsample, shuffle_outsa
     outsample_mask_df = train_mask_df.copy()
 
     # Difference in mask, esrnn and rnn needs fulls time series even in outsample due to hidden state
+    assert mc['model'] in ['nbeats', 'tcn', 'esrnn', 'rnn'], f"{mc['model']} is not available"
     if mc['model'] in ['nbeats', 'tcn']:
         outsample_mask_df['sample_mask'] = 1 - outsample_mask_df['sample_mask']
     elif mc['model'] in ['esrnn', 'rnn']:
@@ -157,11 +158,11 @@ def create_datasets(mc, Y_df, X_df, S_df, timestamps_in_outsample, shuffle_outsa
                                       normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
 
     #----------------------------------------- Declare Dataset and Loaders ----------------------------------#
-    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df)
+    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df, verbose=True)
     if timestamps_in_outsample == 0:
         outsample_ts_dataset = None
     else:
-        outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=outsample_mask_df)
+        outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=outsample_mask_df, verbose=True)
 
     return train_ts_dataset, outsample_ts_dataset, scaler_y
 

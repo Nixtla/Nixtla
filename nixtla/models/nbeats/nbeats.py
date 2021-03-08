@@ -23,6 +23,9 @@ from .nbeats_model import ExogenousBasisInterpretable, ExogenousBasisWavenet, Ex
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss, QuadraticBarrierLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
+from ...data.tsdataset import TimeSeriesDataset
+from ...data.tsloader_general import TimeSeriesLoader
+
 
 # Cell
 def init_weights(module, initialization):
@@ -575,40 +578,61 @@ class Nbeats(object):
         else:
             return outsample_ys, forecasts, outsample_masks
 
-    def forecast(self, Y_df, X_df, f_cols):
+    def forecast(self, Y_df, X_df, f_cols, return_decomposition):
+        # TODO: protect available_mask from nans
         # Last output_size mask for predictions
         mask_df = Y_df.copy()
         mask_df = mask_df[['unique_id', 'ds']]
-        sample_mask = np.zeros(len(mask_df))
-        sample_mask[-self.output_size:] = 1
+        sample_mask = np.ones(len(mask_df))
+        #sample_mask[-self.output_size:] = 1
         mask_df['sample_mask'] = sample_mask
         mask_df['available_mask'] = np.ones(len(mask_df))
 
         # Model inputs
-        test_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, mask_df=mask_df, f_cols=f_cols)
+        ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df,
+                                       mask_df=mask_df, f_cols=f_cols, verbose=False)
 
-        test_ts_loader = TimeSeriesLoader(model='nbeats',
-                                          ts_dataset=test_ts_dataset,
-                                          window_sampling_limit=len(X_df),
-                                          offset=0,
-                                          input_size=self.input_size,
-                                          output_size=self.output_size,
-                                          idx_to_sample_freq=1,
-                                          batch_size=1,
-                                          complete_inputs=True,
-                                          complete_sample=True,
-                                          n_series_per_batch=1,
-                                          shuffle=False)
+        ts_loader = TimeSeriesLoader(model='nbeats',
+                                     ts_dataset=ts_dataset,
+                                     window_sampling_limit=500_000,
+                                     offset=0,
+                                     input_size=self.input_size,
+                                     output_size=self.output_size,
+                                     idx_to_sample_freq=self.output_size,
+                                     batch_size=1024,
+                                     complete_inputs=False,
+                                     complete_sample=True,
+                                     shuffle=False)
 
         # Model prediction
-        _, forecasts, _ = self.predict(ts_loader=test_ts_loader, return_decomposition=False)
+        if return_decomposition:
+            y_true, y_hat, y_hat_dec, _ = self.predict(ts_loader=ts_loader,
+                                                       return_decomposition=True)
 
-        # Pandas wrangling
-        Y_hat_df = Y_df.copy()
-        Y_hat_df = Y_hat_df[['unique_id', 'ds']]
-        Y_hat_df = Y_hat_df.tail(self.output_size) #Keep last output_size rows
-        Y_hat_df['y_hat'] = forecasts.flatten()
-        Y_hat_df = Y_hat_df.reset_index(drop=True)
+            # Reshaping model outputs
+            # n_uids, n_fcds, n_comps, n_ltsp -> n_asins, n_fcds, n_ltsp, n_comps
+            n_asins, n_fcds, n_comps, n_ltsp = y_hat_dec.shape
+            y_hat_dec = np.transpose(y_hat_dec, (0, 1, 3, 2))
+            y_hat_dec = y_hat_dec.reshape(-1, n_comps)
+
+            Y_hat_dec_df = pd.DataFrame(data=y_hat_dec,
+                                        columns=['level']+self.stack_types)
+
+        else:
+            y_true, y_hat, _ = self.predict(ts_loader=ts_loader,
+                                            return_decomposition=True)
+
+        # Reshaping model outputs
+        y_true = y_true.reshape(-1)
+        y_hat  = y_hat.reshape(-1)
+
+        Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values,
+                                 'ds': Y_df.ds.values,
+                                 'y': Y_df.y.values,
+                                 'y_hat': y_hat})
+        if return_decomposition:
+            Y_hat_df = pd.concat([Y_hat_df, Y_hat_dec_df], axis=1)
+        Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
         return Y_hat_df
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
