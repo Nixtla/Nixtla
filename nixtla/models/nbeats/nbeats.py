@@ -20,12 +20,11 @@ from functools import partial
 
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis
 from .nbeats_model import ExogenousBasisInterpretable, ExogenousBasisWavenet, ExogenousBasisTCN
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss, QuadraticBarrierLoss
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 from ...data.tsdataset import TimeSeriesDataset
 from ...data.tsloader_general import TimeSeriesLoader
-
 
 # Cell
 def init_weights(module, initialization):

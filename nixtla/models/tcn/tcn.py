@@ -18,8 +18,8 @@ from pathlib import Path
 from functools import partial
 
 from .tcn_model import TCNModule
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
-from ...losses.numpy import mae, mse, mape, smape, rmse
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss
+from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 # Cell
 def init_weights(module, initialization):
