@@ -330,8 +330,7 @@ def MQLoss(y, y_hat, quantiles, mask=None):
 
     n_q = len(quantiles)
 
-    y_rep = t.stack([y.T for _ in range(n_q)]).T
-    error = y_hat - y_rep
+    error = y_hat - y.unsqueeze(-1)
     sq = t.maximum(-error, t.zeros_like(error))
     s1_q = t.maximum(error, t.zeros_like(error))
     loss = (quantiles * sq + (1 - quantiles) * s1_q)
@@ -364,13 +363,13 @@ def wMQLoss(y, y_hat, quantiles, mask=None):
 
     n_q = len(quantiles)
 
-    y_rep = t.stack([y.T for _ in range(n_q)]).T
-    error = y_hat - y_rep
+    error = y_hat - y.unsqueeze(-1)
+
     sq = t.maximum(-error, t.zeros_like(error))
     s1_q = t.maximum(error, t.zeros_like(error))
     loss = (quantiles * sq + (1 - quantiles) * s1_q)
 
     loss = divide_no_nan(t.sum(loss * mask, axis=-2),
-                         t.sum(t.abs(y_rep) * mask, axis=-2))
+                         t.sum(t.abs(y.unsqueeze(-1)) * mask, axis=-2))
 
     return t.mean(loss)

@@ -304,10 +304,10 @@ def mqloss(y, y_hat, quantiles, weights=None):
 
     if weights is None: weights = np.ones_like(y_hat)
 
-
     n_q = len(quantiles)
 
-    error = y_hat - np.stack([y.T for _ in range(n_q)]).T
+    y_rep = np.expand_dims(y, axis=-1)
+    error = y_hat - y_rep
     sq = np.maximum(-error, np.zeros_like(error))
     s1_q = np.maximum(error, np.zeros_like(error))
     loss = (quantiles * sq + (1 - quantiles) * s1_q) * weights
@@ -339,7 +339,7 @@ def wmqloss(y, y_hat, quantiles, weights=None):
 
     n_q = len(quantiles)
 
-    y_rep = np.stack([y.T for _ in range(n_q)]).T
+    y_rep = np.expand_dims(y, axis=-1)
     error = y_hat - y_rep
     sq = np.maximum(-error, np.zeros_like(error))
     s1_q = np.maximum(error, np.zeros_like(error))
