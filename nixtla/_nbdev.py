@@ -121,21 +121,18 @@ index = {"Scaler": "data__scalers.ipynb",
          "evaluate_prediction_owa": "models_esrnn_utils__evaluation.ipynb",
          "StateLoss": "models_esrnn_utils__losses.ipynb",
          "DisaggregatedPinballLoss": "models_esrnn_utils__losses.ipynb",
-         "init_weights": "models_wnbeats__nbeats.ipynb",
-         "Nbeats": "models_wnbeats__nbeats.ipynb",
-         "NBeatsBlock": "models_wnbeats__nbeats_model.ipynb",
-         "NBeats": "models_wnbeats__nbeats_model.ipynb",
-         "IdentityBasis": "models_wnbeats__nbeats_model.ipynb",
-         "TrendBasis": "models_wnbeats__nbeats_model.ipynb",
-         "SeasonalityBasis": "models_wnbeats__nbeats_model.ipynb",
-         "ExogenousBasisInterpretable": "models_wnbeats__nbeats_model.ipynb",
-         "ExogenousBasisWavenet": "models_wnbeats__nbeats_model.ipynb",
+         "init_weights": "models_tcn__tcn.ipynb",
+         "Nbeats": "models_nbeats__nbeats.ipynb",
+         "NBeatsBlock": "models_nbeats__nbeats_model.ipynb",
+         "NBeats": "models_nbeats__nbeats_model.ipynb",
+         "IdentityBasis": "models_nbeats__nbeats_model.ipynb",
+         "TrendBasis": "models_nbeats__nbeats_model.ipynb",
+         "SeasonalityBasis": "models_nbeats__nbeats_model.ipynb",
+         "ExogenousBasisInterpretable": "models_nbeats__nbeats_model.ipynb",
+         "ExogenousBasisWavenet": "models_nbeats__nbeats_model.ipynb",
          "ExogenousBasisTCN": "models_nbeats__nbeats_model.ipynb",
          "TCN": "models_tcn__tcn.ipynb",
-         "TCNModule": "models_tcn__tcn_model.ipynb",
-         "create_context": "models_wnbeats__nbeats_model.ipynb",
-         "XBasisTCN": "models_wnbeats__nbeats_model.ipynb",
-         "XBasisWavenet": "models_wnbeats__nbeats_model.ipynb"}
+         "TCNModule": "models_tcn__tcn_model.ipynb"}
 
 modules = ["data/scalers.py",
            "data/tsdataset.py",
@@ -166,9 +163,7 @@ modules = ["data/scalers.py",
            "models/nbeats/nbeats.py",
            "models/nbeats/nbeats_model.py",
            "models/tcn/tcn.py",
-           "models/tcn/tcn_model.py",
-           "models/wnbeats/nbeats.py",
-           "models/wnbeats/nbeats_model.py"]
+           "models/tcn/tcn_model.py"]
 
 doc_url = "https://Grupo-Abraxas.github.io/nixtla/"
 
