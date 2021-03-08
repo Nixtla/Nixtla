@@ -590,7 +590,7 @@ class Nbeats(object):
 
         # Model inputs
         ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df,
-                                       mask_df=mask_df, f_cols=f_cols, verbose=True)
+                                       mask_df=mask_df, f_cols=f_cols, verbose=False)
 
         ts_loader = TimeSeriesLoader(model='nbeats',
                                      ts_dataset=ts_dataset,
@@ -629,10 +629,10 @@ class Nbeats(object):
         Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values,
                                  'ds': Y_df.ds.values,
                                  'y': Y_df.y.values,
-                                 'check_y': y_true,
                                  'y_hat': y_hat})
         if return_decomposition:
             Y_hat_df = pd.concat([Y_hat_df, Y_hat_dec_df], axis=1)
+        Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
         return Y_hat_df
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
