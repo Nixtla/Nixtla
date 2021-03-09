@@ -16,8 +16,8 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
 from .utils.esrnn import _ESRNN
-from .utils.losses import SmylLoss, PinballLoss
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss
+# from nixtla.models.esrnn.utils.losses import SmylLoss, PinballLoss
+from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, SmylLoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
 
@@ -127,6 +127,7 @@ class ESRNN(object):
                  add_nl_layer,
                  seasonality,
                  loss,
+                 val_loss,
                  random_seed,
                  device=None,
                  root_dir='./'):
@@ -156,6 +157,7 @@ class ESRNN(object):
         self.testing_percentile = testing_percentile
         self.training_percentile = training_percentile
         self.loss = loss
+        self.val_loss = val_loss
 
         self.random_seed = random_seed
 
@@ -174,9 +176,9 @@ class ESRNN(object):
         #TODO: replace with kwargs
         def loss(x, forecast, target, mask, levels):
             if loss_name == 'SMYL':
-                train_tau = self.training_percentile / 100
-                smyl_loss = SmylLoss(tau=train_tau, level_variability_penalty=self.level_variability_penalty)
-                return smyl_loss(windows_y=target, windows_y_hat=forecast, levels=levels)
+                return SmylLoss(y=target, y_hat=forecast, levels=levels, mask=mask,
+                                tau=(self.training_percentile / 100),
+                                level_variability_penalty=self.level_variability_penalty)
             elif loss_name == 'MAPE':
                 return MAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MASE':
@@ -188,13 +190,34 @@ class ESRNN(object):
             elif loss_name == 'MAE':
                 return MAELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'PINBALL':
-                train_tau = self.training_percentile / 100
-                return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=train_tau)
+                return PinballLoss(y=target, y_hat=forecast, mask=mask,
+                                   tau=(self.training_percentile/100))
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
 
-    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=False, eval_freq=1):
+    def __val_loss_fn(self, loss_name='MAE'):
+        def loss(forecast, target, weights):
+            if loss_name == 'MAPE':
+                return mape(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'SMAPE':
+                return smape(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MSE':
+                return mse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'RMSE':
+                return rmse(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MAE':
+                return mae(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'PINBALL':
+                return pinball_loss(y=target, y_hat=forecast, weights=weights,
+                                    tau=(self.testing_percentile/100))
+            else:
+                raise Exception(f'Unknown loss function: {loss_name}')
+
+        return loss
+
+
+    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_freq=1):
         """
         Fit ESRNN model.
 
@@ -204,7 +227,6 @@ class ESRNN(object):
         -------
         self : returns an instance of self.
         """
-        assert val_ts_loader is None, 'val_ts_loader must be None, outsample evaluation not implemented'
 
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
@@ -212,13 +234,13 @@ class ESRNN(object):
 
         # Exogenous variables
         self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
-
         self.frequency = train_ts_loader.get_frequency()
-        if verbose: print("Infered frequency: {}".format(self.frequency))
+
+        #if verbose: print("Infered frequency: {}".format(self.frequency))
 
         # Initialize model
         self.n_series = train_ts_loader.get_n_series()
-        self.esrnn = _ESRNN(n_series=self.n_series, input_size=self.input_size,
+        self.model = _ESRNN(n_series=self.n_series, input_size=self.input_size,
                             output_size=self.output_size, n_t=self.n_x_t, n_s=self.n_x_s,
                             es_component=self.es_component, seasonality=self.seasonality,
                             noise_std=self.noise_std, cell_type=self.cell_type,
@@ -228,11 +250,8 @@ class ESRNN(object):
         # Train model
         self._fitted = True
 
-        # dataloader, max_epochs, shuffle, verbose
-        if verbose: print(15*'='+' Training ESRNN  ' + 15*'=' + '\n')
-
         # Optimizers
-        self.es_optimizer = optim.Adam(params=self.esrnn.es.parameters(),
+        self.es_optimizer = optim.Adam(params=self.model.es.parameters(),
                                         lr=self.learning_rate*self.per_series_lr_multip,
                                         betas=(0.9, 0.999), eps=self.gradient_eps)
 
@@ -240,7 +259,7 @@ class ESRNN(object):
                                     step_size=self.lr_scheduler_step_size,
                                     gamma=0.9)
 
-        self.rnn_optimizer = optim.Adam(params=self.esrnn.rnn.parameters(),
+        self.rnn_optimizer = optim.Adam(params=self.model.rnn.parameters(),
                                         lr=self.learning_rate,
                                         betas=(0.9, 0.999), eps=self.gradient_eps,
                                         weight_decay=self.rnn_weight_decay)
@@ -251,6 +270,11 @@ class ESRNN(object):
 
         # Loss Functions
         training_loss_fn = self.__loss_fn(self.loss)
+        validation_loss_fn = self.__val_loss_fn(self.val_loss) #Uses numpy losses
+
+        if verbose:
+            print('\n')
+            print('='*30+' Start fitting '+'='*30)
 
         # Overwrite n_iterations and train datasets
         if max_epochs is None:
@@ -263,7 +287,7 @@ class ESRNN(object):
         for epoch in range(max_epochs):
             losses = []
             for batch in iter(train_ts_loader):
-                self.esrnn.train()
+                self.model.train()
                 self.es_optimizer.zero_grad()
                 self.rnn_optimizer.zero_grad()
 
@@ -272,21 +296,23 @@ class ESRNN(object):
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                outsample_y, forecast, levels = self.esrnn(insample_y=insample_y,
+                outsample_y, forecast, levels = self.model(insample_y=insample_y,
                                                            insample_x=insample_x,
                                                            s_matrix=s_matrix,
                                                            step_size=train_ts_loader.idx_to_sample_freq,
                                                            idxs=idxs)
 
+                mask        = self.to_tensor(t.ones(forecast.shape))
+
                 # Pinball loss on normalized values
                 training_loss = training_loss_fn(forecast=forecast, target=outsample_y,
-                                                 x=insample_y, mask=t.ones(forecast.shape), levels=levels)
+                                                 x=insample_y, mask=mask, levels=levels)
                 training_loss.backward()
                 losses.append(training_loss.cpu().data.numpy())
 
-                t.nn.utils.clip_grad_norm_(parameters=self.esrnn.rnn.parameters(),
+                t.nn.utils.clip_grad_norm_(parameters=self.model.rnn.parameters(),
                                            max_norm=self.gradient_clipping_threshold)
-                t.nn.utils.clip_grad_norm_(parameters=self.esrnn.es.parameters(),
+                t.nn.utils.clip_grad_norm_(parameters=self.model.es.parameters(),
                                            max_norm=self.gradient_clipping_threshold)
                 self.rnn_optimizer.step()
                 self.es_optimizer.step()
@@ -305,22 +331,24 @@ class ESRNN(object):
 
                 if val_ts_loader is not None:
                     loss = self.evaluate_performance(ts_loader=val_ts_loader,
-                                                     validation_loss_fn=eval_loss)
-                    display_string += ", Outsample loss: {:.5f}".format(loss)
+                                                     validation_loss_fn=validation_loss_fn)
+                    display_string += ", Outsample {}: {:.5f}".format(self.val_loss, loss)
                     self.trajectories['val_loss'].append(loss)
 
                 if verbose: print(display_string)
 
-                self.esrnn.train()
+                self.model.train()
 
-    def predict(self, ts_loader, n_fcds, X_test=None, eval_mode=True):
+        print('='*30+'  End fitting  '+'='*30)
+        print('\n')
+
+    def predict(self, ts_loader, n_fcds=None, return_decomposition=False):
         assert self._fitted, "Model not fitted yet"
-        self.esrnn.eval()
-        frequency = ts_loader.get_frequency()
+        self.model.eval()
+        assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
-        # Build forecasts
-        unique_ids = ts_loader.get_meta_data_col('unique_id')
-        last_ds = ts_loader.get_meta_data_col('last_ds') #TODO: ajustar of offset
+        forecasts = []
+        outsample_ys = []
 
         with t.no_grad():
             outsample_ys = []
@@ -331,38 +359,40 @@ class ESRNN(object):
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                outsample_y, forecast = self.esrnn.predict(insample_y=insample_y, insample_x=insample_x,
+                outsample_y, forecast = self.model.predict(insample_y=insample_y,
+                                                           insample_x=insample_x,
                                                            s_matrix=s_matrix,
-                                                           step_size=ts_loader.idx_to_sample_freq, idxs=idxs)
+                                                           idxs=idxs,
+                                                           step_size=ts_loader.idx_to_sample_freq)
                 # Correction needed, TODO: move to loader/dataset
-                outsample_y = outsample_y[:, -n_fcds:, :]
-                forecast = forecast[:, -n_fcds:, :]
+                if n_fcds is not None:
+                    outsample_y = outsample_y[:, -n_fcds:, :]
+                    forecast = forecast[:, -n_fcds:, :]
+
                 outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
 
-        outsample_ys = np.vstack(outsample_ys)
         forecasts = np.vstack(forecasts)
+        outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.ones(outsample_ys.shape)
 
-        if eval_mode:
-            return outsample_ys, forecasts, outsample_masks
+        self.model.train()
+
+        if return_decomposition:
+            return #TODO
         else:
-            assert 1<0, 'mode_eval=False not implemented yet'
+            return outsample_ys, forecasts, outsample_masks
 
-        # Predictions for panel
-        Y_hat_panel = pd.DataFrame(columns=['unique_id', 'ds'])
-        for i, unique_id in enumerate(unique_ids):
-            Y_hat_id = pd.DataFrame([unique_id]*self.output_size, columns=["unique_id"])
-            ds = pd.date_range(start=last_ds[i], periods=self.output_size+1, freq=frequency)
-            Y_hat_id["ds"] = ds[1:]
-            Y_hat_panel = Y_hat_panel.append(Y_hat_id, sort=False).reset_index(drop=True)
+    def evaluate_performance(self, ts_loader, validation_loss_fn):
+        self.model.eval()
 
-        Y_hat_panel['y_hat'] = forecasts.flatten()
+        target, forecast, outsample_mask = self.predict(ts_loader=ts_loader)
 
-        if X_test is not None:
-            Y_hat_panel = X_test.merge(Y_hat_panel, on=['unique_id', 'ds'], how='left')
+        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
 
-        return Y_hat_panel
+        self.model.train()
+
+        return complete_loss
 
     def save(self, model_dir=None, copy=None):
         """Auxiliary function to save ESRNN model"""

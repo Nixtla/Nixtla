@@ -349,10 +349,6 @@ class Nbeats(object):
             elif loss_name == 'PINBALL':
                 return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=loss_hypar) + \
                        self.loss_l1_conv_layers() + self.loss_l1_theta()
-            elif loss_name == 'PINBALL2':
-                return PinballLoss(y=target, y_hat=forecast, mask=mask, tau=0.5) + \
-                       self.loss_l1_conv_layers() + self.loss_l1_theta() + \
-                       QuadraticBarrierLoss(z=(-forecast), tau=loss_hypar) # To induce forecast positivity
             else:
                 raise Exception(f'Unknown loss function: {loss_name}')
         return loss
@@ -427,8 +423,9 @@ class Nbeats(object):
         training_loss_fn = self.__loss_fn(self.loss)
         validation_loss_fn = self.__val_loss_fn(self.val_loss) #Uses numpy losses
 
-        print('\n')
-        print('='*30+' Start fitting '+'='*30)
+        if verbose:
+            print('\n')
+            print('='*30+' Start fitting '+'='*30)
 
         #self.loss_dict = {} # Restart self.loss_dict
         start = time.time()
