@@ -5,7 +5,7 @@ __all__ = []
 # Cell
 import torch
 import torch.nn as nn
-from .drnn import DRNN
+from ...components.drnn import DRNN
 import numpy as np
 
 # Cell
