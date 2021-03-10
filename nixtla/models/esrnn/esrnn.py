@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
-from .utils.esrnn import _ESRNN
+from .esrnn_model import _ESRNN
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, SmylLoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
