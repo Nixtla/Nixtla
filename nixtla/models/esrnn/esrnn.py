@@ -16,7 +16,6 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
 from .utils.esrnn import _ESRNN
-# from nixtla.models.esrnn.utils.losses import SmylLoss, PinballLoss
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, SmylLoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
 
