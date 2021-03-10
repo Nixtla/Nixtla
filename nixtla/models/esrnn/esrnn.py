@@ -4,12 +4,17 @@ __all__ = ['ESRNN']
 
 # Cell
 import os
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+# os.environ["CUDA_VISIBLE_DEVICES"]="2"
 import time
-from copy import deepcopy
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
+import random
+from collections import defaultdict
+from copy import deepcopy
+
+from pathlib import Path
+
 import torch as t
 import torch.nn as nn
 import torch.optim as optim
@@ -107,7 +112,12 @@ class ESRNN(object):
     def __init__(self,
                  input_size,
                  output_size,
-                 max_epochs,
+                 es_component,
+                 cell_type,
+                 state_hsize,
+                 dilations,
+                 add_nl_layer,
+                 seasonality,
                  learning_rate,
                  lr_scheduler_step_size,
                  lr_decay,
@@ -115,16 +125,12 @@ class ESRNN(object):
                  gradient_eps,
                  gradient_clipping_threshold,
                  rnn_weight_decay,
+                 n_iterations,
+                 early_stopping,
                  noise_std,
                  level_variability_penalty,
                  testing_percentile,
                  training_percentile,
-                 es_component,
-                 cell_type,
-                 state_hsize,
-                 dilations,
-                 add_nl_layer,
-                 seasonality,
                  loss,
                  val_loss,
                  random_seed,
@@ -132,9 +138,10 @@ class ESRNN(object):
                  root_dir='./'):
         super(ESRNN, self).__init__()
 
+        #------------------------ Model Attributes ------------------------#
+        # Architecture parameters
         self.input_size = input_size
         self.output_size = output_size
-
         self.es_component = es_component
         self.cell_type = cell_type
         self.state_hsize = state_hsize
@@ -142,14 +149,13 @@ class ESRNN(object):
         self.add_nl_layer = add_nl_layer
         self.seasonality = seasonality
 
-        self.max_epochs = max_epochs
+        # Regularization and optimization parameters
         self.learning_rate = learning_rate
         self.lr_scheduler_step_size = lr_scheduler_step_size
         self.lr_decay = lr_decay
         self.per_series_lr_multip = per_series_lr_multip
         self.gradient_eps = gradient_eps
         self.gradient_clipping_threshold = gradient_clipping_threshold
-
         self.rnn_weight_decay = rnn_weight_decay
         self.noise_std = noise_std
         self.level_variability_penalty = level_variability_penalty
@@ -157,7 +163,8 @@ class ESRNN(object):
         self.training_percentile = training_percentile
         self.loss = loss
         self.val_loss = val_loss
-
+        self.n_iterations = n_iterations
+        self.early_stopping = early_stopping
         self.random_seed = random_seed
 
         if device is None:
@@ -216,7 +223,7 @@ class ESRNN(object):
         return loss
 
 
-    def fit(self, train_ts_loader, val_ts_loader=None, max_epochs=None, verbose=True, eval_freq=1):
+    def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_freq=1):
         """
         Fit ESRNN model.
 
@@ -230,6 +237,7 @@ class ESRNN(object):
         # Random Seeds (model initialization)
         t.manual_seed(self.random_seed)
         np.random.seed(self.random_seed)
+        random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
 
         # Exogenous variables
         self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
@@ -276,16 +284,26 @@ class ESRNN(object):
             print('='*30+' Start fitting '+'='*30)
 
         # Overwrite n_iterations and train datasets
-        if max_epochs is None:
-            max_epochs = self.max_epochs
+        if n_iterations is None:
+            n_iterations = self.n_iterations
 
         start = time.time()
-        self.trajectories = {'epoch':[], 'train_loss':[], 'val_loss':[]}
+        self.trajectories = {'iteration':[], 'train_loss':[], 'val_loss':[]}
 
         # Training Loop
-        for epoch in range(max_epochs):
-            losses = []
+        early_stopping_counter = 0
+        best_val_loss = np.inf
+        best_state_dict = deepcopy(self.model.state_dict())
+        break_flag = False
+        iteration = 0
+        epoch = 0
+        while (iteration < n_iterations) and (not break_flag):
+            epoch +=1
             for batch in iter(train_ts_loader):
+                iteration += 1
+                if (iteration > n_iterations) or (break_flag):
+                    continue
+
                 self.model.train()
                 self.es_optimizer.zero_grad()
                 self.rnn_optimizer.zero_grad()
@@ -303,12 +321,12 @@ class ESRNN(object):
 
                 mask        = self.to_tensor(t.ones(forecast.shape))
 
-                # Pinball loss on normalized values
+                # train loss on normalized values
                 training_loss = training_loss_fn(forecast=forecast, target=outsample_y,
                                                  x=insample_y, mask=mask, levels=levels)
-                training_loss.backward()
-                losses.append(training_loss.cpu().data.numpy())
 
+                # Protection to exploding gradients
+                training_loss.backward()
                 t.nn.utils.clip_grad_norm_(parameters=self.model.rnn.parameters(),
                                            max_norm=self.gradient_clipping_threshold)
                 t.nn.utils.clip_grad_norm_(parameters=self.model.es.parameters(),
@@ -321,12 +339,13 @@ class ESRNN(object):
             self.rnn_scheduler.step()
 
             # Evaluation
-            if (epoch % eval_freq == 0):
-                display_string = 'Epoch: {}, Time: {:03.3f}, Insample loss: {:.5f}'.format(epoch,
-                                                                                time.time()-start,
-                                                                                np.mean(losses))
-                self.trajectories['epoch'].append(epoch)
-                self.trajectories['train_loss'].append(training_loss.cpu().data.numpy())
+            if (iteration % eval_freq == 0):
+                display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
+                                                                                        time.time()-start,
+                                                                                        self.loss,
+                                                                                        training_loss.cpu().data.numpy())
+                self.trajectories['iteration'].append(iteration)
+                self.trajectories['train_loss'].append(float(training_loss.cpu().data.numpy()))
 
                 if val_ts_loader is not None:
                     loss = self.evaluate_performance(ts_loader=val_ts_loader,
@@ -334,12 +353,41 @@ class ESRNN(object):
                     display_string += ", Outsample {}: {:.5f}".format(self.val_loss, loss)
                     self.trajectories['val_loss'].append(loss)
 
-                if verbose: print(display_string)
+                    if self.early_stopping:
+                        if loss < best_val_loss:
+                            # Save current model if improves outsample loss
+                            best_state_dict = deepcopy(self.model.state_dict())
+                            best_insample_loss = training_loss.cpu().data.numpy()
+                            early_stopping_counter = 0
+                            best_val_loss = loss
+                        else:
+                            early_stopping_counter += 1
+                        if early_stopping_counter >= self.early_stopping:
+                            break_flag = True
 
-                self.model.train()
+                print(display_string)
 
-        print('='*30+'  End fitting  '+'='*30)
-        print('\n')
+                if break_flag:
+                    print('\n')
+                    print(19*'-',' Stopped training by early stopping', 19*'-')
+                    self.model.load_state_dict(best_state_dict)
+                    break
+
+        #End of fitting
+        if n_iterations > 0:
+            # This is batch loss!
+            self.final_insample_loss = float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
+            string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
+                                                                            time.time()-start,
+                                                                            self.loss,
+                                                                            self.final_insample_loss)
+            if val_ts_loader is not None:
+                self.final_outsample_loss = self.evaluate_performance(ts_loader=val_ts_loader,
+                                                                      validation_loss_fn=validation_loss_fn)
+                string += ", Outsample {}: {:.5f}".format(self.val_loss, self.final_outsample_loss)
+            print(string)
+            print('='*30+'  End fitting  '+'='*30)
+            print('\n')
 
     def predict(self, ts_loader, n_fcds=None, return_decomposition=False):
         assert self._fitted, "Model not fitted yet"
