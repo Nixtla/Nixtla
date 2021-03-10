@@ -313,11 +313,16 @@ class ESRNN(object):
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
+                #print("insample_y.shape", insample_y.shape)
+
                 outsample_y, forecast, levels = self.model(insample_y=insample_y,
                                                            insample_x=insample_x,
                                                            s_matrix=s_matrix,
                                                            step_size=train_ts_loader.idx_to_sample_freq,
                                                            idxs=idxs)
+
+                #print("outsample_y.shape", outsample_y.shape)
+                #print("forecast.shape", forecast.shape)
 
                 mask        = self.to_tensor(t.ones(forecast.shape))
 
@@ -326,6 +331,7 @@ class ESRNN(object):
                                                  x=insample_y, mask=mask, levels=levels)
 
                 # Protection to exploding gradients
+                #print("step")
                 training_loss.backward()
                 t.nn.utils.clip_grad_norm_(parameters=self.model.rnn.parameters(),
                                            max_norm=self.gradient_clipping_threshold)
@@ -340,6 +346,7 @@ class ESRNN(object):
 
             # Evaluation
             if (iteration % eval_freq == 0):
+                #print("EVALUATION")
                 display_string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
                                                                                         time.time()-start,
                                                                                         self.loss,
@@ -406,11 +413,17 @@ class ESRNN(object):
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])
                 idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
+                #print("insample_y.shape", insample_y.shape)
+
                 outsample_y, forecast = self.model.predict(insample_y=insample_y,
                                                            insample_x=insample_x,
                                                            s_matrix=s_matrix,
                                                            idxs=idxs,
                                                            step_size=ts_loader.idx_to_sample_freq)
+
+                #print("outsample_y.shape", outsample_y.shape)
+                #print("forecast.shape", forecast.shape)
+
                 # Correction needed, TODO: move to loader/dataset
                 if n_fcds is not None:
                     outsample_y = outsample_y[:, -n_fcds:, :]
