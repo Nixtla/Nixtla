@@ -553,6 +553,9 @@ class Nbeats(object):
                 outsample_ys.append(batch['outsample_y'])
                 outsample_masks.append(batch['outsample_mask'])
 
+                print("outsample_y.shape", batch['outsample_y'].shape)
+                print("forecast.shape", forecast.shape)
+
         forecasts = np.vstack(forecasts)
         block_forecasts = np.vstack(block_forecasts)
         outsample_ys = np.vstack(outsample_ys)
