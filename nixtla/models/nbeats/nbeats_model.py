@@ -9,7 +9,7 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 from typing import Tuple
-from ..component import TemporalConvNet
+from ..components.tcn import TemporalConvNet
 
 # Cell
 class _StaticFeaturesEncoder(nn.Module):
