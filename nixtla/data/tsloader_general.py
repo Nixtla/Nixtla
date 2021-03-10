@@ -27,6 +27,7 @@ class TimeSeriesLoader(object):
                  complete_inputs: bool,
                  complete_sample: bool,
                  shuffle: bool,
+                 len_sample_chunks: int=None,
                  n_series_per_batch: int=None,
                  verbose: bool=False):
         """
@@ -47,6 +48,14 @@ class TimeSeriesLoader(object):
             self.n_series_per_batch = n_series_per_batch
         else:
             self.n_series_per_batch = min(batch_size, self.ts_dataset.n_series)
+
+        if len_sample_chunks is not None:
+            assert len_sample_chunks >= self.input_size + self.output_size, \
+                print(f"Insufficient len of sample chunks {len_sample_chunks}")
+            self.len_sample_chunks = len_sample_chunks
+        else:
+            self.len_sample_chunks = input_size + output_size
+
         self.windows_per_serie = self.batch_size // self.n_series_per_batch
         self.shuffle = shuffle
         self.verbose = verbose
@@ -80,7 +89,8 @@ class TimeSeriesLoader(object):
             sampling_idx = t.nonzero(sample_condition)
 
         sampling_idx = list(sampling_idx.flatten().numpy())
-        assert len(sampling_idx)>0, 'Check the data and masks as sample_idxs are empty'
+        assert len(sampling_idx)>0, \
+            'Check the data and masks as sample_idxs are empty, check window_sampling_limit, input_size, output_size, masks'
         return sampling_idx
 
     def _create_windows_tensor(self, ts_idxs=None):
@@ -113,6 +123,38 @@ class TimeSeriesLoader(object):
 
         return windows, s_matrix
 
+    def _create_windows_tensor_rnn(self, n_time, ts_idxs=None):
+        """
+        Comment here
+        TODO: Cuando creemos el otro dataloader, si es compatible lo hacemos funcion transform en utils
+        """
+        # Filter function is used to define train tensor and validation tensor with the offset
+        # Default ts_idxs=ts_idxs sends all the data, otherwise filters series
+        tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+                                                                       window_sampling_limit=self.window_sampling_limit,
+                                                                       ts_idxs=ts_idxs)
+        tensor = t.Tensor(tensor)
+
+        padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
+        tensor = padder(tensor)
+
+        # Creating rolling windows and 'flattens' them
+        #windows = tensor.unfold(dimension=-1, size=self.input_size + self.output_size, step=self.idx_to_sample_freq)
+        windows = tensor.unfold(dimension=-1, size=n_time, step=self.idx_to_sample_freq)
+
+        # n_serie, n_channel, n_time, window_size -> n_serie, n_time, n_channel, window_size
+        #print(f'n_serie, n_channel, n_time, window_size = {windows.shape}')
+        windows = windows.permute(0,2,1,3)
+        #print(f'n_serie, n_time, n_channel, window_size = {windows.shape}')
+        windows = windows.reshape(-1, self.ts_dataset.n_channels, n_time)
+
+        # Broadcast s_matrix: This works because unfold in windows_tensor, orders: serie, time
+        s_matrix = self.ts_dataset.s_matrix[ts_idxs]
+        windows_per_serie = len(windows)//len(ts_idxs)
+        s_matrix = s_matrix.repeat(repeats=windows_per_serie, axis=0)
+
+        return windows, s_matrix
+
     def __iter__(self):
         n_series = self.ts_dataset.n_series
         # Shuffle idx before epoch if self._is_train
@@ -129,10 +171,13 @@ class TimeSeriesLoader(object):
             yield batch
 
     def __get_item__(self, index):
-        if (self.model == 'nbeats') or (self.model == 'tcn'):
-            return self._windows_batch(index)
+        if self.model in ['nbeats', 'tcn']:
+            return self._windows_batch(index=index)
         elif self.model in ['esrnn','rnn']:
-            return self._full_series_batch(index)
+            return self._full_series_batch(index=index)
+        elif self.model in ['new_rnn']:
+            return self._windows_batch_rnn(len_sample_chunks=self.len_sample_chunks,
+                                           index=index)
         else:
             assert 1<0, 'error'
 
@@ -168,6 +213,40 @@ class TimeSeriesLoader(object):
                  'outsample_y': outsample_y, 'outsample_x':outsample_x, 'outsample_mask':sample_mask}
         return batch
 
+    def _windows_batch_rnn(self, len_sample_chunks, index):
+        """ RNN models """
+
+        # Create windows for each sampled ts and sample random unmasked windows from each ts
+        windows, s_matrix = self._create_windows_tensor_rnn(n_time=len_sample_chunks, ts_idxs=index)
+        sampleable_windows = self._get_sampleable_windows_idxs(ts_windows_flatten=windows)
+        self.sampleable_windows = sampleable_windows
+
+        # Get sample windows_idxs of batch
+        if self.shuffle:
+            windows_idxs = np.random.choice(sampleable_windows, self.batch_size, replace=True)
+        else:
+            windows_idxs = sampleable_windows
+
+        # Index the windows and s_matrix tensors of batch
+        windows = windows[windows_idxs]
+        s_matrix = s_matrix[windows_idxs]
+
+        # Parse windows to elements of batch
+        insample_y = windows[:, self.t_cols.index('y'), :]
+        insample_x = windows[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
+        available_mask = windows[:, self.t_cols.index('available_mask'), :]
+        sample_mask = windows[:, self.t_cols.index('sample_mask'), :]
+
+        idxs = index.repeat(len(insample_y))
+
+        batch = {'s_matrix': s_matrix,
+                 'insample_y': insample_y,
+                 'insample_x': insample_x,
+                 'available_mask': available_mask,
+                 'sample_mask': sample_mask,
+                 'idxs': idxs}
+        return batch
+
     def _full_series_batch(self, index):
         """ ESRNN, RNN models """
         #TODO: think masks, do they make sense for ESRNN and RNN??
@@ -177,12 +256,19 @@ class TimeSeriesLoader(object):
                                                               window_sampling_limit=self.window_sampling_limit,
                                                               ts_idxs=index)
         ts_tensor = t.Tensor(ts_tensor)
+
+        print("ts_tensor.shape", ts_tensor.shape)
+
         # Trim batch to shorter time series TO AVOID ZERO PADDING, remove non sampleable ts
         # shorter time series is driven by the last ts_idx which is available
         # non-sampleable ts is driver by the first ts_idx which stops beeing sampleable
         available_mask_tensor = ts_tensor[:, self.t_cols.index('available_mask'), :]
         min_time_stamp = int(t.nonzero(t.min(available_mask_tensor, axis=0).values).min())
         sample_mask_tensor = ts_tensor[:, self.t_cols.index('sample_mask'), :]
+
+        print("sample_mask_tensor.shape", sample_mask_tensor.shape)
+
+
         max_time_stamp = int(t.nonzero(t.min(sample_mask_tensor, axis=0).values).max())
 
         available_ts = max_time_stamp - min_time_stamp

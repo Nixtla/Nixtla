@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import random
 from collections import defaultdict
-import copy
+from copy import deepcopy
 
 import torch as t
 from torch import optim
@@ -436,7 +436,7 @@ class Nbeats(object):
         # Training Loop
         early_stopping_counter = 0
         best_val_loss = np.inf
-        best_state_dict = copy.deepcopy(self.model.state_dict())
+        best_state_dict = deepcopy(self.model.state_dict())
         break_flag = False
         iteration = 0
         epoch = 0
@@ -494,7 +494,7 @@ class Nbeats(object):
                         if self.early_stopping:
                             if loss < best_val_loss:
                                 # Save current model if improves outsample loss
-                                best_state_dict = copy.deepcopy(self.model.state_dict())
+                                best_state_dict = deepcopy(self.model.state_dict())
                                 best_insample_loss = training_loss.cpu().data.numpy()
                                 early_stopping_counter = 0
                                 best_val_loss = loss
@@ -505,8 +505,6 @@ class Nbeats(object):
 
                     print(display_string)
 
-                    self.model.train()
-
                 if break_flag:
                     print('\n')
                     print(19*'-',' Stopped training by early stopping', 19*'-')
@@ -514,7 +512,7 @@ class Nbeats(object):
                     break
 
         #End of fitting
-        if n_iterations >0:
+        if n_iterations > 0:
             # This is batch loss!
             self.final_insample_loss = float(training_loss.cpu().data.numpy()) if not break_flag else best_insample_loss
             string = 'Step: {}, Time: {:03.3f}, Insample {}: {:.5f}'.format(iteration,
