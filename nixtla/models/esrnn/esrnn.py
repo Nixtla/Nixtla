@@ -424,10 +424,10 @@ class ESRNN(object):
                 #print("outsample_y.shape", outsample_y.shape)
                 #print("forecast.shape", forecast.shape)
 
-                # Correction needed, TODO: move to loader/dataset
-                if n_fcds is not None:
-                    outsample_y = outsample_y[:, -n_fcds:, :]
-                    forecast = forecast[:, -n_fcds:, :]
+                # Parsing rolled forecasts,
+                # keeping only last available forecast per window
+                outsample_y = outsample_y[:, -1, :]
+                forecast = forecast[:, -1, :]
 
                 outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
