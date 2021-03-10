@@ -10,7 +10,7 @@
 [![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/kdgutier/esrnn_torch/blob/master/LICENSE)
 
-**Nixtla** is a **forecasting library** for **state of the art** statistical and **machine learning models**, currently hosting the [ESRNN](https://www.sciencedirect.com/science/article/pii/S0169207019301153), and the [NBEATSX](https://arxiv.org/abs/1905.10437) models.
+**Nixtla** is a **forecasting library** for **state of the art** statistical and **machine learning models**.
 
 Nixtla aims to store tools and models with the capacity to provide **highly accurate forecasts** with **comparable** performance to that of [Amazon Web Services](https://aws.amazon.com/es/forecast/), [Azure](https://docs.microsoft.com/en-us/azure/machine-learning/), or [DataRobot](https://www.datarobot.com/platform/automated-time-series/).
 
@@ -58,11 +58,11 @@ pip install -e .
 
 ## Currently available models
 
-* [Exponential Smoothing Recurrent Neural Network (ESRNN)](https://www.sciencedirect.com/science/article/pii/S0169207019301153), a hybrid model that combines the expressivity of non linear models to capture the trends while it normalizes using a Holt-Winters inspired model for the levels and seasonals.  This model is the winner of the M4 forecasting competition.
+* [Exponential Smoothing Recurrent Neural Network (ESRNN)](https://www.sciencedirect.com/science/article/pii/S0169207019301153): A hybrid model that combines the expressivity of non linear models to capture the trends while it normalizes using a Holt-Winters inspired model for the levels and seasonals.  This model is the winner of the M4 forecasting competition.
 
 <!--- ![ESRNN](/indx_imgs/ESRNN.png) -->
 
-* [Neural Basis Expansion Analysis with Exogenous Variables (NBEATSX)](https://arxiv.org/abs/1905.10437) is a model from Element-AI (Yoshua Bengio’s lab) that has proven to achieve state of the art performance on benchmark large scale forecasting datasets like Tourism, M3, and M4. The model is fast to train an has an interpretable configuration.
+* [Neural Basis Expansion Analysis with Exogenous Variables (N-BEATS)](https://arxiv.org/abs/1905.10437): A model from Element-AI (Yoshua Bengio’s lab) that has proven to achieve state of the art performance on benchmark large scale forecasting datasets like Tourism, M3, and M4. The model is fast to train an has an interpretable configuration.
 
 <!--- ![NBEATSX](/indx_imgs/NBEATSX.png) -->
 
