@@ -5,7 +5,7 @@ __all__ = ['TCNModule']
 # Cell
 import torch as t
 import torch.nn as nn
-from ..component import TemporalConvNet
+from ..components.tcn import TemporalConvNet
 import numpy as np
 
 # Cell
