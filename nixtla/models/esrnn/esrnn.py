@@ -448,7 +448,8 @@ class ESRNN(object):
 
         target, forecast, outsample_mask = self.predict(ts_loader=ts_loader)
 
-        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
+        #complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
+        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=None)
 
         self.model.train()
 
