@@ -35,7 +35,7 @@ jobs:
 
       - name: Install pytorch
         shell: bash -l {0}
-        run: pip install pytorch
+        run: pip install torch
 
       - name: Install nixtla
         shell: bash -l {0}
