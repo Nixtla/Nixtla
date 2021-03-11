@@ -6,6 +6,7 @@ __all__ = []
 import torch
 import torch.nn as nn
 from ..components.drnn import DRNN
+from ..components.tcn import TemporalConvNet as TCN
 import numpy as np
 
 # Cell
