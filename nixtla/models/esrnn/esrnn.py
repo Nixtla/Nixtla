@@ -293,6 +293,7 @@ class ESRNN(object):
         # Training Loop
         early_stopping_counter = 0
         best_val_loss = np.inf
+        best_insample_loss = np.inf
         best_state_dict = deepcopy(self.model.state_dict())
         break_flag = False
         iteration = 0
@@ -396,7 +397,7 @@ class ESRNN(object):
             print('='*30+'  End fitting  '+'='*30)
             print('\n')
 
-    def predict(self, ts_loader, n_fcds=None, return_decomposition=False):
+    def predict(self, ts_loader, return_decomposition=False):
         assert self._fitted, "Model not fitted yet"
         self.model.eval()
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
