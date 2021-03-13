@@ -436,6 +436,7 @@ class Nbeats(object):
         # Training Loop
         early_stopping_counter = 0
         best_val_loss = np.inf
+        best_insample_loss = np.inf
         best_state_dict = deepcopy(self.model.state_dict())
         break_flag = False
         iteration = 0

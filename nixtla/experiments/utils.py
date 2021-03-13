@@ -38,6 +38,8 @@ from ..models.esrnn.rnn import RNN
 
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 
+# TODO: define batch_size for validation loader
+
 # Cell
 def get_default_mask_df(Y_df, ds_in_test, is_test):
     # Creates outsample_mask
@@ -135,30 +137,38 @@ def train_val_split(len_series, offset, window_sampling_limit, n_val_weeks, ds_p
 
 # Cell
 def create_datasets(mc, Y_df, X_df, S_df, ds_in_test, shuffle_outsample, offset):
-    #TODO: offset not implemented
-    #TODO: shuffle_outsample
+    # #TODO: offset not implemented
+    # #TODO: shuffle_outsample
 
-    # n_timestamps_pred defines number of hours ahead to predict
-    # offset defines the shift of the data to simulate rolling window
-    # assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset' <-- restriccion poco general
+    # # n_timestamps_pred defines number of hours ahead to predict
+    # # offset defines the shift of the data to simulate rolling window
+    # # assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset' <-- restriccion poco general
 
-    #------------------------------------- Available and Validation Mask ------------------------------------#
-    # mask: 1 last_n_timestamps, 0 timestamps until last_n_timestamps
-    train_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=False)
-    outsample_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=True)
+    # #------------------------------------- Available and Validation Mask ------------------------------------#
+    # # mask: 1 last_n_timestamps, 0 timestamps until last_n_timestamps
+    # train_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=False)
+    # outsample_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=True)
 
-    #---------------------------------------------- Scale Data ----------------------------------------------#
-    # Scale data # TODO: write sample_mask conditional/groupby(['unique_id]) scaling
-    Y_df, X_df, scaler_y = scale_data(Y_df=Y_df, X_df=X_df, mask_df=train_mask_df,
-                                      normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
+    # #---------------------------------------------- Scale Data ----------------------------------------------#
+    # # Scale data # TODO: write sample_mask conditional/groupby(['unique_id]) scaling
+    # Y_df, X_df, scaler_y = scale_data(Y_df=Y_df, X_df=X_df, mask_df=train_mask_df,
+    #                                   normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
 
-    #----------------------------------------- Declare Dataset and Loaders ----------------------------------#
-    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df, verbose=True)
-    if ds_in_test == 0:
-        outsample_ts_dataset = None
-    else:
-        outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df,
-                                                 mask_df=outsample_mask_df, verbose=True)
+    # #----------------------------------------- Declare Dataset and Loaders ----------------------------------#
+    # train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df, verbose=True)
+    # if ds_in_test == 0:
+    #     outsample_ts_dataset = None
+    # else:
+    #     outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df,
+    #                                              mask_df=outsample_mask_df, verbose=True)
+
+    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
+                                     ds_in_test=728*24, verbose=True)
+
+    outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
+                                            ds_in_test=728*24, is_test=True, verbose=True)
+
+    scaler_y = None
 
     return train_ts_dataset, outsample_ts_dataset, scaler_y
 
@@ -171,9 +181,10 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                        input_size=int(mc['input_size_multiplier']*mc['output_size']),
                                        output_size=int(mc['output_size']),
                                        idx_to_sample_freq=int(mc['idx_to_sample_freq']),
+                                       len_sample_chunks=int(mc['len_sample_chunks']),
                                        batch_size=int(mc['batch_size']),
-                                       complete_inputs=mc['complete_inputs'],
                                        n_series_per_batch=mc['n_series_per_batch'],
+                                       complete_inputs=mc['complete_inputs'],
                                        complete_sample=mc['complete_sample'],
                                        shuffle=True)
 
@@ -185,15 +196,17 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                         input_size=int(mc['input_size_multiplier']*mc['output_size']),
                                         output_size=int(mc['output_size']),
                                         idx_to_sample_freq=mc['val_idx_to_sample_freq'],
-                                        batch_size=int(mc['batch_size']),
-                                        complete_inputs=mc['complete_inputs'],
+                                        len_sample_chunks=int(mc['len_sample_chunks']),
+                                        batch_size=1,
                                         n_series_per_batch=mc['n_series_per_batch'],
+                                        complete_inputs=mc['complete_inputs'],
                                         complete_sample=mc['complete_sample'],
                                         shuffle=False)
     else:
         val_ts_loader = None
 
     return train_ts_loader, val_ts_loader
+
 
 # Cell
 def instantiate_nbeats(mc):
@@ -231,9 +244,17 @@ def instantiate_nbeats(mc):
 
 # Cell
 def instantiate_esrnn(mc):
-    model = ESRNN(input_size=int(mc['input_size_multiplier']*mc['output_size']),
+    model = ESRNN(# Architecture parameters
+                  input_size=int(mc['input_size_multiplier']*mc['output_size']),
                   output_size=int(mc['output_size']),
-                  max_epochs=int(mc['max_epochs']),
+                  es_component=mc['es_component'],
+                  cell_type=mc['cell_type'],
+                  state_hsize=int(mc['state_hsize']),
+                  dilations=mc['dilations'],
+                  add_nl_layer=mc['add_nl_layer'],
+                  # Optimization parameters
+                  n_iterations=int(mc['n_iterations']),
+                  early_stopping=int(mc['early_stopping']),
                   learning_rate=mc['learning_rate'],
                   lr_scheduler_step_size=int(mc['lr_scheduler_step_size']),
                   lr_decay=mc['lr_decay'],
@@ -245,14 +266,12 @@ def instantiate_esrnn(mc):
                   level_variability_penalty=mc['level_variability_penalty'],
                   testing_percentile=mc['testing_percentile'],
                   training_percentile=mc['training_percentile'],
-                  es_component=mc['es_component'],
-                  cell_type=mc['cell_type'],
-                  state_hsize=int(mc['state_hsize']),
-                  dilations=mc['dilations'],
-                  add_nl_layer=mc['add_nl_layer'],
                   loss=mc['loss'],
+                  val_loss=mc['val_loss'],
                   seasonality=mc['seasonality'],
-                  random_seed=int(mc['random_seed']))
+                  random_seed=int(mc['random_seed'])
+                  # Data parameters
+                  )
     return model
 
 # Cell
@@ -301,12 +320,13 @@ def instantiate_tcn(mc):
 def instantiate_model(mc):
     MODEL_DICT = {'nbeats': instantiate_nbeats,
                   'esrnn': instantiate_esrnn,
+                  'new_rnn': instantiate_esrnn,
                   'rnn': instantiate_rnn,
                   'tcn': instantiate_tcn}
     return MODEL_DICT[mc['model']](mc)
 
 # Cell
-def model_fit_predict(mc, Y_df, X_df, S_df, ds_in_test, expected_fcds, shuffle_outsample):
+def model_fit_predict(mc, Y_df, X_df, S_df, ds_in_test, shuffle_outsample):
     #TODO: rolling forecast
     #TODO: expected_fcds
 
@@ -329,28 +349,20 @@ def model_fit_predict(mc, Y_df, X_df, S_df, ds_in_test, expected_fcds, shuffle_o
     model = instantiate_model(mc=mc)
 
     # Val loader not implemented during training for ESRNN and RNN
-    if mc['model'] in ['nbeats', 'tcn']:
-        model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, verbose=True,
-                    eval_freq=mc['eval_freq'])
-        y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, return_decomposition=False)
-
-    elif mc['model'] in ['esrnn', 'rnn']:
-        model.fit(train_ts_loader=train_ts_loader, verbose=True, eval_freq=mc['eval_freq'])
-        y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, n_fcds=expected_fcds, eval_mode=True)
+    model.fit(train_ts_loader=train_ts_loader, val_ts_loader=val_ts_loader, verbose=True,
+                eval_freq=mc['eval_freq'])
+    y_true, y_hat, mask = model.predict(ts_loader=val_ts_loader, return_decomposition=False)
 
     print("y_true.shape (#n_series, #n_fcds, #lt) ", y_true.shape)
     print("y_hat.shape (#n_series, #n_fcds, #lt) ", y_hat.shape)
     print("\n")
-
-    assert y_true.shape[1] == expected_fcds, 'Error in fcds per serie.'
-    assert y_hat.shape[1] == expected_fcds, 'Error in fcds per serie.'
 
     meta_data = val_ts_loader.ts_dataset.meta_data
 
     return y_true, y_hat, mask, meta_data, model
 
 # Cell
-def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, expected_fcds, shuffle_outsample):
+def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outsample):
 
     # Some asserts due to work in progress
     assert mc['normalizer_y'] is None, 'Scaling Y not iplemented (inverse Y missing for loss)'
@@ -366,7 +378,6 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, expected_fcd
     start = time.time()
     y_true, y_hat, mask, meta_data, model = model_fit_predict(mc=mc, Y_df=Y_df, X_df=X_df,
                                                               S_df=S_df, ds_in_test=ds_in_test,
-                                                              expected_fcds=expected_fcds,
                                                               shuffle_outsample=shuffle_outsample)
     run_time = time.time() - start
 
@@ -383,12 +394,11 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, expected_fcd
     return result
 
 # Cell
-def hyperopt_tunning(space, hyperopt_iters, loss_function, Y_df, X_df, S_df, ds_in_test, expected_fcds,
+def hyperopt_tunning(space, hyperopt_iters, loss_function, Y_df, X_df, S_df, ds_in_test,
                      shuffle_outsample, save_trials=False):
     trials = Trials()
     fmin_objective = partial(evaluate_model, loss_function=loss_function, Y_df=Y_df, X_df=X_df, S_df=S_df,
                              ds_in_test=ds_in_test,
-                             expected_fcds=expected_fcds,
                              shuffle_outsample=shuffle_outsample)
 
     fmin(fmin_objective, space=space, algo=tpe.suggest, max_evals=hyperopt_iters, trials=trials, verbose=True)
