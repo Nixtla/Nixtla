@@ -137,38 +137,38 @@ def train_val_split(len_series, offset, window_sampling_limit, n_val_weeks, ds_p
 
 # Cell
 def create_datasets(mc, Y_df, X_df, S_df, ds_in_test, shuffle_outsample, offset):
-    # #TODO: offset not implemented
-    # #TODO: shuffle_outsample
+    #TODO: offset not implemented
+    #TODO: shuffle_outsample
 
-    # # n_timestamps_pred defines number of hours ahead to predict
-    # # offset defines the shift of the data to simulate rolling window
-    # # assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset' <-- restriccion poco general
+    # n_timestamps_pred defines number of hours ahead to predict
+    # offset defines the shift of the data to simulate rolling window
+    # assert offset % n_timestamps_pred == 0, 'Avoid overlap of predictions, redefine n_timestamps_pred or offset' <-- restriccion poco general
 
-    # #------------------------------------- Available and Validation Mask ------------------------------------#
-    # # mask: 1 last_n_timestamps, 0 timestamps until last_n_timestamps
-    # train_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=False)
-    # outsample_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=True)
+    #------------------------------------- Available and Validation Mask ------------------------------------#
+    # mask: 1 last_n_timestamps, 0 timestamps until last_n_timestamps
+    train_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=False)
+    outsample_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=ds_in_test, is_test=True)
 
-    # #---------------------------------------------- Scale Data ----------------------------------------------#
-    # # Scale data # TODO: write sample_mask conditional/groupby(['unique_id]) scaling
-    # Y_df, X_df, scaler_y = scale_data(Y_df=Y_df, X_df=X_df, mask_df=train_mask_df,
-    #                                   normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
+    #---------------------------------------------- Scale Data ----------------------------------------------#
+    # Scale data # TODO: write sample_mask conditional/groupby(['unique_id]) scaling
+    Y_df, X_df, scaler_y = scale_data(Y_df=Y_df, X_df=X_df, mask_df=train_mask_df,
+                                      normalizer_y=mc['normalizer_y'], normalizer_x=mc['normalizer_x'])
 
-    # #----------------------------------------- Declare Dataset and Loaders ----------------------------------#
-    # train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df, verbose=True)
-    # if ds_in_test == 0:
-    #     outsample_ts_dataset = None
-    # else:
-    #     outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df,
-    #                                              mask_df=outsample_mask_df, verbose=True)
+    #----------------------------------------- Declare Dataset and Loaders ----------------------------------#
+    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df, mask_df=train_mask_df, verbose=True)
+    if ds_in_test == 0:
+        outsample_ts_dataset = None
+    else:
+        outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df, S_df=S_df,
+                                                 mask_df=outsample_mask_df, verbose=True)
 
-    train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
-                                     ds_in_test=728*24, verbose=True)
+#     train_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
+#                                      ds_in_test=728*24, verbose=True)
 
-    outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
-                                            ds_in_test=728*24, is_test=True, verbose=True)
+#     outsample_ts_dataset = TimeSeriesDataset(Y_df=Y_df, S_df=None, X_df=X_df,
+#                                             ds_in_test=728*24, is_test=True, verbose=True)
 
-    scaler_y = None
+#     scaler_y = None
 
     return train_ts_dataset, outsample_ts_dataset, scaler_y
 
@@ -181,7 +181,7 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                        input_size=int(mc['input_size_multiplier']*mc['output_size']),
                                        output_size=int(mc['output_size']),
                                        idx_to_sample_freq=int(mc['idx_to_sample_freq']),
-                                       len_sample_chunks=int(mc['len_sample_chunks']),
+                                       len_sample_chunks=mc['len_sample_chunks'],
                                        batch_size=int(mc['batch_size']),
                                        n_series_per_batch=mc['n_series_per_batch'],
                                        complete_inputs=mc['complete_inputs'],
@@ -196,7 +196,7 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                         input_size=int(mc['input_size_multiplier']*mc['output_size']),
                                         output_size=int(mc['output_size']),
                                         idx_to_sample_freq=mc['val_idx_to_sample_freq'],
-                                        len_sample_chunks=int(mc['len_sample_chunks']),
+                                        len_sample_chunks=mc['len_sample_chunks'],
                                         batch_size=1,
                                         n_series_per_batch=mc['n_series_per_batch'],
                                         complete_inputs=mc['complete_inputs'],
