@@ -377,7 +377,8 @@ def model_fit_predict(mc, Y_df, X_df, S_df, ds_in_test, shuffle_outsample):
     return y_true, y_hat, mask, meta_data, model
 
 # Cell
-def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outsample):
+def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outsample,
+                   kwargs_loss):
 
     # Some asserts due to work in progress
     assert mc['normalizer_y'] is None, 'Scaling Y not iplemented (inverse Y missing for loss)'
@@ -397,7 +398,7 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outs
     run_time = time.time() - start
 
     # Evaluate predictions
-    loss = loss_function(y=y_true, y_hat=y_hat, weights=mask)
+    loss = loss_function(y=y_true, y_hat=y_hat, weights=mask, **kwargs_loss)
 
     result =  {'loss': loss,
                'mc': mc,
@@ -410,11 +411,13 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outs
 
 # Cell
 def hyperopt_tunning(space, hyperopt_iters, loss_function, Y_df, X_df, S_df, ds_in_test,
-                     shuffle_outsample, save_trials=False):
+                     shuffle_outsample, save_trials=False,
+                     kwargs_loss=None):
     trials = Trials()
     fmin_objective = partial(evaluate_model, loss_function=loss_function, Y_df=Y_df, X_df=X_df, S_df=S_df,
                              ds_in_test=ds_in_test,
-                             shuffle_outsample=shuffle_outsample)
+                             shuffle_outsample=shuffle_outsample,
+                             kwargs_loss=kwargs_loss or {})
 
     fmin(fmin_objective, space=space, algo=tpe.suggest, max_evals=hyperopt_iters, trials=trials, verbose=True)
 
