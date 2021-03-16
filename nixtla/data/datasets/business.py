@@ -187,7 +187,7 @@ class Business:
 
         if group == 'GLB':
             stat = pd.read_csv(path / f'ts-{group.lower()}-statics.csv')
-            S = ts['unique_id'].drop_duplicates().to_frame()
+            S = stat['unique_id'].drop_duplicates().to_frame()
             S = S.merge(stat, how='left', on=['unique_id'])
 
         else:

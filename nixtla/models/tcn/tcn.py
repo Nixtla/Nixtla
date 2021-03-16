@@ -5,10 +5,9 @@ __all__ = ['init_weights', 'TCN']
 # Cell
 import copy
 import os
-import time
 import random
+import time
 from collections import defaultdict
-
 
 import numpy as np
 import pandas as pd

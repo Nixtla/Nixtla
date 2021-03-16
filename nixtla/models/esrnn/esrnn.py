@@ -4,17 +4,14 @@ __all__ = ['ESRNN']
 
 # Cell
 import os
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
-import time
-import numpy as np
-import pandas as pd
 import random
+import time
 from collections import defaultdict
 from copy import deepcopy
-
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import torch as t
 import torch.nn as nn
 import torch.optim as optim
@@ -23,7 +20,6 @@ from torch.optim.lr_scheduler import StepLR
 from .esrnn_model import _ESRNN
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, SmylLoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
-
 
 # Cell
 #TODO: eval_mode=False

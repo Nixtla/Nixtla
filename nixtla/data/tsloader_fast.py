@@ -93,7 +93,7 @@ class TimeSeriesLoader(object):
         # Memory efficiency is gained from keeping across dataloaders common ts_tensor in dataset
         # Filter function is used to define train tensor and validation tensor with the offset
         # Default ts_idxs=ts_idxs sends all the data
-        tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(offset=self.offset, output_size=self.output_size,
+        tensor, right_padding = self.ts_dataset.get_filtered_ts_tensor(output_size=self.output_size,
                                                                        window_sampling_limit=self.window_sampling_limit)
         tensor = t.Tensor(tensor)
 
