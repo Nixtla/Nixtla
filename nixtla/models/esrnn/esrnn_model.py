@@ -3,23 +3,26 @@
 __all__ = []
 
 # Cell
+import numpy as np
 import torch
 import torch.nn as nn
+
 from ..components.drnn import DRNN
 from ..components.tcn import TemporalConvNet as TCN
-import numpy as np
 
 # Cell
 #TODO: rnn con canales
 #TODO: notacion de todo, windows_y_insample, step_size vs freq
 class _ES(nn.Module):
     def __init__(self, n_series, input_size, output_size,
+                 output_size_m,
                  n_t, n_s, seasonality, noise_std, device):
         super(_ES, self).__init__()
 
         self.n_series = n_series
         self.input_size = input_size
         self.output_size = output_size
+        self.output_size_m = output_size_m
         self.n_t = n_t
         self.n_s = n_s
         self.seasonality = seasonality
@@ -113,8 +116,12 @@ class _ES(nn.Module):
 
 # Cell
 class _ESI(_ES):
-    def __init__(self, n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device):
-        super(_ESI, self).__init__(n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device)
+    def __init__(self, n_series, input_size, output_size,
+                 output_size_m,
+                 n_t, n_s, seasonality, noise_std, device):
+        super(_ESI, self).__init__(n_series, input_size, output_size,
+                                   output_size_m,
+                                   n_t, n_s, seasonality, noise_std, device)
         self.W = torch.nn.Parameter(torch.randn(1))
         self.W.requires_grad = False
 
@@ -130,9 +137,40 @@ class _ESI(_ES):
         return trends
 
 # Cell
+class _MedianResidual(_ES):
+    def __init__(self, n_series, input_size, output_size,
+                 output_size_m,
+                 n_t, n_s, seasonality, noise_std, device):
+        super(_MedianResidual, self).__init__(n_series, input_size, output_size, output_size_m,
+                                   n_t, n_s, seasonality, noise_std, device)
+        self.W = torch.nn.Parameter(torch.randn(1))
+        self.W.requires_grad = False
+
+    def compute_levels_seasons(self, y, idxs):
+        y_transformed, _ = y.median(1)
+        y_transformed = y_transformed.reshape(-1, 1)
+        levels = y_transformed.repeat(1, y.shape[1])
+        seasonalities = None
+        return levels, None
+
+    def normalize(self, y, level, seasonalities, start, end):
+        return y - level
+
+    def predict(self, trends, levels, seasonalities, step_size):
+        levels = levels[:, (self.input_size-1):-self.output_size]
+        levels = levels[:, ::step_size]
+        levels = levels.unsqueeze(2)
+
+        return trends + levels
+
+# Cell
 class _ESM(_ES):
-    def __init__(self, n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device):
-        super(_ESM, self).__init__(n_series, input_size, output_size, n_t, n_s, seasonality, noise_std, device)
+    def __init__(self, n_series, input_size, output_size,
+                 output_size_m,
+                 n_t, n_s, seasonality, noise_std, device):
+        super(_ESM, self).__init__(n_series, input_size, output_size,
+                                   output_size_m,
+                                   n_t, n_s, seasonality, noise_std, device)
         # Level and Seasonality Smoothing parameters
         # 1 level, S seasonalities, S init_seas
         embeds_size = 1 + len(self.seasonality) + sum(self.seasonality)
@@ -245,17 +283,21 @@ class _ESM(_ES):
         # Deseasonalization and normalization (inverse)
         y_hat = trends * levels
         for s in range(len(self.seasonality)):
-            y_hat *= seasonalities[s]
+            seas = seasonalities[s]
+            y_hat *= torch.vstack([seas.T for _ in range(self.output_size_m)]).T
 
         return y_hat
 
 # Cell
 class _RNN(nn.Module):
-    def __init__(self, input_size, output_size, n_t, n_s, cell_type, dilations, state_hsize, add_nl_layer):
+    def __init__(self, input_size, output_size,
+                 output_size_m,
+                 n_t, n_s, cell_type, dilations, state_hsize, add_nl_layer):
         super(_RNN, self).__init__()
 
         self.input_size = input_size
         self.output_size = output_size
+        self.output_size_m = output_size_m
         self.n_t = n_t
         self.n_s = n_s
 
@@ -283,7 +325,7 @@ class _RNN(nn.Module):
         if self.add_nl_layer:
             self.MLPW  = nn.Linear(self.state_hsize, self.state_hsize)
 
-        self.adapterW  = nn.Linear(self.state_hsize, self.output_size)
+        self.adapterW  = nn.Linear(self.state_hsize, self.output_size * self.output_size_m)
 
     def forward(self, input_data):
         for layer_num in range(len(self.rnn_stack)):
@@ -298,26 +340,40 @@ class _RNN(nn.Module):
             input_data = torch.tanh(input_data)
 
         input_data = self.adapterW(input_data)
+
         return input_data
 
 # Cell
 class _ESRNN(nn.Module):
-    def __init__(self, n_series, input_size, output_size, n_t, n_s,
+    def __init__(self, n_series, input_size, output_size,
+                 output_size_m, n_t, n_s,
                  es_component, seasonality, noise_std, cell_type,
                  dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
-        assert es_component in ['multiplicative','identity'], f'es_component {es_component} not valid.'
+        allowed_componets = ['multiplicative', 'identity', 'median_residual']
+        assert es_component in allowed_componets, f'es_component {es_component} not valid.'
 
         if es_component == 'multiplicative':
             self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
-                           n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                           output_size_m=output_size_m, n_t=n_t, n_s=n_s,
+                           seasonality=seasonality, noise_std=noise_std,
                            device=device).to(device)
         elif es_component == 'identity':
             self.es = _ESI(n_series=n_series, input_size=input_size, output_size=output_size,
-                           n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
+                           output_size_m=output_size_m, n_t=n_t, n_s=n_s,
+                           seasonality=seasonality, noise_std=noise_std,
                            device=device).to(device)
-        self.rnn = _RNN(input_size=input_size, output_size=output_size, n_t=n_t, n_s=n_s,
-                        cell_type=cell_type, dilations=dilations, state_hsize=state_hsize,
+        elif es_component == 'median_residual':
+            self.es = _MedianResidual(n_series=n_series, input_size=input_size, output_size=output_size,
+                                      output_size_m=output_size_m, n_t=n_t, n_s=n_s,
+                                      seasonality=seasonality, noise_std=noise_std,
+                                      device=device).to(device)
+
+        self.rnn = _RNN(input_size=input_size, output_size=output_size,
+                        output_size_m=output_size_m,
+                        n_t=n_t, n_s=n_s,
+                        cell_type=cell_type, dilations=dilations,
+                        state_hsize=state_hsize,
                         add_nl_layer=add_nl_layer).to(device)
 
     def forward(self, insample_y, insample_x, s_matrix, step_size, idxs):
@@ -329,6 +385,10 @@ class _ESRNN(nn.Module):
                                                                                  idxs=idxs)
         # RNN Forward
         windows_y_hat = self.rnn(windows_y_insample)
+
+        if self.rnn.output_size_m > 1:
+            n_w, n_ts, _ = windows_y_insample.shape
+            windows_y_hat = windows_y_hat.view(n_w, n_ts, -1, self.rnn.output_size_m)
 
         return windows_y_outsample, windows_y_hat, levels
 
@@ -347,5 +407,9 @@ class _ESRNN(nn.Module):
         windows_y_outsample = windows_y_outsample.permute(1,0,2)
 
         y_hat = self.es.predict(trends, levels, seasonalities, step_size)
+
+        if self.rnn.output_size_m > 1:
+            n_ts, n_w, _ = windows_y_outsample.shape
+            y_hat = y_hat.view(n_ts, n_w, -1, self.rnn.output_size_m)
 
         return windows_y_outsample, y_hat
