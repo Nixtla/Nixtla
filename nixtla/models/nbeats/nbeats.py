@@ -4,27 +4,24 @@ __all__ = ['init_weights', 'Nbeats']
 
 # Cell
 import os
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
-import time
-import numpy as np
-import pandas as pd
 import random
+import time
 from collections import defaultdict
 from copy import deepcopy
 
+import numpy as np
+import pandas as pd
 import torch as t
 from torch import optim
 from pathlib import Path
 from functools import partial
 
+from ...data.tsdataset import TimeSeriesDataset
+from ...data.tsloader_general import TimeSeriesLoader
 from .nbeats_model import NBeats, NBeatsBlock, IdentityBasis, TrendBasis, SeasonalityBasis
 from .nbeats_model import ExogenousBasisInterpretable, ExogenousBasisWavenet, ExogenousBasisTCN
 from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, PinballLoss
 from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
-
-from ...data.tsdataset import TimeSeriesDataset
-from ...data.tsloader_general import TimeSeriesLoader
 
 # Cell
 def init_weights(module, initialization):
@@ -590,7 +587,6 @@ class Nbeats(object):
         ts_loader = TimeSeriesLoader(model='nbeats',
                                      ts_dataset=ts_dataset,
                                      window_sampling_limit=500_000,
-                                     offset=0,
                                      input_size=self.input_size,
                                      output_size=self.output_size,
                                      idx_to_sample_freq=self.output_size,
