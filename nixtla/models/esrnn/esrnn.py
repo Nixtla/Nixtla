@@ -305,6 +305,7 @@ class ESRNN(object):
                 self.es_optimizer.zero_grad()
                 self.rnn_optimizer.zero_grad()
 
+                # Parse batch
                 insample_y  = self.to_tensor(x=batch['insample_y'])
                 insample_x  = self.to_tensor(x=batch['insample_x'])
                 s_matrix    = self.to_tensor(x=batch['s_matrix'])

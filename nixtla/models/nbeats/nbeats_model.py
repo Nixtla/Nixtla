@@ -39,6 +39,8 @@ class NBeatsBlock(nn.Module):
             x_s_n_hidden = 0
         theta_n_hidden = [input_size + (input_size+output_size)*x_t_n_inputs + x_s_n_hidden] + theta_n_hidden
 
+        self.input_size = input_size
+        self.output_size = output_size
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden
         self.x_t_n_inputs = x_t_n_inputs
@@ -98,25 +100,35 @@ class NBeats(nn.Module):
     def __init__(self, blocks: nn.ModuleList):
         super().__init__()
         self.blocks = blocks
+        self.output_size = blocks[0].output_size
 
-    def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
-                outsample_x_t: t.Tensor, x_s: t.Tensor, return_decomposition=False):
+    def forward(self, S: t.Tensor, Y: t.Tensor, X: t.Tensor,
+                insample_mask: t.Tensor, return_decomposition=False):
+
+        # insample
+        insample_y    = Y[:, :-self.output_size]
+        insample_x_t  = X[:, :, :-self.output_size]
+        insample_mask = insample_mask[:, :-self.output_size]
+
+        # outsample
+        outsample_y   = Y[:, -self.output_size:]
+        outsample_x_t = X[:, :, -self.output_size:]
 
         if return_decomposition:
             forecast, block_forecasts = self.forecast_decomposition(insample_y=insample_y,
                                                                     insample_x_t=insample_x_t,
                                                                     insample_mask=insample_mask,
                                                                     outsample_x_t=outsample_x_t,
-                                                                    x_s=x_s)
-            return forecast, block_forecasts
+                                                                    x_s=S)
+            return outsample_y, forecast, block_forecasts
 
         else:
             forecast = self.forecast(insample_y=insample_y,
                                      insample_x_t=insample_x_t,
                                      insample_mask=insample_mask,
                                      outsample_x_t=outsample_x_t,
-                                     x_s=x_s)
-            return forecast
+                                     x_s=S)
+            return outsample_y, forecast
 
     def forecast(self, insample_y: t.Tensor, insample_x_t: t.Tensor, insample_mask: t.Tensor,
                  outsample_x_t: t.Tensor, x_s: t.Tensor):

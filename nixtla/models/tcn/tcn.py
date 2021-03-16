@@ -130,30 +130,14 @@ class TCN(object):
         return tensor
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
-        #TODO: mas opciones que mae
         self.model.eval()
 
-        losses = []
-        with t.no_grad():
-            for batch in iter(ts_loader):
-                # Parse batch
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
+        target, forecast, outsample_mask = self.predict(ts_loader=ts_loader)
 
-                forecast = self.model(insample_y=insample_y, insample_x=insample_x,
-                                      outsample_x=outsample_x, s_matrix=s_matrix)
+        complete_loss = validation_loss_fn(target=target, forecast=forecast, weights=outsample_mask)
 
-                batch_loss = validation_loss_fn(target=forecast.cpu().data.numpy(),
-                                                forecast=outsample_y.cpu().data.numpy(),
-                                                weights=outsample_mask.cpu().data.numpy())
-                losses.append(batch_loss)
-        loss = np.mean(losses)
         self.model.train()
-        return loss
+        return complete_loss
 
     def fit(self, train_ts_loader, val_ts_loader=None, n_iterations=None, verbose=True, eval_freq=1):
         # Random Seeds (model initialization)
@@ -212,18 +196,16 @@ class TCN(object):
 
                 self.model.train()
                 # Parse batch
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
+                S     = self.to_tensor(batch['S'])
+                Y     = self.to_tensor(batch['Y'])
+                X     = self.to_tensor(batch['X'])
+                available_mask  = self.to_tensor(batch['available_mask'])
+                outsample_mask = self.to_tensor(batch['sample_mask'])[:, -self.output_size:]
 
                 optimizer.zero_grad()
-                forecast = self.model(insample_y=insample_y, insample_x=insample_x, outsample_x=outsample_x,
-                                      s_matrix=s_matrix)
+                outsample_y, forecast = self.model(S=S, Y=Y, X=X)
 
-                training_loss = training_loss_fn(x=insample_y, freq=self.seasonality, forecast=forecast,
+                training_loss = training_loss_fn(x=Y, freq=self.seasonality, forecast=forecast,
                                                 target=outsample_y, mask=outsample_mask)
 
                 if not np.isnan(float(training_loss)):
@@ -286,7 +268,7 @@ class TCN(object):
             print('='*30+'  End fitting  '+'='*30)
             print('\n')
 
-    def predict(self, ts_loader, X_test=None, eval_mode=False):
+    def predict(self, ts_loader):
         self.model.eval()
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
@@ -295,22 +277,23 @@ class TCN(object):
         outsample_masks = []
         with t.no_grad():
             for batch in iter(ts_loader):
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast = self.model(insample_y=insample_y, insample_x=insample_x,
-                                      outsample_x=outsample_x, s_matrix=s_matrix)
+                # Parse batch
+                S     = self.to_tensor(batch['S'])
+                Y     = self.to_tensor(batch['Y'])
+                X     = self.to_tensor(batch['X'])
+                available_mask  = self.to_tensor(batch['available_mask'])
+                outsample_mask = batch['sample_mask'][:, -self.output_size:]
+
+                outsample_y, forecast = self.model(S=S, Y=Y, X=X)
+                outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
-                outsample_ys.append(batch['outsample_y'])
-                outsample_masks.append(batch['outsample_mask'])
+                outsample_masks.append(outsample_mask)
 
         forecasts = np.vstack(forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
-        # Reshape
         n_series = ts_loader.ts_dataset.n_series
         n_fcds = len(outsample_ys) // n_series
         outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
@@ -318,12 +301,7 @@ class TCN(object):
         outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
 
         self.model.train()
-        if eval_mode:
-            return outsample_ys, forecasts, outsample_masks
-        else:
-            assert 1<0, 'mode_eval=False not implemented yet'
-
-        return Y_hat_panel
+        return outsample_ys, forecasts, outsample_masks
 
 
     def save(self, model_dir, model_id, state_dict = None):
