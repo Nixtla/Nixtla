@@ -27,6 +27,7 @@ from ..data.scalers import Scaler
 from ..data.tsdataset import TimeSeriesDataset
 from ..data.tsloader_general import TimeSeriesLoader
 from ..models.esrnn.esrnn import ESRNN
+from ..models.esrnn.mqesrnn import MQESRNN
 from ..models.esrnn.rnn import RNN
 from ..models.nbeats.nbeats import Nbeats
 from ..models.tcn.tcn import TCN
@@ -280,8 +281,8 @@ def instantiate_mqesrnn(mc):
                     gradient_clipping_threshold=mc['gradient_clipping_threshold'],
                     rnn_weight_decay=mc['rnn_weight_decay'],
                     noise_std=mc['noise_std'],
-                    testing_percentiles=mc['testing_percentiles'],
-                    training_percentiles=mc['training_percentiles'],
+                    testing_percentiles=list(mc['testing_percentiles']),
+                    training_percentiles=list(mc['training_percentiles']),
                     loss=mc['loss'],
                     val_loss=mc['val_loss'],
                     random_seed=int(mc['random_seed'])
