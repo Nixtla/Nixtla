@@ -340,30 +340,27 @@ class ESRNN(object):
                 self.es_optimizer.zero_grad()
                 self.rnn_optimizer.zero_grad()
 
-                insample_y  = self.to_tensor(x=batch['insample_y'])
-                insample_x  = self.to_tensor(x=batch['insample_x'])
-                s_matrix    = self.to_tensor(x=batch['s_matrix'])
-                idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                # Parse batch
+                S  = self.to_tensor(x=batch['S'])
+                Y  = self.to_tensor(x=batch['Y'])
+                X  = self.to_tensor(x=batch['X'])
+                idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                #print("insample_y.shape", insample_y.shape)
-
-                outsample_y, forecast, levels = self.model(insample_y=insample_y,
-                                                           insample_x=insample_x,
-                                                           s_matrix=s_matrix,
+                outsample_y, forecast, levels = self.model(insample_y=Y,
+                                                           insample_x=X,
+                                                           s_matrix=S,
                                                            step_size=train_ts_loader.idx_to_sample_freq,
                                                            idxs=idxs)
 
-                #print("outsample_y.shape", outsample_y.shape)
-                #print("forecast.shape", forecast.shape)
-
-                mask        = self.to_tensor(t.ones(forecast.shape))
+                outsample_mask = self.to_tensor(t.ones(forecast.shape))
 
                 # train loss on normalized values
-                training_loss = training_loss_fn(forecast=forecast, target=outsample_y,
-                                                 x=insample_y, mask=mask, levels=levels)
+                training_loss = training_loss_fn(x=Y, # TODO: eliminate only useful for MASE
+                                                 forecast=forecast,
+                                                 target=outsample_y,
+                                                 mask=outsample_mask, levels=levels)
 
                 # Protection to exploding gradients
-                #print("step")
                 training_loss.backward()
                 t.nn.utils.clip_grad_norm_(parameters=self.model.rnn.parameters(),
                                            max_norm=self.gradient_clipping_threshold)
@@ -440,16 +437,17 @@ class ESRNN(object):
             outsample_ys = []
             forecasts = []
             for batch in iter(ts_loader):
-                insample_y  = self.to_tensor(x=batch['insample_y'])
-                insample_x  = self.to_tensor(x=batch['insample_x'])
-                s_matrix    = self.to_tensor(x=batch['s_matrix'])
-                idxs        = self.to_tensor(x=batch['idxs'], dtype=t.long)
+                # Parse batch
+                S  = self.to_tensor(x=batch['S'])
+                Y  = self.to_tensor(x=batch['Y'])
+                X  = self.to_tensor(x=batch['X'])
+                idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
                 #print("insample_y.shape", insample_y.shape)
 
-                outsample_y, forecast = self.model.predict(insample_y=insample_y,
-                                                           insample_x=insample_x,
-                                                           s_matrix=s_matrix,
+                outsample_y, forecast = self.model.predict(insample_y=Y,
+                                                           insample_x=X,
+                                                           s_matrix=S,
                                                            idxs=idxs,
                                                            step_size=ts_loader.idx_to_sample_freq)
 

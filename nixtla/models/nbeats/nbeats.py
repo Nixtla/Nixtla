@@ -447,26 +447,24 @@ class Nbeats(object):
 
                 self.model.train()
                 # Parse batch
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                outsample_y    = self.to_tensor(batch['outsample_y'])
-                outsample_mask = self.to_tensor(batch['outsample_mask'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
+                S     = self.to_tensor(batch['S'])
+                Y     = self.to_tensor(batch['Y'])
+                X     = self.to_tensor(batch['X'])
+                available_mask  = self.to_tensor(batch['available_mask'])
+                outsample_mask = self.to_tensor(batch['sample_mask'])[:, -self.output_size:]
 
                 optimizer.zero_grad()
-                forecast   = self.model(x_s=s_matrix, insample_y=insample_y,
-                                        insample_x_t=insample_x, outsample_x_t=outsample_x,
-                                        insample_mask=insample_mask,
-                                        return_decomposition=False)
+                outsample_y, forecast = self.model(S=S, Y=Y, X=X,
+                                                   insample_mask=available_mask,
+                                                   return_decomposition=False)
 
-                training_loss = training_loss_fn(x=insample_y, loss_hypar=self.loss_hypar, forecast=forecast,
-                                                 target=outsample_y, mask=outsample_mask)
+                training_loss = training_loss_fn(x=Y, # TODO: eliminate only useful for MASE
+                                                 loss_hypar=self.loss_hypar,
+                                                 forecast=forecast,
+                                                 target=outsample_y,
+                                                 mask=outsample_mask)
 
                 # Protection to exploding gradients
-                # if np.isnan(float(training_loss)):
-                #    break
                 if not np.isnan(float(training_loss)):
                     training_loss.backward()
                     t.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -535,21 +533,21 @@ class Nbeats(object):
         outsample_masks = []
         with t.no_grad():
             for batch in iter(ts_loader):
-                insample_y     = self.to_tensor(batch['insample_y'])
-                insample_x     = self.to_tensor(batch['insample_x'])
-                insample_mask  = self.to_tensor(batch['insample_mask'])
-                outsample_x    = self.to_tensor(batch['outsample_x'])
-                s_matrix       = self.to_tensor(batch['s_matrix'])
 
-                forecast, block_forecast = self.model(insample_y=insample_y,
-                                                      insample_x_t=insample_x,
-                                                      insample_mask=insample_mask,
-                                                      outsample_x_t=outsample_x,
-                                                      x_s=s_matrix, return_decomposition=True)
+                # Parse batch
+                S     = self.to_tensor(batch['S'])
+                Y     = self.to_tensor(batch['Y'])
+                X     = self.to_tensor(batch['X'])
+                available_mask  = self.to_tensor(batch['available_mask'])
+                outsample_mask = batch['sample_mask'][:, -self.output_size:]
+
+                outsample_y, forecast, block_forecast = self.model(S=S, Y=Y, X=X,
+                                                                   insample_mask=available_mask,
+                                                                   return_decomposition=True)
+                outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
                 block_forecasts.append(block_forecast.cpu().data.numpy())
-                outsample_ys.append(batch['outsample_y'])
-                outsample_masks.append(batch['outsample_mask'])
+                outsample_masks.append(outsample_mask)
 
         forecasts = np.vstack(forecasts)
         block_forecasts = np.vstack(block_forecasts)
@@ -576,8 +574,7 @@ class Nbeats(object):
         mask_df = Y_df.copy()
         mask_df = mask_df[['unique_id', 'ds']]
         sample_mask = np.ones(len(mask_df))
-        #sample_mask[-self.output_size:] = 1
-        mask_df['sample_mask'] = sample_mask
+        mask_df['sample_mask'] = np.ones(len(mask_df))
         mask_df['available_mask'] = np.ones(len(mask_df))
 
         # Model inputs

@@ -202,13 +202,11 @@ def _windows_batch(self: TimeSeriesLoader,
     Returns
     -------
     Dictionary with keys:
-        - s_matrix
-        - insample_y
-        - insample_x
-        - insample_mask
-        - outsample_y
-        - outsample_x
-        - outsample_mask
+        - S
+        - Y
+        - X
+        - available_mask
+        - sample_mask
     """
 
     # Create windows for each sampled ts and sample random unmasked windows from each ts
@@ -224,25 +222,17 @@ def _windows_batch(self: TimeSeriesLoader,
 
     # Index the windows and s_matrix tensors of batch
     windows = windows[windows_idxs]
-    s_matrix = s_matrix[windows_idxs]
+    S = s_matrix[windows_idxs]
 
     # Parse windows to elements of batch
-    insample_y = windows[:, self.t_cols.index('y'), :self.input_size]
-    insample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), :self.input_size]
-    available_mask = windows[:, self.t_cols.index('available_mask'), :self.input_size]
+    Y = windows[:, self.t_cols.index('y'), :]
+    X = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), :]
+    available_mask = windows[:, self.t_cols.index('available_mask'), :]
+    sample_mask = windows[:, self.t_cols.index('sample_mask'), :]
 
-    outsample_y = windows[:, self.t_cols.index('y'), self.input_size:]
-    outsample_x = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), self.input_size:]
-    sample_mask = windows[:, self.t_cols.index('sample_mask'), self.input_size:]
-
-    batch = {'s_matrix': s_matrix,
-             'insample_y': insample_y,
-             'insample_x': insample_x,
-             'insample_mask': available_mask,
-             'outsample_y': outsample_y,
-             'outsample_x': outsample_x,
-             'outsample_mask': sample_mask}
-
+    batch = {'S': S, 'Y': Y, 'X': X,
+             'available_mask': available_mask,
+             'sample_mask': sample_mask}
     return batch
 
 # Cell
@@ -308,9 +298,9 @@ def _windows_batch_rnn(self: TimeSeriesLoader,
     Returns
     -------
     Dictionary with keys:
-        - s_matrix
-        - insample_y
-        - insample_x
+        - S
+        - Y
+        - X
         - available_mask
         - sample_mask
         - idxs
@@ -328,22 +318,19 @@ def _windows_batch_rnn(self: TimeSeriesLoader,
 
     # Index the windows and s_matrix tensors of batch
     windows = windows[windows_idxs]
-    s_matrix = s_matrix[windows_idxs]
+    S = s_matrix[windows_idxs]
     idx = idxs[windows_idxs]
 
     # Parse windows to elements of batch
-    insample_y = windows[:, self.t_cols.index('y'), :]
-    insample_x = windows[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
+    Y = windows[:, self.t_cols.index('y'), :]
+    X = windows[:, self.t_cols.index('y')+1:self.t_cols.index('available_mask'), :]
     available_mask = windows[:, self.t_cols.index('available_mask'), :]
     sample_mask = windows[:, self.t_cols.index('sample_mask'), :]
 
-    batch = {'s_matrix': s_matrix,
-             'insample_y': insample_y,
-             'insample_x': insample_x,
+    batch = {'S': S, 'Y': Y, 'X': X,
              'available_mask': available_mask,
              'sample_mask': sample_mask,
              'idxs': idx}
-
     return batch
 
 # Cell
@@ -425,7 +412,7 @@ def __get_item__(self: TimeSeriesLoader,
     elif self.model in ['new_rnn', 'mqesrnn']:
         return self._windows_batch_rnn(index=index)
     else:
-        assert 1<0, 'error'
+        assert 1<0, f'There is no batch strategy for {self.model}'
 
 # Cell
 @patch
