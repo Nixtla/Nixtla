@@ -15,8 +15,8 @@ from ..components.tcn import TemporalConvNet as TCN
 #TODO: notacion de todo, windows_y_insample, step_size vs freq
 class _ES(nn.Module):
     def __init__(self, n_series: int, input_size: int, output_size: int,
-                 n_t: int, n_s: int, seasonality: list, noise_std: float,
-                 device: str):
+                 output_size_m: int,
+                 n_t: int, n_s: int, seasonality: list, noise_std: float, device: str):
         super(_ES, self).__init__()
 
         self.n_series = n_series
@@ -117,10 +117,11 @@ class _ES(nn.Module):
 # Cell
 class _ESI(_ES):
     def __init__(self, n_series: int, input_size: int, output_size: int,
-                 n_t: int, n_s: int, seasonality: list, noise_std: int, device: str):
-        super(_ESI, self).__init__(n_series=n_series, input_size=input_size, output_size=output_size,
-                                   n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
-                                   device=device)
+                 output_size_m: int,
+                 n_t: int, n_s: int, seasonality: list, noise_std: float, device: str):
+        super(_ESI, self).__init__(n_series, input_size, output_size,
+                                   output_size_m,
+                                   n_t, n_s, seasonality, noise_std, device)
         self.W = t.nn.Parameter(t.randn(1))
         self.W.requires_grad = False
 
@@ -139,25 +140,33 @@ class _ESI(_ES):
 
 # Cell
 class _MedianResidual(_ES):
-    def __init__(self, n_series, input_size, output_size,
-                 output_size_m,
-                 n_t, n_s, seasonality, noise_std, device):
+    def __init__(self, n_series: int, input_size: int, output_size: int,
+                 output_size_m: int,
+                 n_t: int, n_s: int, seasonality: list, noise_std: float, device: str):
         super(_MedianResidual, self).__init__(n_series, input_size, output_size, output_size_m,
                                    n_t, n_s, seasonality, noise_std, device)
-        self.W = torch.nn.Parameter(torch.randn(1))
+        self.W = t.nn.Parameter(t.randn(1))
         self.W.requires_grad = False
 
-    def compute_levels_seasons(self, y, idxs):
-        y_transformed, _ = y.median(1)
+    def compute_levels_seasons(self, Y: t.Tensor, idxs: t.Tensor):
+        """
+        Computes levels and seasons
+        """
+        y_transformed, _ = Y.median(1)
         y_transformed = y_transformed.reshape(-1, 1)
-        levels = y_transformed.repeat(1, y.shape[1])
+        levels = y_transformed.repeat(1, Y.shape[1])
         seasonalities = None
+
         return levels, None
 
-    def normalize(self, y, level, seasonalities, start, end):
-        return y - level
+    def normalize(self, Y: t.Tensor, level: t.Tensor,
+                  seasonalities: t.Tensor,
+                  start: int, end: int):
 
-    def predict(self, trends, levels, seasonalities, step_size):
+        return Y - level
+
+    def predict(self, trends: t.Tensor, levels: t.Tensor,
+                seasonalities: t.Tensor, step_size: int):
         levels = levels[:, (self.input_size-1):-self.output_size]
         levels = levels[:, ::step_size]
         levels = levels.unsqueeze(2)
@@ -167,10 +176,11 @@ class _MedianResidual(_ES):
 # Cell
 class _ESM(_ES):
     def __init__(self, n_series: int, input_size: int, output_size: int,
-                 n_t: int, n_s: int, seasonality: list, noise_std: int, device: str):
-        super(_ESM, self).__init__(n_series=n_series, input_size=input_size, output_size=output_size,
-                                   n_t=n_t, n_s=n_s, seasonality=seasonality, noise_std=noise_std,
-                                   device=device)
+                 output_size_m: int,
+                 n_t: int, n_s: int, seasonality: list, noise_std: float, device: str):
+        super(_ESM, self).__init__(n_series, input_size, output_size,
+                                   output_size_m,
+                                   n_t, n_s, seasonality, noise_std, device)
         # Level and Seasonality Smoothing parameters
         # 1 level, S seasonalities, S init_seas
         embeds_size = 1 + len(self.seasonality) + sum(self.seasonality)
@@ -285,14 +295,15 @@ class _ESM(_ES):
         y_hat = trends * levels
         for s in range(len(self.seasonality)):
             seas = seasonalities[s]
-            y_hat *= torch.vstack([seas.T for _ in range(self.output_size_m)]).T
+            y_hat *= t.vstack([seas.T for _ in range(self.output_size_m)]).T
 
         return y_hat
 
 # Cell
 class _RNN(nn.Module):
-    def __init__(self, input_size: int, output_size: int, n_t: int, n_s: int,
-                 cell_type: str, dilations: list, state_hsize: int, add_nl_layer: bool):
+    def __init__(self, input_size: int, output_size: int,
+                 output_size_m: int,
+                 n_t: int, n_s: int, cell_type: str, dilations: list, state_hsize: int, add_nl_layer: bool):
         super(_RNN, self).__init__()
 
         self.input_size = input_size
@@ -350,8 +361,8 @@ class _ESRNN(nn.Module):
                  es_component, seasonality, noise_std, cell_type,
                  dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
-        assert es_component in ['multiplicative','identity'], \
-            f'type {es_component} selected for the es_component is not valid (multiplicative,identity).'
+        allowed_componets = ['multiplicative', 'identity', 'median_residual']
+        assert es_component in allowed_componets, f'es_component {es_component} not valid.'
         self.es_component = es_component
 
         if es_component == 'multiplicative':
