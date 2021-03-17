@@ -318,7 +318,9 @@ class _ESRNN(nn.Module):
                  es_component, seasonality, noise_std, cell_type,
                  dilations, state_hsize, add_nl_layer, device):
         super(_ESRNN, self).__init__()
-        assert es_component in ['multiplicative','identity'], f'es_component {es_component} not valid.'
+        assert es_component in ['multiplicative','identity'], \
+            f'type {es_component} selected for the es_component is not valid (multiplicative,identity).'
+        self.es_component = es_component
 
         if es_component == 'multiplicative':
             self.es = _ESM(n_series=n_series, input_size=input_size, output_size=output_size,
@@ -333,6 +335,10 @@ class _ESRNN(nn.Module):
                         add_nl_layer=add_nl_layer).to(device)
 
     def forward(self, S: t.Tensor, Y: t.Tensor, X: t.Tensor, idxs: t.Tensor, step_size: int):
+        # Multiplicative model protection
+        if self.es_component == 'multiplicative':
+            assert t.min(Y)>0, 'Check your Y data, multiplicative model only deals with Y>0.'
+
         # ES Forward
         windows_y_insample, windows_y_outsample, levels, seasonalities = self.es(S=S,Y=Y,X=X,idxs=idxs,
                                                                                  step_size=step_size)
