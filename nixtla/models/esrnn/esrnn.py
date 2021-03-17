@@ -463,9 +463,9 @@ class ESRNN(object):
         y_true = y_true.reshape(-1)
         y_hat  = y_hat.reshape(-1)
 
-        Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values,
-                                 'ds': Y_df.ds.values,
-                                 'y': Y_df.y.values,
+        Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values[self.input_size:],
+                                 'ds': Y_df.ds.values[self.input_size:],
+                                 'y': Y_df.y.values[self.input_size:],
                                  'y_hat': y_hat})
 
         Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
