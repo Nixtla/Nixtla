@@ -24,6 +24,7 @@ class _StaticFeaturesEncoder(nn.Module):
         x = self.encoder(x)
         return x
 
+# Cell
 class NBeatsBlock(nn.Module):
     """
     N-BEATS block which takes a basis function as an argument.
@@ -93,6 +94,7 @@ class NBeatsBlock(nn.Module):
 
         return backcast, forecast
 
+# Cell
 class NBeats(nn.Module):
     """
     N-Beats Model.
@@ -103,7 +105,7 @@ class NBeats(nn.Module):
         self.output_size = blocks[0].output_size
 
     def forward(self, S: t.Tensor, Y: t.Tensor, X: t.Tensor,
-                insample_mask: t.Tensor, return_decomposition=False):
+                insample_mask: t.Tensor, return_decomposition: bool=False):
 
         # insample
         insample_y    = Y[:, :-self.output_size]
@@ -172,6 +174,7 @@ class NBeats(nn.Module):
 
         return forecast, block_forecasts
 
+# Cell
 class IdentityBasis(nn.Module):
     def __init__(self, backcast_size: int, forecast_size: int):
         super().__init__()
@@ -241,7 +244,7 @@ class ExogenousBasisInterpretable(nn.Module):
         forecast = t.einsum('bp,bpt->bt', theta[:, :cut_point], forecast_basis)
         return backcast, forecast
 
-
+# Cell
 class Chomp1d(nn.Module):
     def __init__(self, chomp_size):
         super(Chomp1d, self).__init__()

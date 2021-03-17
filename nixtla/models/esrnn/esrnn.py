@@ -311,11 +311,8 @@ class ESRNN(object):
                 X  = self.to_tensor(x=batch['X'])
                 idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                outsample_y, forecast, levels = self.model(insample_y=Y,
-                                                           insample_x=X,
-                                                           s_matrix=S,
-                                                           step_size=train_ts_loader.idx_to_sample_freq,
-                                                           idxs=idxs)
+                outsample_y, forecast, levels = self.model(S=S, Y=Y, X=X, idxs=idxs,
+                                                           step_size=train_ts_loader.idx_to_sample_freq)
 
                 outsample_mask = self.to_tensor(t.ones(forecast.shape))
 
@@ -410,10 +407,7 @@ class ESRNN(object):
 
                 #print("insample_y.shape", insample_y.shape)
 
-                outsample_y, forecast = self.model.predict(insample_y=Y,
-                                                           insample_x=X,
-                                                           s_matrix=S,
-                                                           idxs=idxs,
+                outsample_y, forecast = self.model.predict(S=S, Y=Y, X=X, idxs=idxs,
                                                            step_size=ts_loader.idx_to_sample_freq)
 
                 #print("outsample_y.shape", outsample_y.shape)
