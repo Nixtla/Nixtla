@@ -346,11 +346,8 @@ class ESRNN(object):
                 X  = self.to_tensor(x=batch['X'])
                 idxs = self.to_tensor(x=batch['idxs'], dtype=t.long)
 
-                outsample_y, forecast, levels = self.model(insample_y=Y,
-                                                           insample_x=X,
-                                                           s_matrix=S,
-                                                           step_size=train_ts_loader.idx_to_sample_freq,
-                                                           idxs=idxs)
+                outsample_y, forecast, levels = self.model(S=S, Y=Y, X=X, idxs=idxs,
+                                                           step_size=train_ts_loader.idx_to_sample_freq)
 
                 outsample_mask = self.to_tensor(t.ones(forecast.shape))
 
@@ -445,10 +442,7 @@ class ESRNN(object):
 
                 #print("insample_y.shape", insample_y.shape)
 
-                outsample_y, forecast = self.model.predict(insample_y=Y,
-                                                           insample_x=X,
-                                                           s_matrix=S,
-                                                           idxs=idxs,
+                outsample_y, forecast = self.model.predict(S=S, Y=Y, X=X, idxs=idxs,
                                                            step_size=ts_loader.idx_to_sample_freq)
 
                 #print("outsample_y.shape", outsample_y.shape)
@@ -472,6 +466,45 @@ class ESRNN(object):
             return #TODO
         else:
             return outsample_ys, forecasts, outsample_masks
+
+    def forecast(self, Y_df, X_df, f_cols):
+        # TODO: protect available_mask from nans
+        # Last output_size mask for predictions
+        mask_df = Y_df.copy()
+        mask_df = mask_df[['unique_id', 'ds']]
+        sample_mask = np.ones(len(mask_df))
+        mask_df['sample_mask'] = np.ones(len(mask_df))
+        mask_df['available_mask'] = np.ones(len(mask_df))
+
+        # Model inputs
+        ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df,
+                                       mask_df=mask_df, f_cols=f_cols, verbose=False)
+
+        ts_loader = TimeSeriesLoader(model='new_rnn',
+                                     ts_dataset=ts_dataset,
+                                     window_sampling_limit=500_000,
+                                     input_size=self.input_size,
+                                     output_size=self.output_size,
+                                     idx_to_sample_freq=self.output_size,
+                                     batch_size=1024,
+                                     complete_inputs=False,
+                                     complete_sample=True,
+                                     shuffle=False)
+
+        y_true, y_hat, _ = self.predict(ts_loader=ts_loader,
+                                        return_decomposition=False)
+
+        # Reshaping model outputs
+        y_true = y_true.reshape(-1)
+        y_hat  = y_hat.reshape(-1)
+
+        Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values[self.input_size:],
+                                 'ds': Y_df.ds.values[self.input_size:],
+                                 'y': Y_df.y.values[self.input_size:],
+                                 'y_hat': y_hat})
+
+        Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
+        return Y_hat_df
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
         self.model.eval()

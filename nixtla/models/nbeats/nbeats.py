@@ -608,7 +608,7 @@ class Nbeats(object):
 
         else:
             y_true, y_hat, _ = self.predict(ts_loader=ts_loader,
-                                            return_decomposition=True)
+                                            return_decomposition=False)
 
         # Reshaping model outputs
         y_true = y_true.reshape(-1)

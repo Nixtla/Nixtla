@@ -261,7 +261,7 @@ def _create_windows_tensor_rnn(self: TimeSeriesLoader,
                                                                    ts_idxs=ts_idxs)
     tensor = t.Tensor(tensor)
 
-    padder = t.nn.ConstantPad1d(padding=(self.input_size, right_padding), value=0)
+    padder = t.nn.ConstantPad1d(padding=(0, 0), value=0)
     tensor = padder(tensor)
 
     # Creating rolling windows and 'flattens' them
