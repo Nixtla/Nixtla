@@ -58,7 +58,7 @@ pip install -e .
 
 ## Currently available models
 
-* [Exponential Smoothing Recurrent Neural Network (ESRNN)](https://www.sciencedirect.com/science/article/pii/S0169207019301153): A hybrid model that combines the expressivity of non linear models to capture the trends while it normalizes using a Holt-Winters inspired model for the levels and seasonals.  This model is the winner of the M4 forecasting competition.
+* [Exponential Smoothing Recurrent Neural Network (ES-RNN)](https://www.sciencedirect.com/science/article/pii/S0169207019301153): A hybrid model that combines the expressivity of non linear models to capture the trends while it normalizes using a Holt-Winters inspired model for the levels and seasonals.  This model is the winner of the M4 forecasting competition.
 
 <!--- ![ESRNN](/indx_imgs/ESRNN.png) -->
 
