@@ -17,8 +17,6 @@ from fastcore.foundation import patch
 from torch.utils.data import Dataset, DataLoader
 
 # Cell
-# TODO: resolver t_cols y X_cols duplicados t_cols se usa en dataloader X_cols para indexar con f_cols
-#.      idea mantenemos solo X_cols y en el dataloader corregimos con 'y' y 'insample_mask'
 # TODO: paralelizar y mejorar _df_to_lists, probablemente Pool de multiprocessing
 #.      si está balanceado el panel np reshape hace el truco <- pensar
 # TODO: definir defaults para sample_mask, calculo de availabitly al interior con ds
@@ -82,40 +80,40 @@ class TimeSeriesDataset(Dataset):
 
         if self.verbose: logging.info('Train Validation splits\n')
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
-        self.n_ds  = len(mask_df)
-        self.n_avl = mask_df.available_mask.sum()
-        self.n_ins = mask_df.sample_mask.sum()
-        self.n_out = len(mask_df)-mask_df.sample_mask.sum()
+        n_ds  = len(mask_df)
+        n_avl = mask_df.available_mask.sum()
+        n_ins = mask_df.sample_mask.sum()
+        n_out = len(mask_df)-mask_df.sample_mask.sum()
 
-        avl_prc = np.round((100*self.n_avl)/self.n_ds,2)
-        ins_prc = np.round((100*self.n_ins)/self.n_ds,2)
-        out_prc = np.round((100*self.n_out)/self.n_ds,2)
+        avl_prc = np.round((100*n_avl)/n_ds,2)
+        ins_prc = np.round((100*n_ins)/n_ds,2)
+        out_prc = np.round((100*n_out)/n_ds,2)
         if self.verbose:
             logging.info(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
-            logging.info(f'Total data \t\t\t{self.n_ds} time stamps')
-            logging.info(f'Available percentage={avl_prc}, \t{self.n_avl} time stamps')
-            logging.info(f'Insample  percentage={ins_prc}, \t{self.n_ins} time stamps')
-            logging.info(f'Outsample percentage={out_prc}, \t{self.n_out} time stamps')
-            logging.info('\n')
+            dataset_info  = f'\n Total data \t\t\t{n_ds} time stamps \n'
+            dataset_info += f'Available percentage={avl_prc}, \t{n_avl} time stamps \n'
+            dataset_info += f'Insample  percentage={ins_prc}, \t{n_ins} time stamps \n'
+            dataset_info += f'Outsample percentage={out_prc}, \t{n_out} time stamps \n'
+            logging.info(dataset_info)
 
-        ts_data, s_data, self.meta_data, self.t_cols, self.X_cols \
+        ts_data, s_data, self.meta_data, self.t_cols, self.s_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
 
         # Dataset attributes
         self.n_series   = len(ts_data)
-        self.max_len    = max([len(ts['y']) for ts in ts_data])
-        self.n_channels = len(self.t_cols) # y, X_cols, insample_mask and outsample_mask
+        self.max_len    = max([len(ts) for ts in ts_data])
+        self.n_channels = len(self.t_cols) # t_cols insample_mask and outsample_mask
         self.frequency  = pd.infer_freq(Y_df.head()['ds']) #TODO: improve, can die with head
         self.f_cols     = f_cols
 
         # Number of X and S features
-        self.n_x = 0 if X_df is None else len(self.X_cols)
+        self.n_x = 0 if X_df is None else X_df.shape[1]-2 # -2 for unique_id and ds
         self.n_s = 0 if S_df is None else S_df.shape[1]-1 # -1 for unique_id
 
         # print('Creating ts tensor ...')
         # Balances panel and creates
         # numpy  s_matrix of shape (n_series, n_s)
-        # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
+        # numpy ts_tensor of shape (n_series, n_channels, max_len) n_channels = t_cols + masks
         self.ts_tensor, self.s_matrix, self.len_series = self._create_tensor(ts_data, s_data)
 
 # Cell
@@ -168,8 +166,8 @@ def get_default_mask_df(self: TimeSeriesDataset,
 # Cell
 @patch
 def _df_to_lists(self: TimeSeriesDataset,
-                 Y_df: pd.DataFrame,
                  S_df: pd.DataFrame,
+                 Y_df: pd.DataFrame,
                  X_df: pd.DataFrame,
                  mask_df: pd.DataFrame) -> Tuple[List[Dict[str, np.ndarray]],
                                                  List[Dict[str, np.ndarray]],
@@ -181,13 +179,13 @@ def _df_to_lists(self: TimeSeriesDataset,
 
     Parameters
     ----------
+    S_df: pd.DataFrame
+        Static exogenous variables with columns ['unique_id', 'ds']
+        and static variables.
     Y_df: pd.DataFrame
         Target time series with columns ['unique_id', 'ds', 'y'].
     X_df: pd.DataFrame
         Exogenous time series with columns ['unique_id', 'ds', 'y'].
-    S_df: pd.DataFrame
-        Static exogenous variables with columns ['unique_id', 'ds']
-        and static variables.
     mask_df: pd.DataFrame
         Outsample mask with columns ['unique_id', 'ds', 'sample_mask']
         and optionally 'available_mask'.
@@ -198,67 +196,57 @@ def _df_to_lists(self: TimeSeriesDataset,
     Tuple of five lists:
         - Each element of the list is a dictionary with target, exogenous
           and mask values.
-          Ej. [{'y': array([1., 2.]), 'Exogenous1': array([0., 1.])}]
+          e.g [{'y': array([1., 2.]), 'Exogenous1': array([0., 1.])}]
         - Each element of the list is a dictionary with static variables.
-          Ej. [{'static_NP': array([1], dtype=uint8),
+          e.g [{'static_NP': array([1], dtype=uint8),
                 'static_PJM': array([0], dtype=uint8)}]
         - Each element of the list is a dictionary with two keys:
           unique_id and last_ds.
-          Ej. [{'unique_id': array(['uid_1', 'uid_2']),
+          e.g [{'unique_id': array(['uid_1', 'uid_2']),
                 'last_ds': array(['2020-01-01', '2020-01-02'])}]
         - List of variables.
         - List of exogenous variables.
     """
-    unique_ids = Y_df['unique_id'].unique()
+    # None protections
+    if X_df is None:
+        X_df = Y_df[['unique_id', 'ds']]
 
-    if X_df is not None:
-        X_cols = [col for col in X_df.columns if col not in ['unique_id','ds']]
-    else:
-        X_cols = []
+    if S_df is None:
+        S_df = Y_df[['unique_id']].drop_duplicates()
 
-    if S_df is not None:
-        S_cols = [col for col in S_df.columns if col not in ['unique_id']]
-    else:
-        S_cols = []
+    # Protect order of data
+    Y = Y_df.sort_values(by=['unique_id', 'ds']).copy()
+    X = X_df.sort_values(by=['unique_id', 'ds']).copy()
+    M = mask_df.sort_values(by=['unique_id', 'ds']).copy()
+    M = M[['available_mask', 'sample_mask']]
+    assert np.array_equal(X.unique_id.values, Y.unique_id.values), f'Mismatch in X, Y unique_ids'
+    assert np.array_equal(X.ds.values, Y.ds.values), f'Mismatch in X, Y ds'
+
+    # Create bigger grouped by dataframe G to parse
+    X.drop(['unique_id', 'ds'], 1, inplace=True)
+    S = S_df.sort_values(by=['unique_id']).copy()
+    G = pd.concat([Y, X, M], axis=1)
+
+    # time columns and static columns for future indexing
+    t_cols = list(G.columns[2:]) # avoid unique_id and ds
+    s_cols = list(S.columns[1:]) # avoid unique_id
+
+    G = G.groupby(['unique_id'])
+    S = S.groupby(['unique_id'])
 
     ts_data = []
-    s_data = []
     meta_data = []
-    for i, u_id in enumerate(unique_ids):
-        top_row    = Y_df['unique_id'].searchsorted(u_id, 'left').item()
-        bottom_row = Y_df['unique_id'].searchsorted(u_id, 'right').item()
+    for idx, group in G:
+        group = group.reset_index(drop=True)
+        meta_data.append(group[['unique_id', 'ds']])
+        ts_data.append(group.iloc[:, 2:].values) # avoid unique_id and ds
 
-        # Y values
-        y_true = Y_df[top_row:bottom_row]['y'].values
-        ts_data_i = {'y': y_true}
+    s_data = []
+    for idx, group in S:
+        s_data.append(group.iloc[:, 1:].values) # avoid unique_id
+        assert len(s_data[-1])==1, 'Check repetitions of unique_ids'
 
-        # X values
-        for X_col in X_cols:
-            serie =  X_df[top_row:bottom_row][X_col].values
-            ts_data_i[X_col] = serie
-
-        # Mask values
-        available_mask = mask_df[top_row:bottom_row]['available_mask'].values
-        sample_mask = mask_df[top_row:bottom_row]['sample_mask'].values
-        ts_data_i['available_mask'] = available_mask
-        ts_data_i['sample_mask']  = sample_mask
-        ts_data.append(ts_data_i)
-
-        # S values
-        s_data_i = defaultdict(list)
-        for S_col in S_cols:
-            s_data_i[S_col] = S_df.loc[S_df['unique_id'] == u_id, S_col].values
-        s_data.append(s_data_i)
-
-        # Metadata
-        last_ds_i  = Y_df[top_row:bottom_row]['ds']
-        meta_data_i = {'unique_id': u_id,
-                       'last_ds': last_ds_i}
-        meta_data.append(meta_data_i)
-
-    t_cols = ['y'] + X_cols + ['available_mask', 'sample_mask']
-
-    return ts_data, s_data, meta_data, t_cols, X_cols
+    return ts_data, s_data, meta_data, t_cols, s_cols
 
 # Cell
 @patch
@@ -281,24 +269,22 @@ def _create_tensor(self: TimeSeriesDataset,
     Returns
     -------
     Tuple of three elements:
-        - ts_tensor of shape (n_series, n_channels, max_len) n_channels = y + X_cols + masks
+        - ts_tensor of shape (n_series, n_channels, max_len) n_channels = t_cols + masks
         - s_matrix of shape (n_series, n_s)
         - len_series: Array with series lenghts.
     """
-    s_matrix  = np.zeros((self.n_series, self.n_s))
     ts_tensor = np.zeros((self.n_series, self.n_channels, self.max_len))
 
     len_series = []
     for idx in range(self.n_series):
         # Left padded time series tensor
-        # TODO: Maybe we can place according to ds
-        ts_idx = np.array(list(ts_data[idx].values()))
+        ts_idx = ts_data[idx]
+        ts_tensor[idx, :, -ts_idx.shape[0]:] = ts_idx.T
+        len_series.append(ts_idx.shape[0])
 
-        ts_tensor[idx, :, -ts_idx.shape[1]:] = ts_idx
-        s_matrix[idx, :] = list(s_data[idx].values())
-        len_series.append(ts_idx.shape[1])
-
-    return ts_tensor, s_matrix, np.array(len_series)
+    s_matrix = np.vstack(s_data)
+    len_series = np.array(len_series)
+    return ts_tensor, s_matrix, len_series
 
 # Cell
 @patch
@@ -381,7 +367,8 @@ def get_f_idxs(self: TimeSeriesDataset,
         str_cols = ', '.join(cols)
         raise Exception(f'Some variables in {str_cols} are not available in f_cols.')
 
-    f_idxs = [self.X_cols.index(col) for col in cols]
+    # Avoid 'y', 'available_mask', 'sample_mask'
+    f_idxs = [self.t_cols[1:-2].index(col) for col in cols]
 
     return f_idxs
 
