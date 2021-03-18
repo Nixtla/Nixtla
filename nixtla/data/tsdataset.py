@@ -3,6 +3,8 @@
 __all__ = ['TimeSeriesDataset', 'get_default_mask_df']
 
 # Cell
+import time
+import gc
 import logging
 import random
 from collections import defaultdict
@@ -78,7 +80,8 @@ class TimeSeriesDataset(Dataset):
                                                is_test=is_test,
                                                ds_in_test=ds_in_test)
 
-        if self.verbose: logging.info('Train Validation splits\n')
+        # Logging
+        #start = time.time()
         mask_df['train_mask'] = mask_df['available_mask'] * mask_df['sample_mask']
         n_ds  = len(mask_df)
         n_avl = mask_df.available_mask.sum()
@@ -89,15 +92,22 @@ class TimeSeriesDataset(Dataset):
         ins_prc = np.round((100*n_ins)/n_ds,2)
         out_prc = np.round((100*n_out)/n_ds,2)
         if self.verbose:
-            logging.info(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
-            dataset_info  = f'\n Total data \t\t\t{n_ds} time stamps \n'
+            logging.info('Train Validation splits\n')
+            if len(mask_df.unique_id.unique()) < 10:
+                logging.info(mask_df.groupby(['unique_id', 'sample_mask']).agg({'ds': ['min', 'max']}))
+            else:
+                logging.info(mask_df.groupby(['sample_mask']).agg({'ds': ['min', 'max']}))
+            dataset_info  = f'\nTotal data \t\t\t{n_ds} time stamps \n'
             dataset_info += f'Available percentage={avl_prc}, \t{n_avl} time stamps \n'
             dataset_info += f'Insample  percentage={ins_prc}, \t{n_ins} time stamps \n'
             dataset_info += f'Outsample percentage={out_prc}, \t{n_out} time stamps \n'
             logging.info(dataset_info)
+        #print(f"logging time {time.time()-start}")
 
+        #start = time.time()
         ts_data, s_data, self.meta_data, self.t_cols, self.s_cols \
                          = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
+        #print(f"df2list time {time.time()-start}")
 
         # Dataset attributes
         self.n_series   = len(ts_data)
@@ -139,7 +149,7 @@ def get_default_mask_df(self: TimeSeriesDataset,
     Mask DataFrame with columns
     ['unique_id', 'ds', 'available_mask', 'sample_mask'].
     """
-    last_df = Y_df.copy()[['unique_id', 'ds']]
+    last_df = Y_df[['unique_id', 'ds']].copy()
     last_df.sort_values(by=['unique_id', 'ds'], inplace=True, ascending=False)
     last_df.reset_index(drop=True, inplace=True)
 
@@ -218,14 +228,16 @@ def _df_to_lists(self: TimeSeriesDataset,
     Y = Y_df.sort_values(by=['unique_id', 'ds']).copy()
     X = X_df.sort_values(by=['unique_id', 'ds']).copy()
     M = mask_df.sort_values(by=['unique_id', 'ds']).copy()
-    M = M[['available_mask', 'sample_mask']]
     assert np.array_equal(X.unique_id.values, Y.unique_id.values), f'Mismatch in X, Y unique_ids'
     assert np.array_equal(X.ds.values, Y.ds.values), f'Mismatch in X, Y ds'
+    assert np.array_equal(M.unique_id.values, Y.unique_id.values), f'Mismatch in M, Y unique_ids'
+    assert np.array_equal(M.ds.values, Y.ds.values), f'Mismatch in M, Y ds'
 
     # Create bigger grouped by dataframe G to parse
+    M = M[['available_mask', 'sample_mask']]
     X.drop(['unique_id', 'ds'], 1, inplace=True)
-    S = S_df.sort_values(by=['unique_id']).copy()
     G = pd.concat([Y, X, M], axis=1)
+    S = S_df.sort_values(by=['unique_id']).copy()
 
     # time columns and static columns for future indexing
     t_cols = list(G.columns[2:]) # avoid unique_id and ds
@@ -238,13 +250,16 @@ def _df_to_lists(self: TimeSeriesDataset,
     meta_data = []
     for idx, group in G:
         group = group.reset_index(drop=True)
-        meta_data.append(group[['unique_id', 'ds']])
-        ts_data.append(group.iloc[:, 2:].values) # avoid unique_id and ds
+        meta_data.append(group.values[:, :2]) # save unique_id and ds
+        ts_data.append(group.values[:, 2:]) # avoid unique_id and ds
 
     s_data = []
     for idx, group in S:
         s_data.append(group.iloc[:, 1:].values) # avoid unique_id
         assert len(s_data[-1])==1, 'Check repetitions of unique_ids'
+
+    del S, Y, X, M, G
+    gc.collect()
 
     return ts_data, s_data, meta_data, t_cols, s_cols
 
