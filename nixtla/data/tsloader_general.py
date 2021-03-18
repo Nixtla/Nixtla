@@ -409,7 +409,7 @@ def __get_item__(self: TimeSeriesLoader,
         return self._windows_batch(index=index)
     elif self.model in ['esrnn','rnn']:
         return self._full_series_batch(index=index)
-    elif self.model in ['new_rnn']:
+    elif self.model in ['new_rnn', 'mqesrnn']:
         return self._windows_batch_rnn(index=index)
     else:
         assert 1<0, f'There is no batch strategy for {self.model}'

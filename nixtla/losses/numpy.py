@@ -5,6 +5,7 @@ __all__ = ['divide_no_nan', 'metric_protections', 'mape', 'mse', 'rmse', 'smape'
 
 # Cell
 from math import sqrt
+
 import numpy as np
 
 # TODO: Create new file with protections shared by pytorch losses and numpy losses (divide_no_nan)
@@ -302,7 +303,7 @@ def mqloss(y, y_hat, quantiles, weights=None):
     lq: np.array(n_quantiles) average multi-quantile loss.
     """
 
-    if weights is None: weights = np.ones_like(y_hat)
+    if weights is None: weights = np.ones_like(y)
 
     n_q = len(quantiles)
 
@@ -310,7 +311,7 @@ def mqloss(y, y_hat, quantiles, weights=None):
     error = y_hat - y_rep
     sq = np.maximum(-error, np.zeros_like(error))
     s1_q = np.maximum(error, np.zeros_like(error))
-    loss = (quantiles * sq + (1 - quantiles) * s1_q) * weights
+    loss = (quantiles * sq + (1 - quantiles) * s1_q) * np.expand_dims(weights, axis=-1)
     return np.mean(np.mean(loss, axis=1))
 
 # Cell
@@ -334,7 +335,7 @@ def wmqloss(y, y_hat, quantiles, weights=None):
     lq: np.array(n_quantiles) average multi-quantile loss.
     """
 
-    if weights is None: weights = np.ones_like(y_hat)
+    if weights is None: weights = np.ones_like(y)
 
 
     n_q = len(quantiles)
@@ -345,7 +346,8 @@ def wmqloss(y, y_hat, quantiles, weights=None):
     s1_q = np.maximum(error, np.zeros_like(error))
     loss = (quantiles * sq + (1 - quantiles) * s1_q)
 
-    loss = divide_no_nan(np.sum(loss * weights, axis=-2),
-                         np.sum(np.abs(y_rep) * weights, axis=-2))
+    w = np.expand_dims(weights, axis=-1)
+    loss = divide_no_nan(np.sum(loss * w, axis=-2),
+                         np.sum(np.abs(y_rep) * w, axis=-2))
 
     return np.mean(loss)

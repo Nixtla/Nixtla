@@ -18,8 +18,16 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 
 from .esrnn_model import _ESRNN
-from ...losses.pytorch import MAPELoss, MASELoss, SMAPELoss, MSELoss, MAELoss, SmylLoss, PinballLoss
-from ...losses.numpy import mae, mse, mape, smape, rmse, pinball_loss
+from ...losses.pytorch import (
+    MAPELoss, MASELoss, SMAPELoss,
+    MSELoss, MAELoss, SmylLoss,
+    PinballLoss, MQLoss, wMQLoss
+)
+from ...losses.numpy import (
+    mae, mse, mape,
+    smape, rmse,
+    pinball_loss, mqloss, wmqloss
+)
 
 # Cell
 #TODO: eval_mode=False
@@ -163,9 +171,11 @@ class ESRNN(object):
         self.early_stopping = early_stopping
         self.random_seed = random_seed
 
-        if device is None:
-            device = 'cuda' if t.cuda.is_available() else 'cpu'
-        self.device = device
+        # MQESRNN
+        self.mq = isinstance(self.training_percentile, list)
+        self.output_size_m = len(self.training_percentile) if self.mq else 1
+
+        self.device = device or 'cuda' if t.cuda.is_available() else 'cpu'
 
         self.root_dir = root_dir
         self._fitted = False
@@ -181,6 +191,14 @@ class ESRNN(object):
                 return SmylLoss(y=target, y_hat=forecast, levels=levels, mask=mask,
                                 tau=(self.training_percentile / 100),
                                 level_variability_penalty=self.level_variability_penalty)
+            elif loss_name == 'MQ':
+                quantiles = [tau / 100 for tau in self.training_percentile]
+                quantiles = self.to_tensor(np.array(quantiles))
+                return MQLoss(y=target, y_hat=forecast, quantiles=quantiles, mask=mask)
+            elif loss_name == 'wMQ':
+                quantiles = [tau / 100 for tau in self.training_percentile]
+                quantiles = self.to_tensor(np.array(quantiles))
+                return wMQLoss(y=target, y_hat=forecast, quantiles=quantiles, mask=mask)
             elif loss_name == 'MAPE':
                 return MAPELoss(y=target, y_hat=forecast, mask=mask)
             elif loss_name == 'MASE':
@@ -202,6 +220,14 @@ class ESRNN(object):
         def loss(forecast, target, weights):
             if loss_name == 'MAPE':
                 return mape(y=target, y_hat=forecast, weights=weights)
+            elif loss_name == 'MQ':
+                quantiles = [tau / 100 for tau in self.testing_percentile]
+                quantiles = np.array(quantiles)
+                return mqloss(y=target, y_hat=forecast, quantiles=quantiles, weights=weights)
+            elif loss_name == 'wMQ':
+                quantiles = [tau / 100 for tau in self.training_percentile]
+                quantiles = np.array(quantiles)
+                return wmqloss(y=target, y_hat=forecast, quantiles=quantiles, weights=weights)
             elif loss_name == 'SMAPE':
                 return smape(y=target, y_hat=forecast, weights=weights)
             elif loss_name == 'MSE':
@@ -243,20 +269,28 @@ class ESRNN(object):
 
         # Initialize model
         self.n_series = train_ts_loader.get_n_series()
-        self.model = _ESRNN(n_series=self.n_series, input_size=self.input_size,
-                            output_size=self.output_size, n_t=self.n_x_t, n_s=self.n_x_s,
-                            es_component=self.es_component, seasonality=self.seasonality,
-                            noise_std=self.noise_std, cell_type=self.cell_type,
-                            dilations=self.dilations, state_hsize=self.state_hsize,
-                            add_nl_layer=self.add_nl_layer, device=self.device).to(self.device)
+        self.model = _ESRNN(n_series=self.n_series,
+                            input_size=self.input_size,
+                            output_size=self.output_size,
+                            output_size_m=self.output_size_m,
+                            n_t=self.n_x_t, n_s=self.n_x_s,
+                            es_component=self.es_component,
+                            seasonality=self.seasonality,
+                            noise_std=self.noise_std,
+                            cell_type=self.cell_type,
+                            dilations=self.dilations,
+                            state_hsize=self.state_hsize,
+                            add_nl_layer=self.add_nl_layer,
+                            device=self.device).to(self.device)
 
         # Train model
         self._fitted = True
 
         # Optimizers
         self.es_optimizer = optim.Adam(params=self.model.es.parameters(),
-                                        lr=self.learning_rate*self.per_series_lr_multip,
-                                        betas=(0.9, 0.999), eps=self.gradient_eps)
+                                       lr=self.learning_rate * self.per_series_lr_multip,
+                                       betas=(0.9, 0.999),
+                                       eps=self.gradient_eps)
 
         self.es_scheduler = StepLR(optimizer=self.es_optimizer,
                                     step_size=self.lr_scheduler_step_size,
@@ -264,7 +298,8 @@ class ESRNN(object):
 
         self.rnn_optimizer = optim.Adam(params=self.model.rnn.parameters(),
                                         lr=self.learning_rate,
-                                        betas=(0.9, 0.999), eps=self.gradient_eps,
+                                        betas=(0.9, 0.999),
+                                        eps=self.gradient_eps,
                                         weight_decay=self.rnn_weight_decay)
 
         self.rnn_scheduler = StepLR(optimizer=self.rnn_optimizer,
