@@ -16,6 +16,7 @@ dependencies:
   - tqdm
   - xlrd
   - pip:
+    - torchsummary
     - nbdev
     - tabulate
     - python-dotenv

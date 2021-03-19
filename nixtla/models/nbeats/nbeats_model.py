@@ -9,7 +9,7 @@ import numpy as np
 import torch as t
 import torch.nn as nn
 from typing import Tuple
-from ..components.tcn import TemporalConvNet
+from ..components.tcn import _TemporalConvNet
 
 # Cell
 class _StaticFeaturesEncoder(nn.Module):
@@ -303,7 +303,7 @@ class ExogenousBasisTCN(nn.Module):
     def __init__(self, out_features, in_features, num_levels = 4, kernel_size=2, dropout_prob=0):
         super().__init__()
         n_channels = num_levels * [out_features]
-        self.tcn = TemporalConvNet(num_inputs=in_features, num_channels=n_channels, kernel_size=kernel_size, dropout=dropout_prob)
+        self.tcn = _TemporalConvNet(num_inputs=in_features, num_channels=n_channels, kernel_size=kernel_size, dropout=dropout_prob)
 
     def transform(self, insample_x_t, outsample_x_t):
         input_size = insample_x_t.shape[2]

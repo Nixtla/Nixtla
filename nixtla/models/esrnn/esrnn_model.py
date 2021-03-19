@@ -8,7 +8,7 @@ import torch as t
 import torch.nn as nn
 
 from ..components.drnn import DRNN
-from ..components.tcn import TemporalConvNet as TCN
+# from nixtla.models.components.tcn import _TemporalConvNet as TCN
 
 # Cell
 #TODO: rnn con canales

@@ -5,7 +5,7 @@ __all__ = ['TCNModule']
 # Cell
 import torch as t
 import torch.nn as nn
-from ..components.tcn import TemporalConvNet
+from ..components.tcn import _TemporalConvNet
 import numpy as np
 
 # Cell
@@ -14,7 +14,7 @@ class TCNModule(nn.Module):
     def __init__(self, output_size, num_inputs, num_channels, num_static, kernel_size, dropout):
         super(TCNModule, self).__init__()
         self.output_size = output_size
-        self.tcn = TemporalConvNet(num_inputs=num_inputs, num_channels=num_channels,
+        self.tcn = _TemporalConvNet(num_inputs=num_inputs, num_channels=num_channels,
                                    kernel_size=kernel_size, dropout=dropout)
         n_x_t = num_inputs - 1
         self.linear = nn.Linear(num_channels[-1] + num_static + n_x_t*output_size, output_size)
