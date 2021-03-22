@@ -101,9 +101,6 @@ def GW_CPA_test(loss1: np.ndarray,
 
     if tau == 1:
 
-        #res_beta = np.linalg.solve(reg.T.dot(reg),
-        #                           reg.T.dot(np.ones((t,1))))
-
         res_beta = np.linalg.lstsq(reg, np.ones((t)), rcond=None)[0]
 
         err = np.ones((t,1)) - reg.dot(res_beta)
@@ -228,10 +225,10 @@ def get_nbeatsx_cmap():
 
 def get_epftoolbox_cmap():
     cmap = cm.get_cmap('YlGn_r', 512)
-    yellows = cmap(np.linspace(0.65, 1.0, 256))
+    yellows = cmap(np.linspace(0.6, 1.0, 256))
 
     cmap = cm.get_cmap('gist_heat_r', 256)
-    reds = cmap(np.linspace(0.55, 0.75, 256))
+    reds = cmap(np.linspace(0.39, 0.66, 256))
 
     newcolors = np.concatenate([yellows, reds])
 
