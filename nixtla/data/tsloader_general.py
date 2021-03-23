@@ -108,6 +108,23 @@ class TimeSeriesLoader(object):
         assert self.n_series_per_batch <= self.ts_dataset.n_series, \
                         f'n_series_per_batch {n_series_per_batch} needs to be smaller than n_series {self.ts_dataset.n_series}'
 
+        self.sampleable_ts_idxs = self._get_sampleable_ts_idxs()
+
+# Cell
+@patch
+def _get_sampleable_ts_idxs(self: TimeSeriesLoader) -> List[int]:
+    """
+    Gets indexes of sampleable time series.
+
+    Returns
+    -------
+    List of indexes of sampleable time series.
+    """
+    sum_sample_mask = self.ts_dataset.ts_tensor[:, self.t_cols.index('sample_mask')].sum(axis=1)
+    ts_idxs = np.argwhere(sum_sample_mask > 1).reshape(1, -1)[0].tolist()
+
+    return ts_idxs
+
 # Cell
 @patch
 def _get_sampleable_windows_idxs(self: TimeSeriesLoader,
@@ -420,15 +437,20 @@ def __iter__(self: TimeSeriesLoader) -> Dict[str, t.Tensor]:
     """Batch iterator."""
     n_series = self.ts_dataset.n_series
     # Shuffle idx before epoch if self._is_train
+    # Hierarchical sampling
+    # 1. Sampling series
     if self.shuffle:
-        sample_idxs = np.random.choice(a=range(n_series), size=n_series, replace=False)
+        sample_idxs = np.random.choice(a=self.sampleable_ts_idxs,
+                                       size=len(self.sampleable_ts_idxs),
+                                       replace=False)
     else:
-        sample_idxs = np.array(range(n_series))
+        sample_idxs = np.array(self.sampleable_ts_idxs)
 
     n_batches = int(np.ceil(n_series / self.n_series_per_batch)) # Must be multiple of batch_size for paralel gpu
 
     for idx in range(n_batches):
         ts_idxs = sample_idxs[(idx * self.n_series_per_batch) : (idx + 1) * self.n_series_per_batch]
+        # 2. Sampling windows
         batch = self.__get_item__(index=ts_idxs)
         yield batch
 
