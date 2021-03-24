@@ -435,13 +435,13 @@ def __get_item__(self: TimeSeriesLoader,
 @patch
 def __iter__(self: TimeSeriesLoader) -> Dict[str, t.Tensor]:
     """Batch iterator."""
-    n_series = self.ts_dataset.n_series
+    n_series = len(self.sampleable_ts_idxs)
     # Shuffle idx before epoch if self._is_train
     # Hierarchical sampling
     # 1. Sampling series
     if self.shuffle:
         sample_idxs = np.random.choice(a=self.sampleable_ts_idxs,
-                                       size=len(self.sampleable_ts_idxs),
+                                       size=n_series,
                                        replace=False)
     else:
         sample_idxs = np.array(self.sampleable_ts_idxs)
