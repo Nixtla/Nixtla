@@ -189,6 +189,8 @@ class Business:
             stat = pd.read_csv(path / f'ts-{group.lower()}-statics.csv')
             S = stat['unique_id'].drop_duplicates().to_frame()
             S = S.merge(stat, how='left', on=['unique_id'])
+            uids = df['unique_id'].unique()
+            S = S.query('unique_id in @uids').reset_index(drop=True)
 
         else:
             S = None
