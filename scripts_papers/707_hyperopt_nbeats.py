@@ -59,7 +59,7 @@ def evaluate_horizon(horizon, data, n_trials, feature):
                 'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
                 'random_seed': hp.quniform('random_seed', 10, 20, 1)}
 
-    n_patients = data.unique_id.unique()           
+    n_patients = data.unique_id.nunique()           
     Y_df = data[['unique_id','ds', feature]]
     Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
     Y_df = Y_df.rename(columns={feature:'y'})
