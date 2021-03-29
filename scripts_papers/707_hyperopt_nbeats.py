@@ -125,6 +125,11 @@ def evaluate_horizon(horizon, data, n_trials, feature):
 def main(args):
     data = pd.read_csv('./data/healthcare/data_waveforms_icu.csv')
     data.head()
+    if args.feature=='PLETH':
+        aux = data[['unique_id','PLETH']].groupby('unique_id').min().reset_index()
+        aux = aux[aux['PLETH']>0]
+        filter_patients = aux.unique_id.unique()
+        data = data[data['unique_id'].isin(filter_patients)].reset_index(drop=True)
 
     horizons = [15, 30, 60, 120, 240, 480, 960]
     mae_list = []
