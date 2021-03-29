@@ -58,11 +58,12 @@ def evaluate_horizon(horizon, data, n_trials, feature):
                 'batch_size': hp.choice('batch_size', [256]),
                 'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
                 'random_seed': hp.quniform('random_seed', 10, 20, 1)}
-                
+
+    n_patients = data.unique_id.unique()           
     Y_df = data[['unique_id','ds', feature]]
     Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
     Y_df = Y_df.rename(columns={feature:'y'})
-    Y_df['ds'] = np.tile(np.array(range(10000)), 14)
+    Y_df['ds'] = np.tile(np.array(range(10000)), n_patients)
     Y_train_df = Y_df[Y_df['ds']<10000-horizon].reset_index(drop=True)
     Y_train_df['ds'] = pd.to_datetime(Y_train_df['ds'])
     Y_df['ds'] = pd.to_datetime(Y_df['ds'])
@@ -115,7 +116,7 @@ def evaluate_horizon(horizon, data, n_trials, feature):
         ax[i//4, i%4].set_ylabel('ART')
         ax[i//4, i%4].set_title(f'Patient {i}')
     plt.tight_layout()
-    plt.savefig(f'{feature}_{horizon}.pdf')
+    plt.savefig(f'./results/{feature}_{horizon}.pdf')
     plt.cla()
 
     return y_true_test, y_hat_test
@@ -143,7 +144,7 @@ def main(args):
         print(100*'-')
 
     result = {'horizons': horizons, 'y_true':y_true_list, 'y_hat':y_hat_list, 'mae': mae_list, 'rmse': rmse_list}
-    with open(f'result_{args.feature}_{args.experiment_id}.p', "wb") as f:
+    with open(f'./results/result_{args.feature}_{args.experiment_id}.p', "wb") as f:
         pickle.dump(result, f)
 
     # plt.plot(horizons, mae_list)
@@ -169,4 +170,6 @@ if __name__ == '__main__':
     
     main(args)
 
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
 # PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --hyperopt_iters 2 --experiment_id "debug"
