@@ -447,8 +447,7 @@ class Nbeats(object):
 
                 self.model.train()
                 # Parse batch
-                print("batch['S']", batch['S'])
-                S     = self.to_tensor([]) #batch['S']
+                S     = self.to_tensor([]) # <------------------ CHANGE THIS!!!
                 Y     = self.to_tensor(batch['Y'])
                 X     = self.to_tensor(batch['X'])
                 available_mask  = self.to_tensor(batch['available_mask'])
@@ -536,7 +535,7 @@ class Nbeats(object):
             for batch in iter(ts_loader):
 
                 # Parse batch
-                S     = self.to_tensor(batch['S'])
+                S     = self.to_tensor([])  # <------------------ CHANGE THIS!!!
                 Y     = self.to_tensor(batch['Y'])
                 X     = self.to_tensor(batch['X'])
                 available_mask  = self.to_tensor(batch['available_mask'])
