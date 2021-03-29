@@ -37,7 +37,7 @@ def evaluate_horizon(horizon, data, n_trials, feature):
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                 'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
                 'n_iterations': hp.choice('n_iterations', [2_000]), #1_000
-                'early_stopping': hp.choice('early_stopping', [5]),
+                'early_stopping': hp.choice('early_stopping', [10]),
                 'eval_freq': hp.choice('eval_freq', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
                 'loss': hp.choice('loss', ['MAE', 'MSE']),
@@ -172,4 +172,5 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --hyperopt_iters 2 --experiment_id "debug"
+# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --hyperopt_iters 30 --experiment_id "20210329"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --hyperopt_iters 30 --experiment_id "20210329"
