@@ -215,7 +215,8 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                        n_series_per_batch=mc['n_series_per_batch'],
                                        complete_inputs=mc['complete_inputs'],
                                        complete_sample=mc['complete_sample'],
-                                       shuffle=True)
+                                       shuffle=True,
+                                       verbose=True)
 
     if outsample_ts_dataset is not None:
         val_ts_loader = TimeSeriesLoader(ts_dataset=outsample_ts_dataset,
@@ -229,7 +230,8 @@ def instantiate_loaders(mc, train_ts_dataset, outsample_ts_dataset):
                                         n_series_per_batch=mc['n_series_per_batch'],
                                         complete_inputs=mc['complete_inputs'],
                                         complete_sample=mc['complete_sample'],
-                                        shuffle=False)
+                                        shuffle=False,
+                                        verbose=True)
     else:
         val_ts_loader = None
 
@@ -425,6 +427,9 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outs
 
     # Some asserts due to work in progress
     assert mc['normalizer_y'] is None, 'Scaling Y not iplemented (inverse Y missing for loss)'
+    print(30*'-')
+    print(pd.Series(mc))
+    print(30*'-')
 
     n_series = Y_df['unique_id'].nunique()
     if n_series > 1:
