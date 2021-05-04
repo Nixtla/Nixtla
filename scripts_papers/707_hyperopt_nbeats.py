@@ -50,7 +50,7 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
                 'lr_decay': hp.uniform('lr_decay', 0.3, 0.5),
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
                 'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
-                'n_iterations': hp.choice('n_iterations', [3_000]),
+                'n_iterations': hp.choice('n_iterations', [3_000]), #
                 'early_stopping': hp.choice('early_stopping', [10]),
                 'eval_freq': hp.choice('eval_freq', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
@@ -69,9 +69,9 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
                 'seasonality': hp.choice('seasonality', [24]),      
                 'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
                 'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
-                'batch_size': hp.choice('batch_size', [128, 256, 512]),
+                'batch_size': hp.choice('batch_size', [256]),
                 'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
-                'random_seed': hp.quniform('random_seed', 1, 1000, 1)}
+                'random_seed': hp.quniform('random_seed', 1, 50, 1)}
 
     # ------------------------------------------------------- DATA PROCESSING -------------------------------------------------------
     ts_per_patient = 10000     
@@ -84,17 +84,17 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
 
     # Scaling
     scaler_list = []
-    for feature in features:
-        print(f'Scaling {feature}...')
+    for f in features:
+        print(f'Scaling {f}...')
         scaled_y_list = []
         feature_scaler_list = []
         for uid in uniques:
             serie_data = Y_df[Y_df['unique_id']==uid]
             scaler_y = Scaler(normalizer='median')
-            scaled_y = scaler_y.scale(x=serie_data[feature].values, mask=np.ones(len(serie_data)))
+            scaled_y = scaler_y.scale(x=serie_data[f].values, mask=np.ones(len(serie_data)))
             scaled_y_list.append(scaled_y)
             feature_scaler_list.append(scaler_y)
-        Y_df[feature] = np.hstack(scaled_y_list)
+        Y_df[f] = np.hstack(scaled_y_list)
         scaler_list.append(feature_scaler_list)
 
     Y_train_df = Y_df[Y_df['ds']<ts_per_patient-len_test].reset_index(drop=True)
@@ -105,8 +105,8 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
     trials = hyperopt_tunning(space=nbeats_space, hyperopt_iters=n_trials, loss_function=mae, Y_df=Y_train_df, X_df=None, S_df=None,
                               ds_in_test=len_validation, shuffle_outsample=False)
 
-    with open(f'./results/hyperopt_{horizon}_{args.feature}_{args.pooling}_{args.experiment_id}.p', "wb") as f:
-        pickle.dump(trials, f)
+    # with open(f'./results/hyperopt_{horizon}_{args.feature}_{args.pooling}_{args.experiment_id}.p', "wb") as f:
+    #     pickle.dump(trials, f)
 
     # Best mc
     mc = trials.trials[np.argmin(trials.losses())]['result']['mc']
@@ -154,6 +154,10 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
             y_true_test[p, :, f, :] = scaler.inv_scale(y_true_test[p, :, f, :])
             y_hat_test[p, :, f, :] = scaler.inv_scale(y_hat_test[p, :, f, :])
 
+    result = {'horizon': horizon, 'trials': trials, 'y_true':y_true_test, 'y_hat':y_hat_test}
+    with open(f'./results/result_{horizon}_{feature}_{pooling}_{args.experiment_id}.p', "wb") as f:
+        pickle.dump(result, f)
+
     fig, ax = plt.subplots(nrows=3, ncols=4, figsize = (15,10))
     for i in range(12):
         ax[i//4, i%4].plot(y_true_test[i,-1,0,:])
@@ -182,26 +186,26 @@ def main(args):
     horizons = [15, 30, 60, 120, 240, 480, 960]
     len_validation = 5*250
     len_test = 5*250
-    mae_list = []
-    rmse_list = []
-    y_true_list = []
-    y_hat_list = []
+    # mae_list = []
+    # rmse_list = []
+    # y_true_list = []
+    # y_hat_list = []
     for horizon in horizons:
         print(100*'-')
         print(100*'-')
         print('HORIZON: ', horizon)
         y_true, y_hat = evaluate_horizon(horizon=horizon, len_validation=len_validation, len_test=len_test,
                                          data=data, n_trials=args.hyperopt_iters, feature=args.feature, pooling=args.pooling)
-        y_true_list.append(y_true)
-        y_hat_list.append(y_hat)
-        mae_list.append(mae(y_true, y_hat))
-        rmse_list.append(rmse(y_true, y_hat))
+        # y_true_list.append(y_true)
+        # y_hat_list.append(y_hat)
+        # mae_list.append(mae(y_true, y_hat))
+        # rmse_list.append(rmse(y_true, y_hat))
         print(100*'-')
         print(100*'-')
 
-    result = {'horizons': horizons, 'y_true':y_true_list, 'y_hat':y_hat_list, 'mae': mae_list, 'rmse': rmse_list}
-    with open(f'./results/result_{args.feature}_{args.pooling}_{args.experiment_id}.p', "wb") as f:
-        pickle.dump(result, f)
+    # result = {'horizons': horizons, 'y_true':y_true_list, 'y_hat':y_hat_list, 'mae': mae_list, 'rmse': rmse_list}
+    # with open(f'./results/result_{args.feature}_{args.pooling}_{args.experiment_id}.p', "wb") as f:
+    #     pickle.dump(result, f)
 
 def parse_args():
     desc = "707"
@@ -223,9 +227,9 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 1 --hyperopt_iters 2 --experiment_id "20210504"
 # CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
