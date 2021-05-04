@@ -328,8 +328,9 @@ class Nbeats(object):
                     else:
                         assert 1<0, f'Block type not found!'
                 # Select type of evaluation and apply it to all layers of block
-                init_function = partial(init_weights, initialization=self.initialization)
-                nbeats_block.layers.apply(init_function)
+                if self.initialization != 'default':
+                    init_function = partial(init_weights, initialization=self.initialization)
+                    nbeats_block.layers.apply(init_function)
                 #print(f'     | -- {nbeats_block}')
                 block_list.append(nbeats_block)
         return block_list
