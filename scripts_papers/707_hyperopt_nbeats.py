@@ -31,26 +31,26 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
                 'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
                 'output_size': hp.choice('output_size', [horizon]),
                 'shared_weights': hp.choice('shared_weights', [False]),
-                'activation': hp.choice('activation', ['relu','selu']),
-                'initialization':  hp.choice('initialization', ['glorot_normal', 'he_normal']),
+                'activation': hp.choice('activation', ['relu']),
+                'initialization':  hp.choice('initialization', ['lecun_normal']),
                 'stack_types': hp.choice('stack_types', [ ['trend', 'seasonality'] ]),
-                'n_blocks': hp.choice('n_blocks', [ [1, 1], [3, 3] ]),
+                'n_blocks': hp.choice('n_blocks', [ [1, 1], [3, 3], [5, 5] ]),
                 'n_layers': hp.choice('n_layers', [ 6*[2] ]),
                 'n_pooling_kernel': hp.choice('n_pooling_kernel', n_pooling_kernel),
-                'n_hidden': hp.choice('n_hidden', [ 256, 512 ]),
+                'n_hidden': hp.quniform('n_hidden', 50, 512, 1),
                 'n_harmonics': hp.choice('n_harmonics', [1, 2]),
                 'n_polynomials': hp.choice('n_polynomials', [2, 4]),
-                'exogenous_n_channels': hp.quniform('exogenous_n_channels', 1, 10, 1),
+                'exogenous_n_channels': hp.choice('exogenous_n_channels', [0]),
                 'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
                 # Regularization and optimization parameters
-                'batch_normalization': hp.choice('batch_normalization', [False, True]),
-                'dropout_prob_theta': hp.uniform('dropout_prob_theta', 0, 0.5),
-                'dropout_prob_exogenous': hp.uniform('dropout_prob_exogenous', 0, 0.5),
+                'batch_normalization': hp.choice('batch_normalization', [False]),
+                'dropout_prob_theta': hp.choice('dropout_prob_theta', [0]),
+                'dropout_prob_exogenous': hp.choice('dropout_prob_exogenous', [0]),
                 'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
-                'lr_decay': hp.uniform('lr_decay', 0.3, 0.5),
+                'lr_decay': hp.choice('lr_decay', [0.5]),
                 'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
-                'weight_decay': hp.loguniform('weight_decay', np.log(5e-5), np.log(5e-3)),
-                'n_iterations': hp.choice('n_iterations', [3_000]), #
+                'weight_decay': hp.choice('weight_decay', [0]),
+                'n_iterations': hp.choice('n_iterations', [3_000]),
                 'early_stopping': hp.choice('early_stopping', [10]),
                 'eval_freq': hp.choice('eval_freq', [50]),
                 'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
@@ -69,7 +69,7 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
                 'seasonality': hp.choice('seasonality', [24]),      
                 'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
                 'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
-                'batch_size': hp.choice('batch_size', [256]),
+                'batch_size': hp.choice('batch_size', [128, 256, 512]),
                 'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
                 'random_seed': hp.quniform('random_seed', 1, 50, 1)}
 
@@ -227,9 +227,24 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 1 --hyperopt_iters 2 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
