@@ -29,19 +29,23 @@ class NBeatsBlock(nn.Module):
     """
     N-BEATS block which takes a basis function as an argument.
     """
-    def __init__(self, input_size: int, output_size: int, x_t_n_inputs: int,
+    def __init__(self, n_y: int, input_size: int, output_size: int, n_pooling_kernel: int, x_t_n_inputs: int,
                  x_s_n_inputs: int, x_s_n_hidden: int, theta_n_dim: int, basis: nn.Module,
                  n_layers: int, theta_n_hidden: list, batch_normalization: bool, dropout_prob: float, activation: str):
         """
         """
         super().__init__()
 
+        pooled_input_size = int(np.ceil(input_size/n_pooling_kernel))
+
         if x_s_n_inputs == 0:
             x_s_n_hidden = 0
-        theta_n_hidden = [input_size + (input_size+output_size)*x_t_n_inputs + x_s_n_hidden] + theta_n_hidden
+        theta_n_hidden = [n_y*pooled_input_size + (input_size+output_size)*x_t_n_inputs + x_s_n_hidden] + theta_n_hidden #TODO: careful with output_size
 
+        self.n_y = n_y
         self.input_size = input_size
         self.output_size = output_size
+        self.n_pooling_kernel = n_pooling_kernel
         self.x_s_n_inputs = x_s_n_inputs
         self.x_s_n_hidden = x_s_n_hidden
         self.x_t_n_inputs = x_t_n_inputs
@@ -54,6 +58,8 @@ class NBeatsBlock(nn.Module):
                             'lrelu': nn.LeakyReLU(),
                             'prelu': nn.PReLU(),
                             'sigmoid': nn.Sigmoid()}
+
+        self.pool_layer = t.nn.MaxPool1d(kernel_size=self.n_pooling_kernel, stride=self.n_pooling_kernel, ceil_mode=True)
 
         hidden_layers = []
         for i in range(n_layers):
@@ -78,8 +84,15 @@ class NBeatsBlock(nn.Module):
     def forward(self, insample_y: t.Tensor, insample_x_t: t.Tensor,
                 outsample_x_t: t.Tensor, x_s: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
 
-        batch_size = len(insample_y)
+        # Pooling insample_y
+        insample_y = self.pool_layer(insample_y)
+
+        # Flatten (b_s, n_y, n_t) -> (b_s, n_y*n_t)
+        insample_y = insample_y.view(len(insample_y), -1)
+
+        # Temporal Exogenous
         if self.x_t_n_inputs>0:
+            batch_size = len(insample_y)
             insample_y = t.cat(( insample_y, insample_x_t.reshape(batch_size, -1) ), 1)
             insample_y = t.cat(( insample_y, outsample_x_t.reshape(batch_size, -1) ), 1)
 
@@ -108,12 +121,12 @@ class NBeats(nn.Module):
                 insample_mask: t.Tensor, return_decomposition: bool=False):
 
         # insample
-        insample_y    = Y[:, :-self.output_size]
+        insample_y    = Y[:, :, :-self.output_size]
         insample_x_t  = X[:, :, :-self.output_size]
-        insample_mask = insample_mask[:, :-self.output_size]
+        insample_mask = insample_mask[:, :, :-self.output_size]
 
         # outsample
-        outsample_y   = Y[:, -self.output_size:]
+        outsample_y   = Y[:, :, -self.output_size:]
         outsample_x_t = X[:, :, -self.output_size:]
 
         if return_decomposition:
@@ -138,11 +151,17 @@ class NBeats(nn.Module):
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
+        # insample_mask = insample_mask # needed to broadcast
 
-        forecast = insample_y[:, -1:] # Level with Naive1
+        forecast = insample_y[:, :, -1:] # Level with Naive1
         for i, block in enumerate(self.blocks):
             backcast, block_forecast = block(insample_y=residuals, insample_x_t=insample_x_t,
                                              outsample_x_t=outsample_x_t, x_s=x_s)
+
+            # print('residuals.shape', residuals.shape)
+            # print('backcast.shape', backcast.shape)
+            # print('insample_mask.shape', insample_mask.shape)
+
             residuals = (residuals - backcast) * insample_mask
             forecast = forecast + block_forecast
 
@@ -182,8 +201,9 @@ class IdentityBasis(nn.Module):
         self.backcast_size = backcast_size
 
     def forward(self, theta: t.Tensor, insample_x_t: t.Tensor, outsample_x_t: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
-        backcast = theta[:, :self.backcast_size]
-        forecast = theta[:, -self.forecast_size:]
+        theta = theta.view(len(theta), -1, (self.forecast_size+self.backcast_size))
+        backcast = theta[:, :, :self.backcast_size]
+        forecast = theta[:, :, -self.forecast_size:]
         return backcast, forecast
 
 class TrendBasis(nn.Module):
@@ -198,9 +218,11 @@ class TrendBasis(nn.Module):
                                     for i in range(polynomial_size)]), dtype=t.float32), requires_grad=False)
 
     def forward(self, theta: t.Tensor, insample_x_t: t.Tensor, outsample_x_t: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
-        cut_point = self.forecast_basis.shape[0]
-        backcast = t.einsum('bp,pt->bt', theta[:, cut_point:], self.backcast_basis)
-        forecast = t.einsum('bp,pt->bt', theta[:, :cut_point], self.forecast_basis)
+        theta_dim = self.forecast_basis.shape[0]
+        theta = theta.view(len(theta), -1, 2*theta_dim)
+
+        backcast = t.einsum('byp,pt->byt', theta[:, :, theta_dim:], self.backcast_basis)
+        forecast = t.einsum('byp,pt->byt', theta[:, :, :theta_dim], self.forecast_basis)
         return backcast, forecast
 
 class SeasonalityBasis(nn.Module):
@@ -226,9 +248,11 @@ class SeasonalityBasis(nn.Module):
         self.forecast_basis = nn.Parameter(forecast_template, requires_grad=False)
 
     def forward(self, theta: t.Tensor, insample_x_t: t.Tensor, outsample_x_t: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
-        cut_point = self.forecast_basis.shape[0]
-        backcast = t.einsum('bp,pt->bt', theta[:, cut_point:], self.backcast_basis)
-        forecast = t.einsum('bp,pt->bt', theta[:, :cut_point], self.forecast_basis)
+        theta_dim = self.forecast_basis.shape[0]
+        theta = theta.view(len(theta), -1, 2*theta_dim)
+
+        backcast = t.einsum('byp,pt->byt', theta[:, :, theta_dim:], self.backcast_basis)
+        forecast = t.einsum('byp,pt->byt', theta[:, :, :theta_dim], self.forecast_basis)
         return backcast, forecast
 
 class ExogenousBasisInterpretable(nn.Module):

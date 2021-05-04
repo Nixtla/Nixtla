@@ -242,10 +242,16 @@ def _windows_batch(self: TimeSeriesLoader,
     S = s_matrix[windows_idxs]
 
     # Parse windows to elements of batch
-    Y = windows[:, self.t_cols.index('y'), :]
-    X = windows[:, (self.t_cols.index('y')+1):self.t_cols.index('available_mask'), :]
+    Y = windows[:, :self.ts_dataset.n_y, :]
+    X = windows[:, self.ts_dataset.n_y:self.t_cols.index('available_mask'), :]
     available_mask = windows[:, self.t_cols.index('available_mask'), :]
     sample_mask = windows[:, self.t_cols.index('sample_mask'), :]
+
+    available_mask = available_mask.unsqueeze(1)
+    available_mask = t.ones(Y.shape) * available_mask
+
+    sample_mask = sample_mask.unsqueeze(1)
+    sample_mask = t.ones(Y.shape) * sample_mask
 
     batch = {'S': S, 'Y': Y, 'X': X,
              'available_mask': available_mask,
@@ -476,7 +482,7 @@ def get_meta_data_col(self: TimeSeriesLoader,
 @patch
 def get_n_variables(self: TimeSeriesLoader) -> Tuple[int, int]:
     """Gets number of exogenous and static variables."""
-    return self.ts_dataset.n_x, self.ts_dataset.n_s
+    return self.ts_dataset.n_y, self.ts_dataset.n_x, self.ts_dataset.n_s
 
 @patch
 def get_n_series(self: TimeSeriesLoader) -> int:

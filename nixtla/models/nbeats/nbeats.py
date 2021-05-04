@@ -57,6 +57,7 @@ class Nbeats(object):
                  initialization,
                  stack_types,
                  n_blocks,
+                 n_pooling_kernel,
                  n_layers,
                  n_hidden,
                  n_harmonics,
@@ -176,6 +177,7 @@ class Nbeats(object):
         self.initialization = initialization
         self.stack_types = stack_types
         self.n_blocks = n_blocks
+        self.n_pooling_kernel = n_pooling_kernel
         self.n_layers = n_layers
         self.n_hidden = n_hidden
         self.n_harmonics = n_harmonics
@@ -233,12 +235,14 @@ class Nbeats(object):
                     nbeats_block = block_list[-1]
                 else:
                     if self.stack_types[i] == 'seasonality':
-                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                        nbeats_block = NBeatsBlock(n_y = self.n_y,
+                                                   input_size=self.input_size,
                                                    output_size=self.output_size,
+                                                   n_pooling_kernel=self.n_pooling_kernel[i],
                                                    x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_n_dim=4 * int(
+                                                   theta_n_dim= self.n_y * 4 * int(
                                                         np.ceil(self.n_harmonics / 2 * self.output_size) - (self.n_harmonics - 1)),
                                                    basis=SeasonalityBasis(harmonics=self.n_harmonics,
                                                                           backcast_size=self.input_size,
@@ -249,12 +253,14 @@ class Nbeats(object):
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'trend':
-                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                        nbeats_block = NBeatsBlock(n_y = self.n_y,
+                                                   input_size=self.input_size,
                                                    output_size=self.output_size,
+                                                   n_pooling_kernel=self.n_pooling_kernel[i],
                                                    x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_n_dim=2 * (self.n_polynomials + 1),
+                                                   theta_n_dim= self.n_y * 2 * (self.n_polynomials + 1),
                                                    basis=TrendBasis(degree_of_polynomial=self.n_polynomials,
                                                                             backcast_size=self.input_size,
                                                                             forecast_size=self.output_size),
@@ -264,12 +270,14 @@ class Nbeats(object):
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'identity':
-                        nbeats_block = NBeatsBlock(input_size=self.input_size,
+                        nbeats_block = NBeatsBlock(n_y = self.n_y,
+                                                   input_size=self.input_size,
                                                    output_size=self.output_size,
+                                                   n_pooling_kernel=self.n_pooling_kernel[i],
                                                    x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_n_dim=self.input_size + self.output_size,
+                                                   theta_n_dim= self.n_y * (self.input_size + self.output_size),
                                                    basis=IdentityBasis(backcast_size=self.input_size,
                                                                        forecast_size=self.output_size),
                                                    n_layers=self.n_layers[i],
@@ -399,7 +407,7 @@ class Nbeats(object):
         random.seed(self.random_seed) #TODO: interaccion rara con window_sampling de validacion
 
         # Attributes of ts_dataset
-        self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
+        self.n_y, self.n_x_t, self.n_x_s = train_ts_loader.get_n_variables()
 
         # Instantiate model
         if not self._is_instantiated:
@@ -451,12 +459,17 @@ class Nbeats(object):
                 Y     = self.to_tensor(batch['Y'])
                 X     = self.to_tensor(batch['X'])
                 available_mask  = self.to_tensor(batch['available_mask'])
-                outsample_mask = self.to_tensor(batch['sample_mask'])[:, -self.output_size:]
+                outsample_mask = self.to_tensor(batch['sample_mask'])[:, :, -self.output_size:]
+                # available_mask = available_mask.unsqueeze(1)
+                # outsample_mask = outsample_mask.unsqueeze(1)
 
                 optimizer.zero_grad()
                 outsample_y, forecast = self.model(S=S, Y=Y, X=X,
                                                    insample_mask=available_mask,
                                                    return_decomposition=False)
+                # print('forecast.shape', forecast.shape)
+                # print('forecast', forecast)
+                # assert 1<0
 
                 training_loss = training_loss_fn(x=Y, # TODO: eliminate only useful for MASE
                                                  loss_hypar=self.loss_hypar,
@@ -528,7 +541,7 @@ class Nbeats(object):
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
         forecasts = []
-        block_forecasts = []
+        #block_forecasts = []
         outsample_ys = []
         outsample_masks = []
         with t.no_grad():
@@ -539,89 +552,91 @@ class Nbeats(object):
                 Y     = self.to_tensor(batch['Y'])
                 X     = self.to_tensor(batch['X'])
                 available_mask  = self.to_tensor(batch['available_mask'])
-                outsample_mask = batch['sample_mask'][:, -self.output_size:]
+                outsample_mask = batch['sample_mask'][:, :, -self.output_size:]
+                # available_mask = available_mask.unsqueeze(1)
+                # outsample_mask = outsample_mask.unsqueeze(1)
 
-                outsample_y, forecast, block_forecast = self.model(S=S, Y=Y, X=X,
-                                                                   insample_mask=available_mask,
-                                                                   return_decomposition=True)
+                outsample_y, forecast = self.model(S=S, Y=Y, X=X,
+                                                   insample_mask=available_mask,
+                                                   return_decomposition=False) #<---- CUIDADO
                 outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
-                block_forecasts.append(block_forecast.cpu().data.numpy())
+                #block_forecasts.append(block_forecast.cpu().data.numpy())
                 outsample_masks.append(outsample_mask)
 
         forecasts = np.vstack(forecasts)
-        block_forecasts = np.vstack(block_forecasts)
+        #block_forecasts = np.vstack(block_forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
         n_series = ts_loader.ts_dataset.n_series
-        _, n_components, _ = block_forecast.size() #(n_windows, n_components, output_size)
+        #_, n_components, _ = block_forecast.size() #(n_windows, n_components, output_size)
         n_fcds = len(outsample_ys) // n_series
-        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.output_size)
-        forecasts = forecasts.reshape(n_series, n_fcds, self.output_size)
-        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.output_size)
-        block_forecasts = block_forecasts.reshape(n_series, n_fcds, n_components, self.output_size)
+        outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.n_y, self.output_size)
+        forecasts = forecasts.reshape(n_series, n_fcds, self.n_y, self.output_size)
+        outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.n_y, self.output_size)
+        #block_forecasts = block_forecasts.reshape(n_series, n_fcds, n_components, self.output_size)
 
         self.model.train()
-        if return_decomposition:
-            return outsample_ys, forecasts, block_forecasts, outsample_masks
-        else:
-            return outsample_ys, forecasts, outsample_masks
+        # if return_decomposition:
+        #     return outsample_ys, forecasts, block_forecasts, outsample_masks
+        # else:
+        return outsample_ys, forecasts, outsample_masks
 
-    def forecast(self, Y_df, X_df, f_cols, return_decomposition):
-        # TODO: protect available_mask from nans
-        # Last output_size mask for predictions
-        mask_df = Y_df.copy()
-        mask_df = mask_df[['unique_id', 'ds']]
-        sample_mask = np.ones(len(mask_df))
-        mask_df['sample_mask'] = np.ones(len(mask_df))
-        mask_df['available_mask'] = np.ones(len(mask_df))
+    # def forecast(self, Y_df, X_df, f_cols, return_decomposition):
+    #     # TODO: protect available_mask from nans
+    #     # Last output_size mask for predictions
+    #     mask_df = Y_df.copy()
+    #     mask_df = mask_df[['unique_id', 'ds']]
+    #     sample_mask = np.ones(len(mask_df))
+    #     mask_df['sample_mask'] = np.ones(len(mask_df))
+    #     mask_df['available_mask'] = np.ones(len(mask_df))
 
-        # Model inputs
-        ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df,
-                                       mask_df=mask_df, f_cols=f_cols, verbose=False)
+    #     # Model inputs
+    #     ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=X_df,
+    #                                    mask_df=mask_df, f_cols=f_cols, verbose=False)
 
-        ts_loader = TimeSeriesLoader(model='nbeats',
-                                     ts_dataset=ts_dataset,
-                                     window_sampling_limit=500_000,
-                                     input_size=self.input_size,
-                                     output_size=self.output_size,
-                                     idx_to_sample_freq=self.output_size,
-                                     batch_size=1024,
-                                     complete_inputs=False,
-                                     complete_sample=True,
-                                     shuffle=False)
+    #     ts_loader = TimeSeriesLoader(model='nbeats',
+    #                                  ts_dataset=ts_dataset,
+    #                                  window_sampling_limit=500_000,
+    #                                  input_size=self.input_size,
+    #                                  output_size=self.output_size,
+    #                                  idx_to_sample_freq=self.output_size,
+    #                                  batch_size=1024,
+    #                                  complete_inputs=False,
+    #                                  complete_sample=True,
+    #                                  shuffle=False)
 
-        # Model prediction
-        if return_decomposition:
-            y_true, y_hat, y_hat_dec, _ = self.predict(ts_loader=ts_loader,
-                                                       return_decomposition=True)
+    #     # Model prediction
+    #     if return_decomposition:
+    #         y_true, y_hat, y_hat_dec, _ = self.predict(ts_loader=ts_loader,
+    #                                                    return_decomposition=True)
 
-            # Reshaping model outputs
-            # n_uids, n_fcds, n_comps, n_ltsp -> n_asins, n_fcds, n_ltsp, n_comps
-            n_asins, n_fcds, n_comps, n_ltsp = y_hat_dec.shape
-            y_hat_dec = np.transpose(y_hat_dec, (0, 1, 3, 2))
-            y_hat_dec = y_hat_dec.reshape(-1, n_comps)
+    #         # Reshaping model outputs
+    #         # n_uids, n_fcds, n_comps, n_ltsp -> n_asins, n_fcds, n_ltsp, n_comps
+    #         n_asins, n_fcds, n_comps, n_ltsp = y_hat_dec.shape
+    #         y_hat_dec = np.transpose(y_hat_dec, (0, 1, 3, 2))
+    #         y_hat_dec = y_hat_dec.reshape(-1, n_comps)
 
-            Y_hat_dec_df = pd.DataFrame(data=y_hat_dec,
-                                        columns=['level']+self.stack_types)
+    #         Y_hat_dec_df = pd.DataFrame(data=y_hat_dec,
+    #                                     columns=['level']+self.stack_types)
 
-        else:
-            y_true, y_hat, _ = self.predict(ts_loader=ts_loader,
-                                            return_decomposition=False)
+    #     else:
+    #         y_true, y_hat, _ = self.predict(ts_loader=ts_loader,
+    #                                         return_decomposition=False)
 
-        # Reshaping model outputs
-        y_true = y_true.reshape(-1)
-        y_hat  = y_hat.reshape(-1)
+    #     # Reshaping model outputs
+    #     y_true = y_true.reshape(-1)
+    #     y_hat  = y_hat.reshape(-1)
 
-        Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values,
-                                 'ds': Y_df.ds.values,
-                                 'y': Y_df.y.values,
-                                 'y_hat': y_hat})
-        if return_decomposition:
-            Y_hat_df = pd.concat([Y_hat_df, Y_hat_dec_df], axis=1)
-        Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
-        return Y_hat_df
+    #     Y_hat_df = pd.DataFrame({'unique_id': Y_df.unique_id.values,
+    #                              'ds': Y_df.ds.values,
+    #                              'y': Y_df.y.values,
+    #                              'y_hat': y_hat})
+    #     if return_decomposition:
+    #         Y_hat_df = pd.concat([Y_hat_df, Y_hat_dec_df], axis=1)
+    #     Y_hat_df['residual'] = Y_hat_df['y'] - Y_hat_df['y_hat']
+    #     return Y_hat_df
 
     def evaluate_performance(self, ts_loader, validation_loss_fn):
         self.model.eval()

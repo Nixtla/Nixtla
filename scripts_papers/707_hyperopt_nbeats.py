@@ -79,7 +79,7 @@ def evaluate_horizon(horizon, data, n_trials, feature):
 
     # Datasets
     # Train and val
-    train_ts_dataset, validation_ts_dataset, scaler_y = create_datasets(mc=mc, Y_df=Y_train_df, X_df=None, S_df=None, ds_in_test=horizon,                                                                                 shuffle_outsample=False)
+    train_ts_dataset, validation_ts_dataset, scaler_y = create_datasets(mc=mc, Y_df=Y_train_df, X_df=None, S_df=None, ds_in_test=horizon, shuffle_outsample=False)
     # Test
     test_mask_df = get_default_mask_df(Y_df=Y_df, ds_in_test=horizon, is_test=True)
     test_ts_dataset = TimeSeriesDataset(Y_df=Y_df, X_df=None, S_df=None, mask_df=test_mask_df, verbose=True)

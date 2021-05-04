@@ -59,7 +59,7 @@ class TimeSeriesDataset(Dataset):
             Wheter log outputs.
         """
         assert type(Y_df) == pd.core.frame.DataFrame
-        assert all([(col in Y_df) for col in ['unique_id', 'ds', 'y']])
+        assert all([(col in Y_df) for col in ['unique_id', 'ds']])
         self.verbose = verbose
 
         if X_df is not None:
@@ -105,11 +105,12 @@ class TimeSeriesDataset(Dataset):
         #print(f"logging time {time.time()-start}")
 
         #start = time.time()
-        ts_data, s_data, self.meta_data, self.t_cols, self.s_cols \
-                         = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
+        ts_data, s_data, self.meta_data, self.y_cols, self.t_cols, self.s_cols \
+                                            = self._df_to_lists(Y_df=Y_df, S_df=S_df, X_df=X_df, mask_df=mask_df)
         #print(f"df2list time {time.time()-start}")
 
         # Dataset attributes
+        self.n_y        = len(self.y_cols)
         self.n_series   = len(ts_data)
         self.max_len    = max([len(ts) for ts in ts_data])
         self.n_channels = len(self.t_cols) # t_cols insample_mask and outsample_mask
@@ -217,6 +218,9 @@ def _df_to_lists(self: TimeSeriesDataset,
         - List of variables.
         - List of exogenous variables.
     """
+
+    y_cols = [col for col in Y_df.columns if col not in ['unique_id', 'ds']]
+
     # None protections
     if X_df is None:
         X_df = Y_df[['unique_id', 'ds']]
@@ -261,7 +265,7 @@ def _df_to_lists(self: TimeSeriesDataset,
     del S, Y, X, M, G
     gc.collect()
 
-    return ts_data, s_data, meta_data, t_cols, s_cols
+    return ts_data, s_data, meta_data, y_cols, t_cols, s_cols
 
 # Cell
 @patch
