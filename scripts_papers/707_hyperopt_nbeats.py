@@ -184,7 +184,8 @@ def main(args):
     data = data[data['unique_id'].isin(filter_patients)].reset_index(drop=True)
 
     #horizons = [15, 30, 60, 120, 240, 480, 960]
-    horizons = [args.horizon]
+    horizons = [120, 240]
+    #horizons = [args.horizon]
     len_validation = 5*250
     len_test = 5*250
     # mae_list = []
@@ -227,26 +228,56 @@ if __name__ == '__main__':
     
     main(args)
 
-# source ~/anaconda3/etc/profile.d/conda.sh
-# conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 30 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 30 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 240 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 30 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 240 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 30 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 240 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 30 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 240 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 30 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 240 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 240 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504"
+
+
+
+
+
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 60 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 60 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 60 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 60 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 60 --pooling 1 --hyperopt_iters 100 --experiment_id "20210504_2"
+
+# source ~/anaconda3/etc/profile.d/conda.sh
+# conda activate riemann
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 60 --pooling 0 --hyperopt_iters 100 --experiment_id "20210504_2"
