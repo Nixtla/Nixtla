@@ -185,9 +185,9 @@ def main(args):
 
     #horizons = [30, 60, 120, 240, 480, 960]
     #horizons = [args.horizon]
-    horizons = [1500]
-    len_validation = 7*250
-    len_test = 7*250
+    horizons = [1200]
+    len_validation = 6*250
+    len_test = 6*250
     # mae_list = []
     # rmse_list = []
     # y_true_list = []
