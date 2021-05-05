@@ -250,6 +250,7 @@ def instantiate_nbeats(mc):
                    n_blocks=mc['n_blocks'],
                    n_layers=mc['n_layers'],
                    n_pooling_kernel=mc['n_pooling_kernel'],
+                   n_freq_downsample=mc['n_freq_downsample'],
                    n_hidden=mc['n_hidden_list'],
                    n_harmonics=int(mc['n_harmonics']),
                    n_polynomials=int(mc['n_polynomials']),
