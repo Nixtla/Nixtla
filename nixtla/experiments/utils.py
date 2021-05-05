@@ -450,8 +450,8 @@ def evaluate_model(mc, loss_function, Y_df, X_df, S_df, ds_in_test, shuffle_outs
 
     result =  {'loss': loss,
                'mc': mc,
-               'y_true': y_true,
-               'y_hat': y_hat,
+            #    'y_true': y_true,
+            #    'y_hat': y_hat,
                'trajectories': model.trajectories,
                'run_time': run_time,
                'status': STATUS_OK}
