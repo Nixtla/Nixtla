@@ -28,7 +28,7 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
 
     nbeats_space= {# Architecture parameters
                 'model':'nbeats',
-                'input_size_multiplier': hp.choice('input_size_multiplier', [2, 3, 4, 5]),
+                'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
                 'output_size': hp.choice('output_size', [horizon]),
                 'shared_weights': hp.choice('shared_weights', [False]),
                 'activation': hp.choice('activation', ['relu']),

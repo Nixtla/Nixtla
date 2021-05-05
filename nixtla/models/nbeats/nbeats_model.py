@@ -8,6 +8,7 @@ import math
 import numpy as np
 import torch as t
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import Tuple
 from ..components.tcn import _TemporalConvNet
 
@@ -29,8 +30,8 @@ class NBeatsBlock(nn.Module):
     """
     N-BEATS block which takes a basis function as an argument.
     """
-    def __init__(self, n_y: int, input_size: int, output_size: int, n_pooling_kernel: int, x_t_n_inputs: int,
-                 x_s_n_inputs: int, x_s_n_hidden: int, theta_n_dim: int, basis: nn.Module,
+    def __init__(self, n_y: int, input_size: int, output_size: int, n_pooling_kernel: int,
+                 x_t_n_inputs: int, x_s_n_inputs: int, x_s_n_hidden: int, theta_n_dim: int, basis: nn.Module,
                  n_layers: int, theta_n_hidden: list, batch_normalization: bool, dropout_prob: float, activation: str):
         """
         """
@@ -151,7 +152,6 @@ class NBeats(nn.Module):
         residuals = insample_y.flip(dims=(-1,))
         insample_x_t = insample_x_t.flip(dims=(-1,))
         insample_mask = insample_mask.flip(dims=(-1,))
-        # insample_mask = insample_mask # needed to broadcast
 
         forecast = insample_y[:, :, -1:] # Level with Naive1
         for i, block in enumerate(self.blocks):
@@ -176,8 +176,8 @@ class NBeats(nn.Module):
 
         n_batch, n_channels, n_t = outsample_x_t.size(0), outsample_x_t.size(1), outsample_x_t.size(2)
 
-        level = insample_y[:, -1:] # Level with Naive1
-        block_forecasts = [ level.repeat(1, n_t) ]
+        level = insample_y[:, :, -1:] # Level with Naive1
+        block_forecasts = [ level.repeat(1, 1, n_t) ]
 
         forecast = level
         for i, block in enumerate(self.blocks):
@@ -187,28 +187,34 @@ class NBeats(nn.Module):
             forecast = forecast + block_forecast
             block_forecasts.append(block_forecast)
 
-        # (n_batch, n_blocks, n_t)
+        # (n_batch, n_blocks, n_y, n_t)
         block_forecasts = t.stack(block_forecasts)
-        block_forecasts = block_forecasts.permute(1,0,2)
+        block_forecasts = block_forecasts.permute(1,0,2,3)
 
         return forecast, block_forecasts
 
 # Cell
 class IdentityBasis(nn.Module):
-    def __init__(self, backcast_size: int, forecast_size: int):
+    def __init__(self, backcast_size: int, forecast_size: int, n_freq_downsample: int):
         super().__init__()
         self.forecast_size = forecast_size
         self.backcast_size = backcast_size
+        self.n_freq_downsample = n_freq_downsample
 
     def forward(self, theta: t.Tensor, insample_x_t: t.Tensor, outsample_x_t: t.Tensor) -> Tuple[t.Tensor, t.Tensor]:
-        theta = theta.view(len(theta), -1, (self.forecast_size+self.backcast_size))
+        downsampled_forecast_size = self.forecast_size//self.n_freq_downsample
+        theta = theta.view(len(theta), -1, (downsampled_forecast_size + self.backcast_size))
         backcast = theta[:, :, :self.backcast_size]
-        forecast = theta[:, :, -self.forecast_size:]
+        forecast = theta[:, :, -downsampled_forecast_size:]
+        forecast = F.interpolate(forecast, size=self.forecast_size, mode='linear', align_corners=True)
+
         return backcast, forecast
 
 class TrendBasis(nn.Module):
-    def __init__(self, degree_of_polynomial: int, backcast_size: int, forecast_size: int):
+    def __init__(self, degree_of_polynomial: int, backcast_size: int, forecast_size: int, n_freq_downsample: int):
         super().__init__()
+        self.n_freq_downsample = n_freq_downsample
+
         polynomial_size = degree_of_polynomial + 1
         self.backcast_basis = nn.Parameter(
             t.tensor(np.concatenate([np.power(np.arange(backcast_size, dtype=np.float) / backcast_size, i)[None, :]
@@ -226,8 +232,10 @@ class TrendBasis(nn.Module):
         return backcast, forecast
 
 class SeasonalityBasis(nn.Module):
-    def __init__(self, harmonics: int, backcast_size: int, forecast_size: int):
+    def __init__(self, harmonics: int, backcast_size: int, forecast_size: int, n_freq_downsample: int):
         super().__init__()
+        self.n_freq_downsample = n_freq_downsample
+
         frequency = np.append(np.zeros(1, dtype=np.float32),
                                         np.arange(harmonics, harmonics / 2 * forecast_size,
                                                     dtype=np.float32) / harmonics)[None, :]

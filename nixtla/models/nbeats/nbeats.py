@@ -58,6 +58,7 @@ class Nbeats(object):
                  stack_types,
                  n_blocks,
                  n_pooling_kernel,
+                 n_freq_downsample,
                  n_layers,
                  n_hidden,
                  n_harmonics,
@@ -178,6 +179,7 @@ class Nbeats(object):
         self.stack_types = stack_types
         self.n_blocks = n_blocks
         self.n_pooling_kernel = n_pooling_kernel
+        self.n_freq_downsample = n_freq_downsample
         self.n_layers = n_layers
         self.n_hidden = n_hidden
         self.n_harmonics = n_harmonics
@@ -246,7 +248,8 @@ class Nbeats(object):
                                                         np.ceil(self.n_harmonics / 2 * self.output_size) - (self.n_harmonics - 1)),
                                                    basis=SeasonalityBasis(harmonics=self.n_harmonics,
                                                                           backcast_size=self.input_size,
-                                                                          forecast_size=self.output_size),
+                                                                          forecast_size=self.output_size,
+                                                                          n_freq_downsample=self.n_freq_downsample[i]),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
                                                    batch_normalization=batch_normalization_block,
@@ -262,14 +265,16 @@ class Nbeats(object):
                                                    x_s_n_hidden= self.x_s_n_hidden,
                                                    theta_n_dim= self.n_y * 2 * (self.n_polynomials + 1),
                                                    basis=TrendBasis(degree_of_polynomial=self.n_polynomials,
-                                                                            backcast_size=self.input_size,
-                                                                            forecast_size=self.output_size),
+                                                                    backcast_size=self.input_size,
+                                                                    forecast_size=self.output_size,
+                                                                    n_freq_downsample=self.n_freq_downsample[i]),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
                                                    batch_normalization=batch_normalization_block,
                                                    dropout_prob=self.dropout_prob_theta,
                                                    activation=self.activation)
                     elif self.stack_types[i] == 'identity':
+                        new_theta_n_dim = self.n_y * (self.input_size + self.output_size//self.n_freq_downsample[i])
                         nbeats_block = NBeatsBlock(n_y = self.n_y,
                                                    input_size=self.input_size,
                                                    output_size=self.output_size,
@@ -277,9 +282,10 @@ class Nbeats(object):
                                                    x_t_n_inputs=self.n_x_t,
                                                    x_s_n_inputs = self.n_x_s,
                                                    x_s_n_hidden= self.x_s_n_hidden,
-                                                   theta_n_dim= self.n_y * (self.input_size + self.output_size),
+                                                   theta_n_dim= new_theta_n_dim,
                                                    basis=IdentityBasis(backcast_size=self.input_size,
-                                                                       forecast_size=self.output_size),
+                                                                       forecast_size=self.output_size,
+                                                                       n_freq_downsample=self.n_freq_downsample[i]),
                                                    n_layers=self.n_layers[i],
                                                    theta_n_hidden=self.n_hidden[i],
                                                    batch_normalization=batch_normalization_block,
@@ -542,7 +548,7 @@ class Nbeats(object):
         assert not ts_loader.shuffle, 'ts_loader must have shuffle as False.'
 
         forecasts = []
-        #block_forecasts = []
+        block_forecasts = []
         outsample_ys = []
         outsample_masks = []
         with t.no_grad():
@@ -557,32 +563,32 @@ class Nbeats(object):
                 # available_mask = available_mask.unsqueeze(1)
                 # outsample_mask = outsample_mask.unsqueeze(1)
 
-                outsample_y, forecast = self.model(S=S, Y=Y, X=X,
-                                                   insample_mask=available_mask,
-                                                   return_decomposition=False) #<---- CUIDADO
+                outsample_y, forecast, block_forecast = self.model(S=S, Y=Y, X=X,
+                                                                   insample_mask=available_mask,
+                                                                   return_decomposition=True)
                 outsample_ys.append(outsample_y.cpu().data.numpy())
                 forecasts.append(forecast.cpu().data.numpy())
-                #block_forecasts.append(block_forecast.cpu().data.numpy())
+                block_forecasts.append(block_forecast.cpu().data.numpy())
                 outsample_masks.append(outsample_mask)
 
         forecasts = np.vstack(forecasts)
-        #block_forecasts = np.vstack(block_forecasts)
+        block_forecasts = np.vstack(block_forecasts)
         outsample_ys = np.vstack(outsample_ys)
         outsample_masks = np.vstack(outsample_masks)
 
         n_series = ts_loader.ts_dataset.n_series
-        #_, n_components, _ = block_forecast.size() #(n_windows, n_components, output_size)
+        _, n_components, _, _ = block_forecast.size() #(n_windows, n_components, n_y, output_size)
         n_fcds = len(outsample_ys) // n_series
         outsample_ys = outsample_ys.reshape(n_series, n_fcds, self.n_y, self.output_size)
         forecasts = forecasts.reshape(n_series, n_fcds, self.n_y, self.output_size)
         outsample_masks = outsample_masks.reshape(n_series, n_fcds, self.n_y, self.output_size)
-        #block_forecasts = block_forecasts.reshape(n_series, n_fcds, n_components, self.output_size)
+        block_forecasts = block_forecasts.reshape(n_series, n_fcds, n_components, self.n_y, self.output_size)
 
         self.model.train()
-        # if return_decomposition:
-        #     return outsample_ys, forecasts, block_forecasts, outsample_masks
-        # else:
-        return outsample_ys, forecasts, outsample_masks
+        if return_decomposition:
+            return outsample_ys, forecasts, block_forecasts, outsample_masks
+        else:
+            return outsample_ys, forecasts, outsample_masks
 
     # def forecast(self, Y_df, X_df, f_cols, return_decomposition):
     #     # TODO: protect available_mask from nans
