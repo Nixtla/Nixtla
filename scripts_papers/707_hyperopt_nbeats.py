@@ -270,8 +270,8 @@ def main(args):
     data = data[data['unique_id'].isin(filter_patients)].reset_index(drop=True)
 
     #horizons = [30, 60, 120, 240, 480, 960, 1200]
-    horizons = [30, 60, 120, 240]
-    #horizons = [480, 960]
+    #horizons = [30, 60, 120, 240]
+    horizons = [480, 960]
 
     len_validation = 5*250
     len_test = 5*250
