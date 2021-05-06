@@ -13,8 +13,8 @@ from nixtla.data.tsdataset import TimeSeriesDataset
 from nixtla.data.tsloader_general import TimeSeriesLoader
 from nixtla.data.scalers import Scaler
 
-def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature, pooling):
-    # -------------------------------------------- HYPERPARAMATER SPACE -------------------------------------------
+
+def create_space(model, horizon, pooling):
     if pooling:
         print('Pooling activated')
         n_pooling_kernel = [ 2*[1], 2*[2], 2*[4], 2*[8], 2*[16], 2*[32] ]
@@ -26,53 +26,156 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
     else:
         features = [feature]
 
-    nbeats_space= {# Architecture parameters
-                'model':'nbeats',
-                'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
-                'output_size': hp.choice('output_size', [horizon]),
-                'shared_weights': hp.choice('shared_weights', [False]),
-                'activation': hp.choice('activation', ['relu']),
-                'initialization':  hp.choice('initialization', ['default']),
-                'stack_types': hp.choice('stack_types', [ ['trend', 'seasonality'] ]),
-                'n_blocks': hp.choice('n_blocks', [ [1, 1], [3, 3] ]),
-                'n_layers': hp.choice('n_layers', [ 10*[2] ]),
-                'n_pooling_kernel': hp.choice('n_pooling_kernel', n_pooling_kernel),
-                'n_freq_downsample': hp.choice('n_freq_downsample', [ [1, 1] ]),
-                'n_hidden': hp.choice('n_hidden', [ 32, 64, 128, 256, 512 ]),
-                'n_harmonics': hp.choice('n_harmonics', [1, 2]),
-                'n_polynomials': hp.choice('n_polynomials', [2, 4]),
-                'exogenous_n_channels': hp.choice('exogenous_n_channels', [0]),
-                'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
-                # Regularization and optimization parameters
-                'batch_normalization': hp.choice('batch_normalization', [False]),
-                'dropout_prob_theta': hp.choice('dropout_prob_theta', [0]),
-                'dropout_prob_exogenous': hp.choice('dropout_prob_exogenous', [0]),
-                'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
-                'lr_decay': hp.choice('lr_decay', [0.5]),
-                'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
-                'weight_decay': hp.choice('weight_decay', [0]),
-                'n_iterations': hp.choice('n_iterations', [3_000]),
-                'early_stopping': hp.choice('early_stopping', [10]),
-                'eval_freq': hp.choice('eval_freq', [50]),
-                'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
-                'loss': hp.choice('loss', ['MAE', 'MSE']),
-                'loss_hypar': hp.choice('loss_hypar', [0.5]),                
-                'val_loss': hp.choice('val_loss', ['MAE']),
-                'l1_theta': hp.choice('l1_theta', [0]),
-                # Data parameters
-                'len_sample_chunks': hp.choice('len_sample_chunks', [None]),
-                'normalizer_y': hp.choice('normalizer_y', [None]),
-                'normalizer_x': hp.choice('normalizer_x', [None]),
-                'window_sampling_limit': hp.choice('window_sampling_limit', [100_000]),
-                'complete_inputs': hp.choice('complete_inputs', [True]),
-                'complete_sample': hp.choice('complete_sample', [True]),                
-                'frequency': hp.choice('frequency', ['H']),
-                'seasonality': hp.choice('seasonality', [24]),      
-                'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
-                'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
-                'batch_size': hp.choice('batch_size', [128, 256, 512]),
-                'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
-                'random_seed': hp.quniform('random_seed', 1, 50, 1)}
+    if model == 'nbeats_i':
+        space= {# Architecture parameters
+                    'model':'nbeats',
+                    'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
+                    'output_size': hp.choice('output_size', [horizon]),
+                    'shared_weights': hp.choice('shared_weights', [False]),
+                    'activation': hp.choice('activation', ['relu']),
+                    'initialization':  hp.choice('initialization', ['default']),
+                    'stack_types': hp.choice('stack_types', [ ['trend', 'seasonality'] ]),
+                    'n_blocks': hp.choice('n_blocks', [ [1, 1], [3, 3] ]),
+                    'n_layers': hp.choice('n_layers', [ 10*[2] ]),
+                    'n_pooling_kernel': hp.choice('n_pooling_kernel', n_pooling_kernel),
+                    'n_freq_downsample': hp.choice('n_freq_downsample', [ [1, 1] ]),
+                    'n_hidden': hp.choice('n_hidden', [ 32, 64, 128, 256, 512 ]),
+                    'n_harmonics': hp.choice('n_harmonics', [1, 2]),
+                    'n_polynomials': hp.choice('n_polynomials', [2, 4]),
+                    'exogenous_n_channels': hp.choice('exogenous_n_channels', [0]),
+                    'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
+                    # Regularization and optimization parameters
+                    'batch_normalization': hp.choice('batch_normalization', [False]),
+                    'dropout_prob_theta': hp.choice('dropout_prob_theta', [0]),
+                    'dropout_prob_exogenous': hp.choice('dropout_prob_exogenous', [0]),
+                    'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
+                    'lr_decay': hp.choice('lr_decay', [0.5]),
+                    'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
+                    'weight_decay': hp.choice('weight_decay', [0]),
+                    'n_iterations': hp.choice('n_iterations', [3_000]),
+                    'early_stopping': hp.choice('early_stopping', [10]),
+                    'eval_freq': hp.choice('eval_freq', [50]),
+                    'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
+                    'loss': hp.choice('loss', ['MAE', 'MSE']),
+                    'loss_hypar': hp.choice('loss_hypar', [0.5]),                
+                    'val_loss': hp.choice('val_loss', ['MAE']),
+                    'l1_theta': hp.choice('l1_theta', [0]),
+                    # Data parameters
+                    'len_sample_chunks': hp.choice('len_sample_chunks', [None]),
+                    'normalizer_y': hp.choice('normalizer_y', [None]),
+                    'normalizer_x': hp.choice('normalizer_x', [None]),
+                    'window_sampling_limit': hp.choice('window_sampling_limit', [100_000]),
+                    'complete_inputs': hp.choice('complete_inputs', [True]),
+                    'complete_sample': hp.choice('complete_sample', [True]),                
+                    'frequency': hp.choice('frequency', ['H']),
+                    'seasonality': hp.choice('seasonality', [24]),      
+                    'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
+                    'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
+                    'batch_size': hp.choice('batch_size', [128, 256, 512]),
+                    'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
+                    'random_seed': hp.quniform('random_seed', 1, 50, 1)}
+    elif model == 'nbeats_g':
+        space= {# Architecture parameters
+                    'model':'nbeats',
+                    'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
+                    'output_size': hp.choice('output_size', [horizon]),
+                    'shared_weights': hp.choice('shared_weights', [False]),
+                    'activation': hp.choice('activation', ['relu']),
+                    'initialization':  hp.choice('initialization', ['default']),
+                    'stack_types': hp.choice('stack_types', [ ['identity'] ]),
+                    'n_blocks': hp.choice('n_blocks', [ [3], [5] ]),
+                    'n_layers': hp.choice('n_layers', [ 10*[2] ]),
+                    'n_pooling_kernel': hp.choice('n_pooling_kernel', n_pooling_kernel),
+                    'n_freq_downsample': hp.choice('n_freq_downsample', [ [1] ]),
+                    'n_hidden': hp.choice('n_hidden', [ 32, 64, 128, 256, 512 ]),
+                    'n_harmonics': hp.choice('n_harmonics', [0]),
+                    'n_polynomials': hp.choice('n_polynomials', [0]),
+                    'exogenous_n_channels': hp.choice('exogenous_n_channels', [0]),
+                    'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
+                    # Regularization and optimization parameters
+                    'batch_normalization': hp.choice('batch_normalization', [False]),
+                    'dropout_prob_theta': hp.choice('dropout_prob_theta', [0]),
+                    'dropout_prob_exogenous': hp.choice('dropout_prob_exogenous', [0]),
+                    'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
+                    'lr_decay': hp.choice('lr_decay', [0.5]),
+                    'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
+                    'weight_decay': hp.choice('weight_decay', [0]),
+                    'n_iterations': hp.choice('n_iterations', [3_000]),
+                    'early_stopping': hp.choice('early_stopping', [10]),
+                    'eval_freq': hp.choice('eval_freq', [50]),
+                    'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
+                    'loss': hp.choice('loss', ['MAE', 'MSE']),
+                    'loss_hypar': hp.choice('loss_hypar', [0.5]),                
+                    'val_loss': hp.choice('val_loss', ['MAE']),
+                    'l1_theta': hp.choice('l1_theta', [0]),
+                    # Data parameters
+                    'len_sample_chunks': hp.choice('len_sample_chunks', [None]),
+                    'normalizer_y': hp.choice('normalizer_y', [None]),
+                    'normalizer_x': hp.choice('normalizer_x', [None]),
+                    'window_sampling_limit': hp.choice('window_sampling_limit', [100_000]),
+                    'complete_inputs': hp.choice('complete_inputs', [True]),
+                    'complete_sample': hp.choice('complete_sample', [True]),                
+                    'frequency': hp.choice('frequency', ['H']),
+                    'seasonality': hp.choice('seasonality', [24]),      
+                    'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
+                    'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
+                    'batch_size': hp.choice('batch_size', [128, 256, 512]),
+                    'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
+                    'random_seed': hp.quniform('random_seed', 1, 50, 1)}
+    elif model == 'MLP':
+        space= {# Architecture parameters
+                    'model':'nbeats',
+                    'input_size_multiplier': hp.choice('input_size_multiplier', [1, 2, 3, 4, 5]),
+                    'output_size': hp.choice('output_size', [horizon]),
+                    'shared_weights': hp.choice('shared_weights', [False]),
+                    'activation': hp.choice('activation', ['relu']),
+                    'initialization':  hp.choice('initialization', ['default']),
+                    'stack_types': hp.choice('stack_types', [ ['identity'] ]),
+                    'n_blocks': hp.choice('n_blocks', [ [1] ]),
+                    'n_layers': hp.choice('n_layers', [ 10*[2] ]),
+                    'n_pooling_kernel': hp.choice('n_pooling_kernel', n_pooling_kernel),
+                    'n_freq_downsample': hp.choice('n_freq_downsample', [ [1] ]),
+                    'n_hidden': hp.choice('n_hidden', [ 32, 64, 128, 256, 512 ]),
+                    'n_harmonics': hp.choice('n_harmonics', [0]),
+                    'n_polynomials': hp.choice('n_polynomials', [0]),
+                    'exogenous_n_channels': hp.choice('exogenous_n_channels', [0]),
+                    'x_s_n_hidden': hp.choice('x_s_n_hidden', [0]),
+                    # Regularization and optimization parameters
+                    'batch_normalization': hp.choice('batch_normalization', [False]),
+                    'dropout_prob_theta': hp.choice('dropout_prob_theta', [0]),
+                    'dropout_prob_exogenous': hp.choice('dropout_prob_exogenous', [0]),
+                    'learning_rate': hp.loguniform('learning_rate', np.log(5e-4), np.log(0.001)),
+                    'lr_decay': hp.choice('lr_decay', [0.5]),
+                    'n_lr_decay_steps': hp.choice('n_lr_decay_steps', [3]),
+                    'weight_decay': hp.choice('weight_decay', [0]),
+                    'n_iterations': hp.choice('n_iterations', [3_000]),
+                    'early_stopping': hp.choice('early_stopping', [10]),
+                    'eval_freq': hp.choice('eval_freq', [50]),
+                    'n_val_weeks': hp.choice('n_val_weeks', [52*2]),
+                    'loss': hp.choice('loss', ['MAE', 'MSE']),
+                    'loss_hypar': hp.choice('loss_hypar', [0.5]),                
+                    'val_loss': hp.choice('val_loss', ['MAE']),
+                    'l1_theta': hp.choice('l1_theta', [0]),
+                    # Data parameters
+                    'len_sample_chunks': hp.choice('len_sample_chunks', [None]),
+                    'normalizer_y': hp.choice('normalizer_y', [None]),
+                    'normalizer_x': hp.choice('normalizer_x', [None]),
+                    'window_sampling_limit': hp.choice('window_sampling_limit', [100_000]),
+                    'complete_inputs': hp.choice('complete_inputs', [True]),
+                    'complete_sample': hp.choice('complete_sample', [True]),                
+                    'frequency': hp.choice('frequency', ['H']),
+                    'seasonality': hp.choice('seasonality', [24]),      
+                    'idx_to_sample_freq': hp.choice('idx_to_sample_freq', [1]),
+                    'val_idx_to_sample_freq': hp.choice('val_idx_to_sample_freq', [1]),
+                    'batch_size': hp.choice('batch_size', [128, 256, 512]),
+                    'n_series_per_batch': hp.choice('n_series_per_batch', [1]),
+                    'random_seed': hp.quniform('random_seed', 1, 50, 1)}
+
+    return space
+
+def evaluate_horizon(model, horizon, len_validation, len_test, data, n_trials, feature, pooling):
+    # ------------------------------------------------------- HYPERPARAMATER SPACE --------------------------------------------------
+    nbeats_space = create_space(model=model, horizon=horizon, pooling=pooling)
 
     # ------------------------------------------------------- DATA PROCESSING -------------------------------------------------------
     ts_per_patient = 10000     
@@ -80,7 +183,6 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
     uniques = data.unique_id.unique()
     Y_df = data[['unique_id','ds'] + features].copy()
     Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
-    #Y_df = Y_df.rename(columns={feature:'y'})
     Y_df['ds'] = np.tile(np.array(range(ts_per_patient)), n_patients)
 
     # Scaling
@@ -105,9 +207,6 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
     # ------------------------------------------------------- HYPERPARAMATER TUNNING -------------------------------------------------------
     trials = hyperopt_tunning(space=nbeats_space, hyperopt_iters=n_trials, loss_function=mae, Y_df=Y_train_df, X_df=None, S_df=None,
                               ds_in_test=len_validation, shuffle_outsample=False)
-
-    # with open(f'./results/hyperopt_{horizon}_{args.feature}_{args.pooling}_{args.experiment_id}.p', "wb") as f:
-    #     pickle.dump(trials, f)
 
     # Best mc
     mc = trials.trials[np.argmin(trials.losses())]['result']['mc']
@@ -156,22 +255,8 @@ def evaluate_horizon(horizon, len_validation, len_test, data, n_trials, feature,
             y_hat_test[p, :, f, :] = scaler.inv_scale(y_hat_test[p, :, f, :])
 
     result = {'horizon': horizon, 'trials': trials, 'y_true':y_true_test, 'y_hat':y_hat_test}
-    with open(f'./results/result_{horizon}_{feature}_{pooling}_{args.experiment_id}.p', "wb") as f:
+    with open(f'./results/result_{model}_{horizon}_{feature}_{pooling}_{args.experiment_id}.p', "wb") as f:
         pickle.dump(result, f)
-
-    fig, ax = plt.subplots(nrows=3, ncols=4, figsize = (15,10))
-    for i in range(12):
-        ax[i//4, i%4].plot(y_true_test[i,-1,0,:])
-        ax[i//4, i%4].plot(y_hat_test[i,-1,0,:])
-        ax[i//4, i%4].grid(True)
-        ax[i//4, i%4].set_xlabel('Timestamp')
-        ax[i//4, i%4].set_ylabel('ART')
-        ax[i//4, i%4].set_title(f'Patient {i}')
-    plt.tight_layout()
-    plt.savefig(f'./results/{feature}_{horizon}.pdf')
-    plt.cla()
-
-    return y_true_test, y_hat_test
 
 
 def main(args):
@@ -184,25 +269,19 @@ def main(args):
     filter_patients = aux.unique_id.unique()
     data = data[data['unique_id'].isin(filter_patients)].reset_index(drop=True)
 
-    #horizons = [30, 60, 120, 240, 480, 960]
-    #horizons = [args.horizon]
-    horizons = [1200]
-    len_validation = 6*250
-    len_test = 6*250
-    # mae_list = []
-    # rmse_list = []
-    # y_true_list = []
-    # y_hat_list = []
+    #horizons = [30, 60, 120, 240, 480, 960, 1200]
+    horizons = [30, 60, 120, 240]
+    #horizons = [480, 960]
+    
+    len_validation = 5*250
+    len_test = 5*250
     for horizon in horizons:
         print(100*'-')
         print(100*'-')
         print('HORIZON: ', horizon)
-        y_true, y_hat = evaluate_horizon(horizon=horizon, len_validation=len_validation, len_test=len_test,
-                                         data=data, n_trials=args.hyperopt_iters, feature=args.feature, pooling=args.pooling)
-        # y_true_list.append(y_true)
-        # y_hat_list.append(y_hat)
-        # mae_list.append(mae(y_true, y_hat))
-        # rmse_list.append(rmse(y_true, y_hat))
+        evaluate_horizon(model=args.model, horizon=horizon, len_validation=len_validation, len_test=len_test,
+                         data=data, n_trials=args.hyperopt_iters, feature=args.feature, pooling=args.pooling)
+  
         print(100*'-')
         print(100*'-')
 
@@ -213,6 +292,7 @@ def main(args):
 def parse_args():
     desc = "707"
     parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('--model', type=str, help='model')
     parser.add_argument('--feature', type=str, help='feature')
     parser.add_argument('--horizon', type=int, help='horizon')
     parser.add_argument('--pooling', type=int, help='pooling')
@@ -232,27 +312,27 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504"
 
 
 
@@ -261,24 +341,24 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 50 --experiment_id "20210504_2"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_g' --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 50 --experiment_id "20210504_2"
