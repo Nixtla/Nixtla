@@ -173,17 +173,36 @@ def evaluate_horizon(model, horizon, len_validation, len_test, data, n_trials, f
     nbeats_space = create_space(model=model, horizon=horizon, pooling=pooling)
 
     # ------------------------------------------------------- DATA PROCESSING -------------------------------------------------------
-    if feature == 'BOTH':
-        features = ['ART', 'PLETH']
-    else:
-        features = [feature]
+    ts_per_patient = 10000
+    if (feature=='ART') or (feature=='PLETH') or (feature=='BOTH'): 
+        if feature == 'BOTH':
+            features = ['ART', 'PLETH']
+        else:
+            features = [feature]
 
-    ts_per_patient = 10000     
-    n_patients = data.unique_id.nunique()
-    uniques = data.unique_id.unique()
-    Y_df = data[['unique_id','ds'] + features].copy()
-    Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
-    Y_df['ds'] = np.tile(np.array(range(ts_per_patient)), n_patients)
+        
+        n_patients = data.unique_id.nunique()
+        uniques = data.unique_id.unique()
+        Y_df = data[['unique_id','ds'] + features].copy()
+        Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
+        Y_df['ds'] = np.tile(np.array(range(ts_per_patient)), n_patients)
+
+    if feature == 'TOGETHER':
+        features = ['y']
+        Y_art_df = data[['unique_id','ds','ART']]
+        Y_art_df.columns = ['unique_id','ds','y']
+        Y_art_df['unique_id'] = Y_art_df['unique_id'] + '_ART'
+
+        Y_pleth_df = data[['unique_id','ds','PLETH']]
+        Y_pleth_df['unique_id'] = Y_pleth_df['unique_id'] + '_PLETH'
+        Y_pleth_df.columns = ['unique_id','ds','y']
+
+        Y_df = Y_art_df.append(Y_pleth_df)
+        n_patients = Y_df.unique_id.nunique()
+        uniques = Y_df.unique_id.unique()
+        Y_df = Y_df.sort_values(['unique_id','ds']).reset_index(drop=True)
+        Y_df['ds'] = np.tile(np.array(range(ts_per_patient)), n_patients)
+        print('patients:', n_patients)
 
     # Scaling
     scaler_list = []
@@ -270,8 +289,9 @@ def main(args):
     data = data[data['unique_id'].isin(filter_patients)].reset_index(drop=True)
 
     #horizons = [30, 60, 120, 240, 480, 960, 1200]
-    horizons = [30, 60, 120, 240]
+    #horizons = [30, 60, 120, 240]
     #horizons = [480, 960]
+    horizons = [args.horizon]
 
     len_validation = 5*250
     len_test = 5*250
@@ -312,27 +332,27 @@ if __name__ == '__main__':
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'ART' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=1 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'PLETH' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'ART' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=2 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'PLETH' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'BOTH' --horizon 1500 --pooling 1 --hyperopt_iters 25 --experiment_id "20210505"
 
 # source ~/anaconda3/etc/profile.d/conda.sh
 # conda activate riemann
-# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'MLP' --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
+# CUDA_VISIBLE_DEVICES=3 PYTHONPATH=. python scripts_papers/707_hyperopt_nbeats.py --model 'nbeats_i' --feature 'BOTH' --horizon 1500 --pooling 0 --hyperopt_iters 25 --experiment_id "20210505"
 
 
 
